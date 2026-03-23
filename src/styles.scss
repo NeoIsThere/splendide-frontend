@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+// ─── Light theme — monochrome (white + tones of black) ────
+:root {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --text-primary: #1a1a1a;
+  --text: #1a1a1a;
+  --text-muted: #999;
+  --text-secondary: #666;
+  --text-muted-secondary: #b0b0b0;
+  --border: #e0e0e0;
+  --hover: rgba(0, 0, 0, 0.05);
+  --accent: #1a1a1a;
+}
+
+// ─── Dark theme — monochrome (black + tones of grey/white) ─
+app-root.dark {
+  --bg: #111;
+  --card: #1a1a1a;
+  --text-primary: #e0e0e0;
+  --text: #e0e0e0;
+  --text-muted: #666;
+  --text-secondary: #999;
+  --text-muted-secondary: #555;
+  --border: #2a2a2a;
+  --hover: rgba(255, 255, 255, 0.06);
+  --accent: #e0e0e0;
+}
+

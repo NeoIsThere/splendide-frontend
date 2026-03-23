@@ -1,0 +1,585 @@
+// ─── Variables ─────────────────────────────────────────────
+$ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+:host {
+  display: block;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  transition: background 0.35s $ease, color 0.35s $ease;
+}
+
+// ─── Layout ────────────────────────────────────────────────
+.layout {
+  display: flex;
+  gap: 56px;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 60px 24px 80px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 64px;
+    max-width: 480px;
+  }
+}
+
+.main-section {
+  flex: 1;
+  max-width: 460px;
+  min-width: 0;
+
+  @media (max-width: 768px) {
+    max-width: none;
+  }
+}
+
+.secondary-section {
+  flex: 0 0 260px;
+  padding-top: 64px;
+
+  // lower intensity
+  --text: var(--text-secondary);
+  --text-muted: var(--text-muted-secondary);
+
+  @media (max-width: 768px) {
+    flex: none;
+    width: 100%;
+  }
+}
+
+// ─── Header ────────────────────────────────────────────────
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.logo {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+// ─── Icon buttons ──────────────────────────────────────────
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: color 0.2s $ease, background 0.2s $ease;
+  display: grid;
+  place-items: center;
+
+  &:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+}
+
+.icon-btn-sm {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  transition: color 0.2s $ease;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+  }
+}
+
+.confirm-btn {
+  color: var(--text);
+}
+
+// ─── Counter ───────────────────────────────────────────────
+.counter {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 32px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+}
+
+.counter-sec {
+  margin-bottom: 20px;
+}
+
+// ─── Section title ─────────────────────────────────────────
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: lowercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 6px;
+}
+
+// ─── Task list ─────────────────────────────────────────────
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+// ─── Main task item ────────────────────────────────────────
+.task-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  transition: opacity 0.4s $ease;
+
+  &.done {
+    opacity: 0.5;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.task-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+// ─── Check button ──────────────────────────────────────────
+.check-btn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transition: border-color 0.2s $ease, background 0.2s $ease;
+
+  &.checked {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  &-sub {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+}
+
+// ─── Task text ─────────────────────────────────────────────
+.task-text {
+  flex: 1;
+  font-size: 1.05rem;
+  font-weight: 500;
+  cursor: text;
+  transition: color 0.2s $ease;
+
+  &.struck {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+}
+
+// ─── Edit input (inline) ──────────────────────────────────
+.edit-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  border: none;
+  border-bottom: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 500;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s $ease;
+
+  &:focus {
+    border-color: var(--text);
+  }
+}
+
+.edit-input-sub {
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.edit-input-sec {
+  font-size: 0.88rem;
+  font-weight: 400;
+}
+
+// ─── Subtask row ───────────────────────────────────────────
+.subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-left: 32px;
+}
+
+.subtask-text {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--text);
+  opacity: 0.7;
+  cursor: text;
+
+  &.struck {
+    text-decoration: line-through;
+    opacity: 0.4;
+  }
+}
+
+// ─── Add subtask button (inside item) ──────────────────────
+.add-subtask-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  margin-top: 8px;
+  margin-left: 32px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s $ease, color 0.2s $ease;
+
+  .task-item:hover &,
+  .task-item:focus-within & {
+    opacity: 0.5;
+  }
+
+  &:hover {
+    opacity: 1 !important;
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+}
+
+// ─── Remove button ─────────────────────────────────────────
+.remove-btn {
+  opacity: 0;
+  transition: opacity 0.2s $ease, color 0.2s $ease !important;
+
+  .task-item:hover &,
+  .task-item:focus-within &,
+  .sec-task-item:hover &,
+  .sec-task-item:focus-within & {
+    opacity: 1;
+  }
+
+  &:hover {
+    color: #c44 !important;
+  }
+
+  &:focus-visible {
+    opacity: 1;
+  }
+}
+
+// ─── Add button (dashed) ──────────────────────────────────
+.add-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.2s $ease, color 0.2s $ease;
+
+  &:hover {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+}
+
+.add-btn-sec {
+  padding: 10px;
+  border-radius: 10px;
+}
+
+// ─── Add form ──────────────────────────────────────────────
+.add-form {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.add-form-sec {
+  padding: 10px 0;
+}
+
+.input-minimal {
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  border-bottom: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 500;
+  font-family: inherit;
+  transition: border-color 0.2s $ease;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--text);
+  }
+}
+
+.input-sub {
+  font-size: 0.88rem;
+  font-weight: 400;
+  padding: 10px 0;
+}
+
+.input-sec {
+  font-size: 0.88rem;
+  font-weight: 400;
+  padding: 10px 0;
+}
+
+.subtask-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 24px;
+
+  > .input-minimal {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+// ─── Secondary task item ──────────────────────────────────
+.sec-task-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  transition: opacity 0.4s $ease;
+
+  &.done {
+    opacity: 0.5;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.sec-task-text {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 400;
+  cursor: text;
+  transition: color 0.2s $ease;
+
+  &.struck {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+}
+
+// ─── Empty / done states ───────────────────────────────────
+.empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 40px 0;
+  margin: 0;
+}
+
+.empty-state-sec {
+  font-size: 0.82rem;
+  padding: 24px 0;
+}
+
+.done-message {
+  text-align: center;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-top: 24px;
+}
+
+// ─── Scroll FAB (mobile only) ─────────────────────────────
+.scroll-fab {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--text-muted);
+  cursor: pointer;
+  place-items: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: color 0.2s $ease, background 0.2s $ease;
+  z-index: 10;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 768px) {
+    display: grid;
+  }
+}
+
+// ─── Secondary header ──────────────────────────────────────
+.sec-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.edit-title-btn {
+  opacity: 0;
+  transition: opacity 0.2s $ease, color 0.2s $ease !important;
+
+  .sec-header:hover &,
+  .sec-header:focus-within & {
+    opacity: 0.5;
+  }
+
+  &:hover {
+    opacity: 1 !important;
+  }
+}
+
+.sec-title-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  border-bottom: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  text-transform: lowercase;
+  letter-spacing: 0.08em;
+  outline: none;
+  transition: border-color 0.2s $ease;
+
+  &:focus {
+    border-color: var(--text);
+  }
+}
+
+// ─── CDK drag & drop ──────────────────────────────────────
+.visually-hidden {
+  height: 0;
+  overflow: hidden;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.cdk-drag-preview {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  opacity: 0.9;
+}
+
+.cdk-drag-placeholder {
+  opacity: 0 !important;
+}
+
+.cdk-drag-animating {
+  transition: transform 0.25s $ease;
+}
+
+.cdk-drop-list-dragging .task-item:not(.cdk-drag-placeholder),
+.cdk-drop-list-dragging .sec-task-item:not(.cdk-drag-placeholder) {
+  transition: transform 0.25s $ease;
+}
+
+.task-item,
+.sec-task-item {
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
