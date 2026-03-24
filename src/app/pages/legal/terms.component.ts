@@ -8,15 +8,15 @@ import { RouterLink } from '@angular/router';
   template: `
     <div class="legal-page">
       <div class="legal-card">
-        <a class="legal-back" routerLink="/">&larr; Back to Fusione</a>
+        <a class="legal-back" routerLink="/">&larr; Back to Splendide</a>
         <h1>Terms of Use</h1>
         <p class="legal-updated">Last updated: March 24, 2026</p>
 
         <h2>1. Acceptance of Terms</h2>
-        <p>By accessing or using Fusione ("the Service"), you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.</p>
+        <p>By accessing or using Splendide ("the Service"), you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.</p>
 
         <h2>2. Description of Service</h2>
-        <p>Fusione is a task management application. The Service is available as a free tier (local browser storage only) and a paid Premium tier (cloud sync, $7 one-time payment).</p>
+        <p>Splendide is a task management application. The Service is available as a free tier (local browser storage only) and a paid Premium tier (cloud sync, $7 one-time payment).</p>
 
         <h2>3. User Accounts</h2>
         <p>Account creation is optional. You may use the Service without an account, in which case your data is stored only in your browser's local storage. If you create an account, you are responsible for maintaining the confidentiality of your credentials.</p>
@@ -34,13 +34,13 @@ import { RouterLink } from '@angular/router';
         </ul>
 
         <h2>6. Intellectual Property</h2>
-        <p>All content, design, and code of the Service are owned by Fusione and protected by applicable intellectual property laws. Your task data remains yours.</p>
+        <p>All content, design, and code of the Service are owned by Splendide and protected by applicable intellectual property laws. Your task data remains yours.</p>
 
         <h2>7. Disclaimer of Warranties</h2>
         <p>The Service is provided "as is" and "as available" without warranties of any kind, either express or implied. We do not guarantee that the Service will be uninterrupted, secure, or error-free.</p>
 
         <h2>8. Limitation of Liability</h2>
-        <p>To the maximum extent permitted by law, Fusione shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of data, profits, or goodwill.</p>
+        <p>To the maximum extent permitted by law, Splendide shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of data, profits, or goodwill.</p>
 
         <h2>9. Termination</h2>
         <p>We may suspend or terminate your access to the Service at any time for violation of these Terms. You may delete your account at any time.</p>
@@ -52,7 +52,7 @@ import { RouterLink } from '@angular/router';
         <p>These Terms are governed by the laws of the United States. For users in the European Union, mandatory consumer protection laws of your country of residence apply.</p>
 
         <h2>12. Contact</h2>
-        <p>For questions about these Terms, contact us at <strong>support&#64;Fusione.app</strong>.</p>
+        <p>For questions about these Terms, contact us at <strong>support&#64;splendide.app</strong>.</p>
       </div>
     </div>
   `,

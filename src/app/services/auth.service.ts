@@ -65,7 +65,7 @@ export class AuthService {
       const res = await firstValueFrom(this.http.post<{ accessToken: string }>(`${this.apiUrl}/auth/refresh`, {}, { withCredentials: true }));
       if (res.accessToken) {
         this._token.set(res.accessToken);
-        localStorage.setItem('fusione_token', res.accessToken);
+        localStorage.setItem('splendide_token', res.accessToken);
         return res.accessToken;
       }
     } catch {
@@ -80,7 +80,7 @@ export class AuthService {
     try {
       const user = await firstValueFrom(this.http.get<User>(`${this.apiUrl}/user/me`));
       this._user.set(user);
-      localStorage.setItem('fusione_user', JSON.stringify(user));
+      localStorage.setItem('splendide_user', JSON.stringify(user));
     } catch {
       // ignore — user may not be logged in
     }
@@ -99,7 +99,7 @@ export class AuthService {
     if (isPremium) {
       this._user.update(u => u ? { ...u, isPremium: true } : u);
       const user = this._user();
-      if (user) localStorage.setItem('fusione_user', JSON.stringify(user));
+      if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
     }
     return isPremium;
   }
@@ -113,8 +113,8 @@ export class AuthService {
   logout(): void {
     this._user.set(null);
     this._token.set(null);
-    localStorage.removeItem('fusione_token');
-    localStorage.removeItem('fusione_user');
+    localStorage.removeItem('splendide_token');
+    localStorage.removeItem('splendide_user');
     this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true }).subscribe();
     this.router.navigate(['/']);
   }
@@ -122,17 +122,17 @@ export class AuthService {
   private setSession(res: AuthResponse): void {
     this._token.set(res.accessToken);
     this._user.set(res.user);
-    localStorage.setItem('fusione_token', res.accessToken);
-    localStorage.setItem('fusione_user', JSON.stringify(res.user));
+    localStorage.setItem('splendide_token', res.accessToken);
+    localStorage.setItem('splendide_user', JSON.stringify(res.user));
   }
 
   private loadToken(): string | null {
-    try { return localStorage.getItem('fusione_token'); } catch { return null; }
+    try { return localStorage.getItem('splendide_token'); } catch { return null; }
   }
 
   private loadUser(): User | null {
     try {
-      const raw = localStorage.getItem('fusione_user');
+      const raw = localStorage.getItem('splendide_user');
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   }

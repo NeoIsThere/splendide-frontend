@@ -10,7 +10,7 @@ import { AuthService } from '../../services/auth.service';
   template: `
     <div class="auth-page">
       <div class="auth-card">
-        <h1 class="auth-logo">fusione.</h1>
+        <h1 class="auth-logo">splendide.</h1>
         <h2 class="auth-title">Reset password</h2>
 
         @if (success()) {

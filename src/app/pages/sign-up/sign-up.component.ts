@@ -16,7 +16,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
             <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
           </svg>
         </a>
-        <h1 class="auth-logo">fusione.</h1>
+        <h1 class="auth-logo">splendide.</h1>
         <h2 class="auth-title">Create account</h2>
 
         @if (error()) {

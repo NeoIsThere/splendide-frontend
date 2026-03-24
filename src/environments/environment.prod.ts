@@ -1,4 +1,4 @@
 export const environment = {
-  apiUrl: '/api',
+  apiUrl: 'https://api.splendide.app/api',
   googleClientId: 'YOUR_GOOGLE_CLIENT_ID',
 };

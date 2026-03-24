@@ -41,7 +41,7 @@ export class HomeComponent {
   protected readonly dark = this.theme.dark;
 
   // ─── Main tasks ─────────────────────────────────────────
-  protected readonly tasks = signal<Task[]>(this.load('fusione_tasks', []));
+  protected readonly tasks = signal<Task[]>(this.load('splendide_tasks', []));
   protected readonly adding = signal(false);
   protected readonly newTaskText = signal('');
   protected readonly newSubtasks = signal<string[]>([]);
@@ -59,22 +59,22 @@ export class HomeComponent {
   });
 
   // ─── Secondary tasks ───────────────────────────────────
-  protected readonly secondaryTasks = signal<SecondaryTask[]>(this.load('fusione_secondary', []));
+  protected readonly secondaryTasks = signal<SecondaryTask[]>(this.load('splendide_secondary', []));
   protected readonly addingSecondary = signal(false);
   protected readonly newSecondaryText = signal('');
   protected readonly editingSecondaryId = signal<number | null>(null);
-  protected readonly secondaryTitle = signal(this.load('fusione_sec_title', 'secondary'));
+  protected readonly secondaryTitle = signal(this.load('splendide_sec_title', 'secondary'));
   protected readonly editingSecondaryTitle = signal(false);
-  protected readonly secondaryVisible = signal(this.load('fusione_sec_visible', true));
+  protected readonly secondaryVisible = signal(this.load('splendide_sec_visible', true));
 
   // ─── User menu ──────────────────────────────────────────
   protected readonly menuOpen = signal(false);
 
   constructor() {
-    effect(() => this.save('fusione_tasks', this.tasks()));
-    effect(() => this.save('fusione_secondary', this.secondaryTasks()));
-    effect(() => this.save('fusione_sec_title', this.secondaryTitle()));
-    effect(() => this.save('fusione_sec_visible', this.secondaryVisible()));
+    effect(() => this.save('splendide_tasks', this.tasks()));
+    effect(() => this.save('splendide_secondary', this.secondaryTasks()));
+    effect(() => this.save('splendide_sec_title', this.secondaryTitle()));
+    effect(() => this.save('splendide_sec_visible', this.secondaryVisible()));
 
     // Auto-sync for premium users
     effect(() => {

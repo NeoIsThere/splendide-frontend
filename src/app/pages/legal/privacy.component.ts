@@ -8,15 +8,15 @@ import { RouterLink } from '@angular/router';
   template: `
     <div class="legal-page">
       <div class="legal-card">
-        <a class="legal-back" routerLink="/">&larr; Back to Fusione</a>
+        <a class="legal-back" routerLink="/">&larr; Back to Splendide</a>
         <h1>Privacy Policy</h1>
         <p class="legal-updated">Last updated: March 24, 2026</p>
 
         <h2>1. Introduction</h2>
-        <p>This Privacy Policy describes how Fusione ("we", "us", "our") collects, uses, and protects your personal data. We are committed to complying with the General Data Protection Regulation (GDPR), the California Consumer Privacy Act (CCPA), and other applicable data protection laws.</p>
+        <p>This Privacy Policy describes how Splendide ("we", "us", "our") collects, uses, and protects your personal data. We are committed to complying with the General Data Protection Regulation (GDPR), the California Consumer Privacy Act (CCPA), and other applicable data protection laws.</p>
 
         <h2>2. Data Controller</h2>
-        <p>Fusione is the data controller for the personal data processed through this Service. Contact: <strong>privacy&#64;Fusione.app</strong>.</p>
+        <p>Splendide is the data controller for the personal data processed through this Service. Contact: <strong>privacy&#64;splendide.app</strong>.</p>
 
         <h2>3. Data We Collect</h2>
         <h3>Without an account (free tier)</h3>
@@ -77,7 +77,7 @@ import { RouterLink } from '@angular/router';
           <li><strong>Withdraw consent</strong> — where processing is based on consent</li>
           <li><strong>Non-discrimination</strong> (CCPA) — we will not discriminate against you for exercising your rights</li>
         </ul>
-        <p>To exercise any of these rights, contact <strong>privacy&#64;Fusione.app</strong>.</p>
+        <p>To exercise any of these rights, contact <strong>privacy&#64;splendide.app</strong>.</p>
 
         <h2>9. Cookies</h2>
         <p>We use only essential cookies required for authentication (HTTP-only refresh token cookie). We do not use tracking cookies, analytics cookies, or third-party advertising cookies.</p>
@@ -101,7 +101,7 @@ import { RouterLink } from '@angular/router';
         <p>We may update this Privacy Policy from time to time. We will notify registered users of material changes via email.</p>
 
         <h2>14. Contact & Complaints</h2>
-        <p>For privacy inquiries: <strong>privacy&#64;Fusione.app</strong></p>
+        <p>For privacy inquiries: <strong>privacy&#64;splendide.app</strong></p>
         <p>EU users may also lodge a complaint with your local data protection authority.</p>
       </div>
     </div>

@@ -9,7 +9,7 @@ export class ThemeService {
   constructor() {
     effect(() => {
       const isDark = this.dark();
-      try { localStorage.setItem('fusione_dark', JSON.stringify(isDark)); } catch {}
+      try { localStorage.setItem('splendide_dark', JSON.stringify(isDark)); } catch {}
       this.doc.body.classList.toggle('dark', isDark);
     });
   }
@@ -20,7 +20,7 @@ export class ThemeService {
 
   private loadDark(): boolean {
     try {
-      const raw = localStorage.getItem('fusione_dark') ?? localStorage.getItem('chiaro_dark');
+      const raw = localStorage.getItem('splendide_dark') ?? localStorage.getItem('chiaro_dark');
       return raw === 'true';
     } catch { return false; }
   }
