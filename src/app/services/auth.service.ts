@@ -88,8 +88,18 @@ export class AuthService {
 
   // ─── Payment ────────────────────────────────────────────
 
-  async createCheckout(): Promise<string> {
-    const res = await firstValueFrom(this.http.post<{ url: string }>(`${this.apiUrl}/payment/create-checkout`, {}));
+  async fetchPrices(): Promise<Record<string, { amount: number; symbol: string }>> {
+    const res = await firstValueFrom(this.http.get<{ prices: Record<string, { amount: number; symbol: string }> }>(`${this.apiUrl}/payment/price`));
+    return res.prices;
+  }
+
+  async createCheckout(currency?: string): Promise<string> {
+    const res = await firstValueFrom(this.http.post<{ url: string }>(`${this.apiUrl}/payment/create-checkout`, { currency }));
+    return res.url;
+  }
+
+  async manageSubscription(): Promise<string> {
+    const res = await firstValueFrom(this.http.post<{ url: string }>(`${this.apiUrl}/payment/manage`, {}));
     return res.url;
   }
 

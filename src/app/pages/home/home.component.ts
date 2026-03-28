@@ -144,6 +144,16 @@ export class HomeComponent {
     this.auth.logout();
   }
 
+  protected async manageSubscription(): Promise<void> {
+    this.menuOpen.set(false);
+    try {
+      const url = await this.auth.manageSubscription();
+      window.location.href = url;
+    } catch {
+      // silently fail — user can retry
+    }
+  }
+
   // ─── Persistence ────────────────────────────────────────
   private load<T>(key: string, fallback: T): T {
     try {
