@@ -107,7 +107,10 @@ export class HomeComponent {
 
   protected readonly secondaryCount = computed(() => this.secondaryTasks().length);
   protected readonly secondaryCompletedCount = computed(() => this.secondaryTasks().filter(t => t.done).length);
-  protected readonly canAddSecondary = computed(() => this.secondaryCount() < 15);
+  protected readonly canAddSecondary = computed(() => this.secondaryCount() < 1000);
+
+  protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
+  protected readonly dragDelay = computed(() => this.isMobile() ? { touch: 200, mouse: 0 } : { touch: 0, mouse: 0 });
 
   // ─── Clear list ─────────────────────────────────────────
   protected readonly confirmingClear = signal(false);
@@ -119,6 +122,9 @@ export class HomeComponent {
     this.tasks.set([]);
     this.confirmingClear.set(false);
   }
+  protected clearDoneTasks(): void {
+    this.tasks.update(tasks => tasks.filter(t => !t.done));
+  }
 
   protected startSecondaryClear(): void { this.confirmingSecondaryClear.set(true); }
   protected cancelSecondaryClear(): void { this.confirmingSecondaryClear.set(false); }
@@ -126,11 +132,13 @@ export class HomeComponent {
     this.secondaryTasks.set([]);
     this.confirmingSecondaryClear.set(false);
   }
+  protected clearDoneSecondary(): void {
+    this.secondaryTasks.update(tasks => tasks.filter(t => !t.done));
+  }
 
   // ─── Scroll ─────────────────────────────────────────────
   protected readonly mainSection = viewChild<ElementRef<HTMLElement>>('mainSection');
   protected readonly secondarySection = viewChild<ElementRef<HTMLElement>>('secondarySection');
-  protected readonly viewingSecondary = signal(false);
 
   // ─── User menu ──────────────────────────────────────────
   protected toggleMenu(): void {
@@ -431,6 +439,45 @@ export class HomeComponent {
     this.secondaryVisible.update(v => !v);
   }
 
+  // ─── Move between lists (mobile buttons) ──────────────
+  protected moveToBacklog(taskId: number): void {
+    const mainItems = [...this.tasks()];
+    const idx = mainItems.findIndex(t => t.id === taskId);
+    if (idx === -1) return;
+    const [task] = mainItems.splice(idx, 1);
+    const secItems = [...this.secondaryTasks()];
+    const newSec: SecondaryTask = { id: task.id, text: task.text, subtasks: task.subtasks, done: task.done };
+
+    if (secItems.length >= 1000) {
+      const displaced = secItems.shift()!;
+      const newMain: Task = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
+      mainItems.push(newMain);
+    }
+
+    secItems.push(newSec);
+    this.tasks.set(mainItems);
+    this.secondaryTasks.set(secItems);
+  }
+
+  protected moveToMain(taskId: number): void {
+    const secItems = [...this.secondaryTasks()];
+    const idx = secItems.findIndex(t => t.id === taskId);
+    if (idx === -1) return;
+    const [task] = secItems.splice(idx, 1);
+    const mainItems = [...this.tasks()];
+    const newMain: Task = { id: task.id, text: task.text, subtasks: task.subtasks, done: task.done };
+
+    if (mainItems.length >= 5) {
+      const displaced = mainItems.pop()!;
+      const newSec: SecondaryTask = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
+      secItems.unshift(newSec);
+    }
+
+    mainItems.push(newMain);
+    this.tasks.set(mainItems);
+    this.secondaryTasks.set(secItems);
+  }
+
   // ─── Drag & drop: main tasks ────────────────────────────
   protected dropMainTask(event: CdkDragDrop<unknown[]>): void {
     if (event.previousContainer === event.container) {
@@ -445,10 +492,10 @@ export class HomeComponent {
       const newTask: Task = { id: secTask.id, text: secTask.text, subtasks: secTask.subtasks, done: secTask.done };
 
       if (mainItems.length >= 5) {
-        // Main list full — swap: last main item goes to secondary
+        // Main list full — last main item goes to first position of backlog
         const displaced = mainItems.pop()!;
         const newSec: SecondaryTask = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
-        secItems.splice(event.previousIndex, 0, newSec);
+        secItems.unshift(newSec);
       }
 
       mainItems.splice(event.currentIndex, 0, newTask);
@@ -463,12 +510,19 @@ export class HomeComponent {
       moveItemInArray(items, event.previousIndex, event.currentIndex);
       this.secondaryTasks.set(items);
     } else {
-      if (this.secondaryTasks().length >= 5) return;
       const mainItems = [...this.tasks()];
       const secItems = [...this.secondaryTasks()];
       const mainTask = mainItems[event.previousIndex]!;
       mainItems.splice(event.previousIndex, 1);
       const newSec: SecondaryTask = { id: mainTask.id, text: mainTask.text, subtasks: mainTask.subtasks, done: mainTask.done };
+
+      if (secItems.length >= 1000) {
+        // Backlog full — first backlog item goes to last position of main list
+        const displaced = secItems.shift()!;
+        const newMain: Task = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
+        mainItems.push(newMain);
+      }
+
       secItems.splice(event.currentIndex, 0, newSec);
       this.tasks.set(mainItems);
       this.secondaryTasks.set(secItems);
@@ -483,12 +537,4 @@ export class HomeComponent {
     }, { injector: this.injector });
   }
 
-  protected scrollToSection(): void {
-    if (this.viewingSecondary()) {
-      this.mainSection()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      this.secondarySection()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    this.viewingSecondary.update(v => !v);
-  }
 }

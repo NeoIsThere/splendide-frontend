@@ -48,7 +48,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 48px 5px;
+  padding: 48px 5px 0;
+  overflow: hidden;
 
   @media (max-width: 768px) {
     width: 90%;
@@ -91,6 +92,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Lists row ────────────────────────────────────────────
 .lists {
+  border: 2px solid pink;
+  flex: 1;
+  overflow: hidden;
+
   @media (min-width: 768px) {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -101,6 +106,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     flex-direction: column;
     order: 2;
     gap: 50px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 }
 
@@ -131,18 +138,20 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     width: 25vw;
   }
   @media (min-width: 1200px) {
-    width: 12vw;
+    width: 15vw;
   }
 }
 
 .secondary-section {
+  border: 2px solid yellow;
+
   @media (min-width: 768px) {
     display: flex;
     justify-content: flex-end;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
-  max-height: calc(100vh - 80px);
-  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 
@@ -312,13 +321,16 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .counter {
   font-size: 0.8rem;
   color: var(--text-muted);
-  margin: 0 0 32px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
+  margin: 10px 0;
 }
 
 .counter-sec {
-  margin-bottom: 20px;
+}
+
+.counter-invisible {
+  visibility: hidden;
 }
 
 // ─── Section title ─────────────────────────────────────────
@@ -334,6 +346,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: calc(100% - 56px);
+  
   }
 }
 
@@ -408,6 +421,13 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     text-decoration: line-through;
     color: var(--text-muted);
   }
+}
+
+
+
+.my-second-list-buttons{
+  border: 2px solid orange;
+  display: flex;
 }
 
 // ─── Edit input (inline) ──────────────────────────────────
@@ -712,9 +732,11 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .sec-task-text {
   flex: 1;
+  min-width: 0;
   font-size: 0.88rem;
   font-weight: 400;
   cursor: text;
+  overflow-wrap: break-word;
   transition: color 0.2s $ease;
 
   &.struck {
@@ -781,6 +803,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── Secondary header ──────────────────────────────────────
 .sec-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
@@ -860,15 +883,51 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+// ─── Main section scrollable ─────────────────────────────
+.main-section {
+  @media (min-width: 768px) {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+}
+
+// ─── Clear actions row ───────────────────────────────────
+.clear-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+// ─── Mobile-only move button ─────────────────────────────
+.mobile-only {
+  display: none;
+  @media (max-width: 768px) {
+    display: grid;
+  }
+}
+
+.move-btn {
+  opacity: 0.5;
+  transition: opacity 0.2s $ease, color 0.2s $ease !important;
+  &:hover {
+    opacity: 1;
+    color: var(--text);
+  }
+}
+
 // ─── Footer ────────────────────────────────────────────────
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .layout {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .site-footer {

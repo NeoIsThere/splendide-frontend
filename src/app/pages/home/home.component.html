@@ -96,11 +96,7 @@
     <!-- ═══ Main Section ═══ -->
     <div class="my-list-col main-section" #mainSection>
       <div class="my-primary-list-container">
-
-
-        @if (taskCount() > 0 && completedCount() > 0) {
-          <p class="counter">{{ completedCount() }} / {{ taskCount() }}</p>
-        }
+        <p class="counter" [class.counter-invisible]="taskCount() === 0 || completedCount() === 0">{{ completedCount() }} / {{ taskCount() }}</p>
 
         <!-- Task list (drag-drop) -->
         <div
@@ -114,7 +110,13 @@
           aria-label="Tasks"
         >
           @for (task of tasks(); track task.id) {
-            <div class="task-item" [class.done]="task.done" cdkDrag role="listitem">
+            <div
+              class="task-item"
+              [class.done]="task.done"
+              cdkDrag
+              [cdkDragStartDelay]="dragDelay()"
+              role="listitem"
+            >
               <div class="task-main">
                 <button
                   class="check-btn"
@@ -161,6 +163,25 @@
                   >
                 }
 
+                <button
+                  class="icon-btn-sm move-btn mobile-only"
+                  (click)="moveToBacklog(task.id)"
+                  [attr.aria-label]="'Move to backlog: ' + task.text"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
                 <button
                   class="icon-btn-sm remove-btn"
                   (click)="removeTask(task.id)"
@@ -451,7 +472,12 @@
               <button class="clear-no" (click)="cancelClear()">cancel</button>
             </div>
           } @else {
-            <button class="clear-btn" (click)="startClear()">Clear</button>
+            <div class="clear-actions">
+              <button class="clear-btn" (click)="startClear()">Clear</button>
+              @if (completedCount() > 0) {
+                <button class="clear-btn" (click)="clearDoneTasks()">Clear done</button>
+              }
+            </div>
           }
         }
 
@@ -481,34 +507,15 @@
               {{ secondaryTitle() }}
             </h2>
           }
-          <button
-            class="icon-btn-sm edit-title-btn"
-            (click)="startEditingSecondaryTitle()"
-            aria-label="Edit list title"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+          <div class="my-second-list-buttons">
+            <button
+              class="icon-btn-sm edit-title-btn"
+              (click)="startEditingSecondaryTitle()"
+              aria-label="Edit list title"
             >
-              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-            </svg>
-          </button>
-          <button
-            class="icon-btn-sm"
-            (click)="toggleSecondaryVisibility()"
-            [attr.aria-label]="secondaryVisible() ? 'Hide secondary tasks' : 'Show secondary tasks'"
-          >
-            @if (secondaryVisible()) {
               <svg
-                width="16"
-                height="16"
+                width="14"
+                height="14"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -517,35 +524,56 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <path
-                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
-                />
-                <line x1="1" y1="1" x2="23" y2="23" />
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
               </svg>
-            } @else {
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            }
-          </button>
+            </button>
+            <button
+              class="icon-btn-sm"
+              (click)="toggleSecondaryVisibility()"
+              [attr.aria-label]="
+                secondaryVisible() ? 'Hide secondary tasks' : 'Show secondary tasks'
+              "
+            >
+              @if (secondaryVisible()) {
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                  />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              } @else {
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              }
+            </button>
+          </div>
         </div>
 
-        @if (secondaryVisible() && secondaryCount() > 0 && secondaryCompletedCount() > 0) {
-          <p class="counter counter-sec">
-            {{ secondaryCompletedCount() }} / {{ secondaryCount() }}
-          </p>
-        }
+        <p class="counter counter-sec" [class.counter-invisible]="!secondaryVisible() || secondaryCount() === 0 || secondaryCompletedCount() === 0">
+          {{ secondaryCompletedCount() }} / {{ secondaryCount() }}
+        </p>
 
         <div
           class="task-list"
@@ -559,7 +587,13 @@
           aria-label="Secondary tasks"
         >
           @for (task of secondaryTasks(); track task.id) {
-            <div class="sec-task-item" [class.done]="task.done" cdkDrag role="listitem">
+            <div
+              class="sec-task-item"
+              [class.done]="task.done"
+              cdkDrag
+              [cdkDragStartDelay]="dragDelay()"
+              role="listitem"
+            >
               <button
                 class="check-btn check-btn-sub"
                 [class.checked]="task.done"
@@ -605,6 +639,25 @@
                 >
               }
 
+              <button
+                class="icon-btn-sm move-btn mobile-only"
+                (click)="moveToMain(task.id)"
+                [attr.aria-label]="'Move to main: ' + task.text"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="18 15 12 9 6 15" />
+                </svg>
+              </button>
               <button
                 class="icon-btn-sm remove-btn"
                 (click)="removeSecondaryTask(task.id)"
@@ -728,7 +781,12 @@
               <button class="clear-no" (click)="cancelSecondaryClear()">cancel</button>
             </div>
           } @else {
-            <button class="clear-btn" (click)="startSecondaryClear()">Clear</button>
+            <div class="clear-actions">
+              <button class="clear-btn" (click)="startSecondaryClear()">Clear</button>
+              @if (secondaryCompletedCount() > 0) {
+                <button class="clear-btn" (click)="clearDoneSecondary()">Clear done</button>
+              }
+            </div>
           }
         }
       </div>
@@ -742,39 +800,4 @@
   </footer>
 </div>
 
-<!-- Mobile scroll FAB -->
-<button
-  class="scroll-fab"
-  (click)="scrollToSection()"
-  [attr.aria-label]="viewingSecondary() ? 'Scroll to main tasks' : 'Scroll to secondary tasks'"
->
-  @if (viewingSecondary()) {
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <polyline points="18 15 12 9 6 15" />
-    </svg>
-  } @else {
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  }
-</button>
+
