@@ -25,6 +25,8 @@ interface SecondaryTask {
   done: boolean;
 }
 
+const DEFAULT_SECONDARY_TITLE = 'Backlog';
+
 @Component({
   selector: 'app-home',
   templateUrl: './home.component.html',
@@ -63,7 +65,7 @@ export class HomeComponent {
   protected readonly addingSecondary = signal(false);
   protected readonly newSecondaryText = signal('');
   protected readonly editingSecondaryId = signal<number | null>(null);
-  protected readonly secondaryTitle = signal(this.load('splendide_sec_title', 'secondary'));
+  protected readonly secondaryTitle = signal(this.load('splendide_sec_title', DEFAULT_SECONDARY_TITLE));
   protected readonly editingSecondaryTitle = signal(false);
   protected readonly secondaryVisible = signal(this.load('splendide_sec_visible', true));
 
@@ -96,7 +98,7 @@ export class HomeComponent {
         if (data) {
           this.tasks.set(data.tasks ?? []);
           this.secondaryTasks.set(data.secondaryTasks ?? []);
-          this.secondaryTitle.set(data.secondaryTitle ?? 'secondary');
+          this.secondaryTitle.set(data.secondaryTitle ?? DEFAULT_SECONDARY_TITLE);
           this.secondaryVisible.set(data.secondaryVisible ?? true);
         }
       });

@@ -183,6 +183,7 @@ function guessCurrency(): string {
       margin: 0 0 32px;
       display: flex;
       align-items: center;
+      justify-content: center;
     }
     .spinner {
       width: 20px;
