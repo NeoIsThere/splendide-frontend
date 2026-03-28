@@ -1,6 +1,6 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, Injector, inject, signal, viewChild, ElementRef } from '@angular/core';
 import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { ListSyncService } from '../../services/list-sync.service';
 import { ThemeService } from '../../services/theme.service';
@@ -39,6 +39,7 @@ export class HomeComponent {
   protected readonly auth = inject(AuthService);
   private readonly listSync = inject(ListSyncService);
   private readonly theme = inject(ThemeService);
+  private readonly router = inject(Router);
 
   protected readonly dark = this.theme.dark;
 
@@ -64,7 +65,11 @@ export class HomeComponent {
   protected readonly secondaryTasks = signal<SecondaryTask[]>(this.load('splendide_secondary', []));
   protected readonly addingSecondary = signal(false);
   protected readonly newSecondaryText = signal('');
+  protected readonly newSecondarySubtasks = signal<string[]>([]);
   protected readonly editingSecondaryId = signal<number | null>(null);
+  protected readonly editingSecSubtask = signal<{ taskId: number; subtaskId: number } | null>(null);
+  protected readonly addingSecSubtaskToId = signal<number | null>(null);
+  protected readonly newInlineSecSubtaskText = signal('');
   protected readonly secondaryTitle = signal(this.load('splendide_sec_title', DEFAULT_SECONDARY_TITLE));
   protected readonly editingSecondaryTitle = signal(false);
   protected readonly secondaryVisible = signal(this.load('splendide_sec_visible', true));
@@ -142,6 +147,10 @@ export class HomeComponent {
 
   // ─── User menu ──────────────────────────────────────────
   protected toggleMenu(): void {
+    if (!this.auth.isLoggedIn()) {
+      this.router.navigate(['/sign-in']);
+      return;
+    }
     this.menuOpen.update(v => !v);
   }
 
@@ -243,25 +252,52 @@ export class HomeComponent {
     this.tasks.update(tasks => tasks.filter(t => t.id !== id));
   }
 
+  // ─── Guard: block edits while any task name input is empty ─
+  private hasEmptyTaskEdit(): boolean {
+    if (this.editingTaskId() !== null) {
+      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="task-${this.editingTaskId()}"]`);
+      if (el && !el.value.trim()) return true;
+    }
+    if (this.editingSecondaryId() !== null) {
+      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="sec-${this.editingSecondaryId()}"]`);
+      if (el && !el.value.trim()) return true;
+    }
+    const sub = this.editingSubtask();
+    if (sub) {
+      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="sub-${sub.subtaskId}"]`);
+      if (el && !el.value.trim()) return true;
+    }
+    const secSub = this.editingSecSubtask();
+    if (secSub) {
+      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="secsub-${secSub.subtaskId}"]`);
+      if (el && !el.value.trim()) return true;
+    }
+    return false;
+  }
+
   // ─── Main task: inline edit ─────────────────────────────
   protected startEditingTask(id: number): void {
+    if (this.hasEmptyTaskEdit()) return;
     this.editingTaskId.set(id);
     this.focusEditInput('task-' + id);
   }
 
   protected saveTaskEdit(id: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
-    if (value) {
-      this.tasks.update(tasks =>
-        tasks.map(t => (t.id === id ? { ...t, text: value } : t))
-      );
-    }
+    if (!value) return;
+    this.tasks.update(tasks =>
+      tasks.map(t => (t.id === id ? { ...t, text: value } : t))
+    );
     this.editingTaskId.set(null);
   }
 
   protected handleTaskEditKeydown(id: number, event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveTaskEdit(id, event);
-    else if (event.key === 'Escape') this.editingTaskId.set(null);
+    else if (event.key === 'Escape') {
+      const task = this.tasks().find(t => t.id === id);
+      if (task) (event.target as HTMLInputElement).value = task.text;
+      this.editingTaskId.set(null);
+    }
   }
 
   // ─── Subtask: toggle / remove / edit ────────────────────
@@ -286,6 +322,7 @@ export class HomeComponent {
   }
 
   protected startEditingSubtask(taskId: number, subtaskId: number): void {
+    if (this.hasEmptyTaskEdit()) return;
     this.editingSubtask.set({ taskId, subtaskId });
     this.focusEditInput('sub-' + subtaskId);
   }
@@ -311,6 +348,7 @@ export class HomeComponent {
 
   // ─── Subtask: add to existing task ─────────────────────
   protected startAddingSubtask(taskId: number): void {
+    if (this.hasEmptyTaskEdit()) return;
     const task = this.tasks().find(t => t.id === taskId);
     if (!task || task.subtasks.length >= 5) return;
     this.addingSubtaskToId.set(taskId);
@@ -359,20 +397,27 @@ export class HomeComponent {
     if (!this.canAddSecondary()) return;
     this.addingSecondary.set(true);
     this.newSecondaryText.set('');
+    this.newSecondarySubtasks.set([]);
     setTimeout(() => document.querySelector<HTMLInputElement>('.add-form-sec .input-minimal')?.focus());
   }
 
   protected cancelAddingSecondary(): void {
     this.addingSecondary.set(false);
     this.newSecondaryText.set('');
+    this.newSecondarySubtasks.set([]);
+    this.newSecondaryText.set('');
   }
 
   protected confirmAddSecondary(): void {
     const text = this.newSecondaryText().trim();
     if (!text) return;
+    const subtasks: Subtask[] = this.newSecondarySubtasks()
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .map((s, i) => ({ id: Date.now() + i + 1, text: s, done: false }));
     this.secondaryTasks.update(tasks => [
       ...tasks,
-      { id: Date.now(), text, subtasks: [], done: false },
+      { id: Date.now(), text, subtasks, done: false },
     ]);
     this.cancelAddingSecondary();
   }
@@ -397,28 +442,35 @@ export class HomeComponent {
   }
 
   protected startEditingSecondary(id: number): void {
+    if (this.hasEmptyTaskEdit()) return;
     this.editingSecondaryId.set(id);
     this.focusEditInput('sec-' + id);
   }
 
   protected saveSecondaryEdit(id: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
-    if (value) {
-      this.secondaryTasks.update(tasks =>
-        tasks.map(t => (t.id === id ? { ...t, text: value } : t))
-      );
-    }
+    if (!value) return;
+    this.secondaryTasks.update(tasks =>
+      tasks.map(t => (t.id === id ? { ...t, text: value } : t))
+    );
     this.editingSecondaryId.set(null);
   }
 
   protected handleSecondaryEditKeydown(id: number, event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveSecondaryEdit(id, event);
-    else if (event.key === 'Escape') this.editingSecondaryId.set(null);
+    else if (event.key === 'Escape') {
+      const task = this.secondaryTasks().find(t => t.id === id);
+      if (task) (event.target as HTMLInputElement).value = task.text;
+      this.editingSecondaryId.set(null);
+    }
   }
 
   // ─── Secondary title editing ────────────────────────────
   protected startEditingSecondaryTitle(): void {
     this.editingSecondaryTitle.set(true);
+    afterNextRender(() => {
+      document.querySelector<HTMLInputElement>('.sec-title-input')?.focus();
+    }, { injector: this.injector });
   }
 
   protected saveSecondaryTitle(event: Event): void {
@@ -432,6 +484,111 @@ export class HomeComponent {
   protected handleSecondaryTitleKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveSecondaryTitle(event);
     else if (event.key === 'Escape') this.editingSecondaryTitle.set(false);
+  }
+
+  // ─── Secondary subtasks ─────────────────────────────────
+  protected addSecSubtaskField(): void {
+    if (this.newSecondarySubtasks().length >= 5) return;
+    this.newSecondarySubtasks.update(s => [...s, '']);
+  }
+
+  protected removeSecSubtaskField(index: number): void {
+    this.newSecondarySubtasks.update(s => s.filter((_, i) => i !== index));
+  }
+
+  protected updateNewSecSubtask(index: number, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.newSecondarySubtasks.update(s => s.map((v, i) => (i === index ? value : v)));
+  }
+
+  protected toggleSecSubtask(taskId: number, subtaskId: number): void {
+    this.secondaryTasks.update(tasks =>
+      tasks.map(t =>
+        t.id === taskId
+          ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, done: !s.done } : s)) }
+          : t
+      )
+    );
+  }
+
+  protected removeSecSubtask(taskId: number, subtaskId: number): void {
+    this.secondaryTasks.update(tasks =>
+      tasks.map(t =>
+        t.id === taskId
+          ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) }
+          : t
+      )
+    );
+  }
+
+  protected startEditingSecSubtask(taskId: number, subtaskId: number): void {
+    if (this.hasEmptyTaskEdit()) return;
+    this.editingSecSubtask.set({ taskId, subtaskId });
+    this.focusEditInput('secsub-' + subtaskId);
+  }
+
+  protected saveSecSubtaskEdit(taskId: number, subtaskId: number, event: Event): void {
+    const value = (event.target as HTMLInputElement).value.trim();
+    if (value) {
+      this.secondaryTasks.update(tasks =>
+        tasks.map(t =>
+          t.id === taskId
+            ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, text: value } : s)) }
+            : t
+        )
+      );
+    }
+    this.editingSecSubtask.set(null);
+  }
+
+  protected handleSecSubtaskEditKeydown(taskId: number, subtaskId: number, event: KeyboardEvent): void {
+    if (event.key === 'Enter') this.saveSecSubtaskEdit(taskId, subtaskId, event);
+    else if (event.key === 'Escape') this.editingSecSubtask.set(null);
+  }
+
+  protected startAddingSecSubtask(taskId: number): void {
+    if (this.hasEmptyTaskEdit()) return;
+    const task = this.secondaryTasks().find(t => t.id === taskId);
+    if (!task || task.subtasks.length >= 5) return;
+    this.addingSecSubtaskToId.set(taskId);
+    this.newInlineSecSubtaskText.set('');
+    afterNextRender(() => {
+      document.querySelector<HTMLInputElement>('[data-inline-sec-subtask]')?.focus();
+    }, { injector: this.injector });
+  }
+
+  protected cancelAddingSecSubtask(): void {
+    this.addingSecSubtaskToId.set(null);
+    this.newInlineSecSubtaskText.set('');
+  }
+
+  protected confirmAddSecSubtask(taskId: number): void {
+    const text = this.newInlineSecSubtaskText().trim();
+    if (!text) {
+      this.cancelAddingSecSubtask();
+      return;
+    }
+    this.secondaryTasks.update(tasks =>
+      tasks.map(t =>
+        t.id === taskId
+          ? { ...t, subtasks: [...t.subtasks, { id: Date.now(), text, done: false }] }
+          : t
+      )
+    );
+    this.cancelAddingSecSubtask();
+  }
+
+  protected handleInlineSecSubtaskKeydown(taskId: number, event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.confirmAddSecSubtask(taskId);
+    } else if (event.key === 'Escape') {
+      this.cancelAddingSecSubtask();
+    }
+  }
+
+  protected onInlineSecSubtaskInput(event: Event): void {
+    this.newInlineSecSubtaskText.set((event.target as HTMLInputElement).value);
   }
 
   // ─── Toggle secondary visibility ────────────────────────

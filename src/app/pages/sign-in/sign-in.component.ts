@@ -28,10 +28,16 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
           <input
             id="email"
             class="auth-input"
+            [class.auth-input--error]="form.controls.email.invalid && form.controls.email.touched"
             type="email"
             formControlName="email"
             autocomplete="email"
           />
+          @if (form.controls.email.touched && form.controls.email.errors) {
+            <p class="auth-field-error" role="alert">
+              Enter a valid email address.
+            </p>
+          }
 
           <label class="auth-label" for="password">Password</label>
           <input
@@ -63,6 +69,14 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
     </div>
   `,
   styles: [`
+    .auth-field-error {
+      font-size: 0.8rem;
+      color: #e53e3e;
+      margin: -6px 0 4px;
+    }
+    .auth-input--error {
+      border-color: #e53e3e;
+    }
     .auth-legal {
       text-align: center;
       margin-top: 16px;
@@ -90,6 +104,7 @@ export class SignInComponent {
   });
 
   protected async onSubmit(): Promise<void> {
+    this.form.markAllAsTouched();
     if (this.form.invalid) return;
     this.loading.set(true);
     this.error.set('');

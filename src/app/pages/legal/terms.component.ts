@@ -52,7 +52,8 @@ import { RouterLink } from '@angular/router';
         <p>These Terms are governed by the laws of the United States. For users in the European Union, mandatory consumer protection laws of your country of residence apply.</p>
 
         <h2>12. Contact</h2>
-        <p>For questions about these Terms, contact us at <strong>support&#64;splendide.app</strong>.</p>
+        <p>For questions about these Terms, contact us at <strong>support&#64;email.splendide.app</strong>.</p>
+        <p class="legal-version">v1.0.0</p>
       </div>
     </div>
   `,
@@ -82,6 +83,12 @@ import { RouterLink } from '@angular/router';
       font-size: 0.8125rem;
       color: var(--text-muted);
       margin: 0 0 32px;
+    }
+    .legal-version {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 48px;
+      text-align: center;
     }
     h2 {
       font-size: 1rem;

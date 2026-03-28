@@ -6,27 +6,49 @@
     <div class="my-title logo">splendide.</div>
     <div>
       <div class="my-buttons">
-        <button
-          class="icon-btn"
-          (click)="toggleMenu()"
-          aria-label="User menu"
-          [attr.aria-expanded]="menuOpen()"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
+        <div class="user-menu-wrapper">
+          <button
+            class="icon-btn"
+            (click)="toggleMenu()"
+            aria-label="User menu"
+            [attr.aria-expanded]="menuOpen()"
           >
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </button>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </button>
+
+          @if (menuOpen() && auth.isLoggedIn()) {
+            <div class="user-menu">
+              <p class="user-menu-email">{{ auth.user()?.email }}</p>
+              @if (auth.isPremium()) {
+                <p class="user-menu-badge">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                  Premium
+                </p>
+              } @else {
+                <p class="user-menu-badge">Free</p>
+              }
+              @if (auth.isPremium()) {
+                <button class="user-menu-item" (click)="manageSubscription()">Manage subscription</button>
+              }
+              <button class="user-menu-item" (click)="signOut()">Sign out</button>
+            </div>
+          }
+        </div>
 
         <button
           class="icon-btn"
@@ -128,8 +150,8 @@
                 >
                   @if (task.done) {
                     <svg
-                      width="12"
-                      height="12"
+                      width="10"
+                      height="10"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -217,8 +239,8 @@
                   >
                     @if (sub.done) {
                       <svg
-                        width="10"
-                        height="10"
+                        width="8"
+                        height="8"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -594,90 +616,208 @@
               [cdkDragStartDelay]="dragDelay()"
               role="listitem"
             >
-              <button
-                class="check-btn check-btn-sub"
-                [class.checked]="task.done"
-                (click)="toggleSecondaryTask(task.id)"
-                [attr.aria-label]="
-                  (task.done ? 'Mark incomplete: ' : 'Mark complete: ') + task.text
-                "
-              >
-                @if (task.done) {
+              <div class="sec-task-main">
+                <button
+                  class="check-btn check-btn-sub"
+                  [class.checked]="task.done"
+                  (click)="toggleSecondaryTask(task.id)"
+                  [attr.aria-label]="
+                    (task.done ? 'Mark incomplete: ' : 'Mark complete: ') + task.text
+                  "
+                >
+                  @if (task.done) {
+                    <svg
+                      width="8"
+                      height="8"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  }
+                </button>
+
+                @if (editingSecondaryId() === task.id) {
+                  <input
+                    class="edit-input edit-input-sec"
+                    type="text"
+                    [value]="task.text"
+                    [attr.data-edit-id]="'sec-' + task.id"
+                    (blur)="saveSecondaryEdit(task.id, $event)"
+                    (keydown)="handleSecondaryEditKeydown(task.id, $event)"
+                    aria-label="Edit task"
+                    maxlength="120"
+                  />
+                } @else {
+                  <span
+                    class="sec-task-text"
+                    [class.struck]="task.done"
+                    (click)="startEditingSecondary(task.id)"
+                    >{{ task.text }}</span
+                  >
+                }
+
+                <button
+                  class="icon-btn-sm move-btn mobile-only"
+                  (click)="moveToMain(task.id)"
+                  [attr.aria-label]="'Move to main: ' + task.text"
+                >
                   <svg
-                    width="10"
-                    height="10"
+                    width="14"
+                    height="14"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="3"
+                    stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     aria-hidden="true"
                   >
-                    <polyline points="20 6 9 17 4 12" />
+                    <polyline points="18 15 12 9 6 15" />
                   </svg>
-                }
-              </button>
-
-              @if (editingSecondaryId() === task.id) {
-                <input
-                  class="edit-input edit-input-sec"
-                  type="text"
-                  [value]="task.text"
-                  [attr.data-edit-id]="'sec-' + task.id"
-                  (blur)="saveSecondaryEdit(task.id, $event)"
-                  (keydown)="handleSecondaryEditKeydown(task.id, $event)"
-                  aria-label="Edit task"
-                  maxlength="120"
-                />
-              } @else {
-                <span
-                  class="sec-task-text"
-                  [class.struck]="task.done"
-                  (click)="startEditingSecondary(task.id)"
-                  >{{ task.text }}</span
+                </button>
+                <button
+                  class="icon-btn-sm remove-btn"
+                  (click)="removeSecondaryTask(task.id)"
+                  [attr.aria-label]="'Remove: ' + task.text"
                 >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Subtasks -->
+              @for (sub of task.subtasks; track sub.id) {
+                <div class="subtask-row">
+                  <button
+                    class="check-btn check-btn-sub"
+                    [class.checked]="sub.done"
+                    (click)="toggleSecSubtask(task.id, sub.id)"
+                    [attr.aria-label]="
+                      (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
+                    "
+                  >
+                    @if (sub.done) {
+                      <svg
+                        width="8"
+                        height="8"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    }
+                  </button>
+
+                  @if (
+                    editingSecSubtask()?.taskId === task.id && editingSecSubtask()?.subtaskId === sub.id
+                  ) {
+                    <input
+                      class="edit-input edit-input-sub"
+                      type="text"
+                      [value]="sub.text"
+                      [attr.data-edit-id]="'secsub-' + sub.id"
+                      (blur)="saveSecSubtaskEdit(task.id, sub.id, $event)"
+                      (keydown)="handleSecSubtaskEditKeydown(task.id, sub.id, $event)"
+                      aria-label="Edit subtask"
+                      maxlength="120"
+                    />
+                  } @else {
+                    <span
+                      class="subtask-text"
+                      [class.struck]="sub.done"
+                      (click)="startEditingSecSubtask(task.id, sub.id)"
+                      >{{ sub.text }}</span
+                    >
+                  }
+
+                  <button
+                    class="icon-btn-sm remove-btn"
+                    (click)="removeSecSubtask(task.id, sub.id)"
+                    [attr.aria-label]="'Remove subtask: ' + sub.text"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               }
 
-              <button
-                class="icon-btn-sm move-btn mobile-only"
-                (click)="moveToMain(task.id)"
-                [attr.aria-label]="'Move to main: ' + task.text"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
+              <!-- Inline add subtask input -->
+              @if (addingSecSubtaskToId() === task.id) {
+                <div class="subtask-row">
+                  <input
+                    class="edit-input edit-input-sub"
+                    type="text"
+                    placeholder="Subtask..."
+                    data-inline-sec-subtask
+                    [value]="newInlineSecSubtaskText()"
+                    (input)="onInlineSecSubtaskInput($event)"
+                    (keydown)="handleInlineSecSubtaskKeydown(task.id, $event)"
+                    (blur)="confirmAddSecSubtask(task.id)"
+                    aria-label="New subtask"
+                    maxlength="120"
+                  />
+                </div>
+              }
+
+              <!-- Add subtask button -->
+              @if (task.subtasks.length < 5 && addingSecSubtaskToId() !== task.id) {
+                <button
+                  class="add-subtask-btn"
+                  (click)="startAddingSecSubtask(task.id)"
+                  aria-label="Add subtask"
                 >
-                  <polyline points="18 15 12 9 6 15" />
-                </svg>
-              </button>
-              <button
-                class="icon-btn-sm remove-btn"
-                (click)="removeSecondaryTask(task.id)"
-                [attr.aria-label]="'Remove: ' + task.text"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  subtask
+                </button>
+              }
             </div>
           } @empty {
             <!-- empty -->
@@ -698,7 +838,64 @@
                 aria-label="New secondary task"
                 maxlength="120"
               />
+              @for (sub of newSecondarySubtasks(); track $index) {
+                <div class="subtask-input-row">
+                  <input
+                    class="input-minimal input-sub"
+                    type="text"
+                    placeholder="Subtask..."
+                    [value]="sub"
+                    (input)="updateNewSecSubtask($index, $event)"
+                    (keydown)="handleSecondaryKeydown($event)"
+                    aria-label="Subtask"
+                    maxlength="120"
+                  />
+                  <button
+                    class="icon-btn-sm"
+                    (click)="removeSecSubtaskField($index)"
+                    aria-label="Remove subtask field"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              }
               <div class="form-actions">
+                @if (newSecondarySubtasks().length < 5) {
+                  <button
+                    class="add-subtask-btn add-subtask-btn-form"
+                    (click)="addSecSubtaskField()"
+                    aria-label="Add subtask field"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    subtask
+                  </button>
+                }
                 <span class="spacer"></span>
                 <button class="icon-btn-sm" (click)="cancelAddingSecondary()" aria-label="Cancel">
                   <svg
@@ -797,6 +994,8 @@
     <a routerLink="/terms">Terms</a>
     <span class="footer-sep">&middot;</span>
     <a routerLink="/privacy">Privacy</a>
+    <span class="footer-sep">&middot;</span>
+    <a href="mailto:support&#64;email.splendide.app">Contact us</a>
   </footer>
 </div>
 

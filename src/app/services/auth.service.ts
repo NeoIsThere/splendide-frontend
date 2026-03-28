@@ -32,19 +32,19 @@ export class AuthService {
   // ─── Email / Password ───────────────────────────────────
 
   async register(email: string, password: string, name?: string): Promise<void> {
-    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, { email, password, name }));
+    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, { email, password, name }, { withCredentials: true }));
     this.setSession(res);
   }
 
   async login(email: string, password: string): Promise<void> {
-    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/login`, { email, password }));
+    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/login`, { email, password }, { withCredentials: true }));
     this.setSession(res);
   }
 
   // ─── Google ─────────────────────────────────────────────
 
   async googleAuth(idToken: string): Promise<void> {
-    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google`, { idToken }));
+    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google`, { idToken }, { withCredentials: true }));
     this.setSession(res);
   }
 
@@ -69,7 +69,7 @@ export class AuthService {
         return res.accessToken;
       }
     } catch {
-      this.logout();
+      // Let the caller (interceptor) handle logout
     }
     return null;
   }

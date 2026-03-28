@@ -204,15 +204,15 @@ function guessCurrency(): string {
         @if (mode() === 'success') {
           <h2 class="result-title">Welcome to Premium.</h2>
           <p class="result-text">Your subscription is active. Tasks now sync across all your devices.</p>
-          <a class="result-link" routerLink="/">Go to your tasks</a>
+          <a class="result-link" routerLink="/">Enjoy it</a>
         } @else if (mode() === 'cancel') {
           <h2 class="result-title">Payment cancelled</h2>
           <p class="result-text">No worries — you can upgrade anytime.</p>
           <a class="result-link" routerLink="/">Back to tasks</a>
         } @else {
-          <h2 class="title">Your tasks, always with you.</h2>
+          <h2 class="title">Synchronize on all your devices.</h2>
           <p class="description">
-            Keep your tasks saved, synced, and accessible across all your devices.
+            Keep your tasks synced, and accessible across all your devices.
           </p>
 
           @if (currentPrice()) {

@@ -37,19 +37,31 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
           <input
             id="email"
             class="auth-input"
+            [class.auth-input--error]="form.controls.email.invalid && form.controls.email.touched"
             type="email"
             formControlName="email"
             autocomplete="email"
           />
+          @if (form.controls.email.touched && form.controls.email.errors) {
+            <p class="auth-field-error" role="alert">
+              Enter a valid email address.
+            </p>
+          }
 
           <label class="auth-label" for="password">Password</label>
           <input
             id="password"
             class="auth-input"
+            [class.auth-input--error]="form.controls.password.invalid && form.controls.password.touched"
             type="password"
             formControlName="password"
             autocomplete="new-password"
           />
+          @if (form.controls.password.touched && form.controls.password.errors) {
+            <p class="auth-field-error" role="alert">
+              Password must be at least 8 characters.
+            </p>
+          }
 
           <button class="auth-btn" type="submit" [disabled]="loading()">
             @if (loading()) { Creating account… } @else { Sign up }
@@ -70,6 +82,14 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
     </div>
   `,
   styles: [`
+    .auth-field-error {
+      font-size: 0.8rem;
+      color: #e53e3e;
+      margin: -6px 0 4px;
+    }
+    .auth-input--error {
+      border-color: #e53e3e;
+    }
     .auth-legal {
       text-align: center;
       margin-top: 16px;
@@ -99,6 +119,7 @@ export class SignUpComponent {
   });
 
   protected async onSubmit(): Promise<void> {
+    this.form.markAllAsTouched();
     if (this.form.invalid) return;
     this.loading.set(true);
     this.error.set('');

@@ -48,7 +48,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 48px 5px 0;
+  padding: 48px 20px 0;
   overflow: hidden;
 
   @media (max-width: 768px) {
@@ -92,7 +92,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Lists row ────────────────────────────────────────────
 .lists {
-  border: 2px solid pink;
+  //border: 2px solid pink;
   flex: 1;
   overflow: hidden;
 
@@ -118,11 +118,11 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .my-list-col {
-  border: 1px solid red;
+  //border: 1px solid red;
 }
 
 .my-primary-list-container {
-  border: 2px solid blue;
+  //border: 2px solid blue;
 
   @media (min-width: 768px) {
     width: 35vw;
@@ -133,7 +133,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .my-secondary-list-container {
-  border: 2px solid blue;
+  //border: 2px solid blue;
   @media (min-width: 768px) {
     width: 25vw;
   }
@@ -143,7 +143,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .secondary-section {
-  border: 2px solid yellow;
+  //border: 2px solid yellow;
 
   @media (min-width: 768px) {
     display: flex;
@@ -165,8 +165,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     background: rgba(128, 128, 128, 0.2);
     border-radius: 2px;
   }
-  --text: var(--text-secondary);
-  --text-muted: var(--text-muted-secondary);
 }
 
 // ─── Header ────────────────────────────────────────────────
@@ -182,7 +180,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── Upgrade link ──────────────────────────────────────────
 .upgrade-link {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-decoration: none;
   letter-spacing: 0.06em;
   padding: 4px 10px;
@@ -212,7 +210,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .user-menu {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -266,7 +265,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .icon-btn {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
@@ -377,9 +376,9 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── Check button ──────────────────────────────────────────
 .check-btn {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
   border: 1.5px solid var(--border);
   background: transparent;
   cursor: pointer;
@@ -397,8 +396,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &-sub {
-    width: 16px;
-    height: 16px;
+    width: 13px;
+    height: 13px;
   }
 
   &:focus-visible {
@@ -426,7 +425,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 
 .my-second-list-buttons{
-  border: 2px solid orange;
+  //border: 2px solid orange;
   display: flex;
 }
 
@@ -502,7 +501,9 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     color 0.2s $ease;
 
   .task-item:hover &,
-  .task-item:focus-within & {
+  .task-item:focus-within &,
+  .sec-task-item:hover &,
+  .sec-task-item:focus-within & {
     opacity: 0.6;
   }
 
@@ -579,13 +580,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .clear-btn {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.75rem;
   font-family: inherit;
   padding: 4px 0;
-  margin-top: 4px;
-  opacity: 0.6;
+  line-height: 1.4;
   transition:
     opacity 0.2s $ease,
     color 0.2s $ease;
@@ -607,6 +607,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   margin-top: 4px;
   font-size: 0.75rem;
   color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .clear-confirm-label {
@@ -620,8 +621,9 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.75rem;
   font-family: inherit;
   cursor: pointer;
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
+  line-height: 1.4;
   transition:
     color 0.2s $ease,
     background 0.2s $ease;
@@ -719,15 +721,18 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Secondary task item ──────────────────────────────────
 .sec-task-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   padding: 10px 0;
   transition: opacity 0.4s $ease;
 
   &.done {
     opacity: 0.5;
   }
+}
+
+.sec-task-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .sec-task-text {
@@ -811,15 +816,11 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .edit-title-btn {
-  opacity: 0;
+  opacity: 1;
   transition:
     opacity 0.2s $ease,
     color 0.2s $ease !important;
 
-  .sec-header:hover &,
-  .sec-header:focus-within & {
-    opacity: 0.5;
-  }
   &:hover {
     opacity: 1 !important;
   }
@@ -894,6 +895,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── Clear actions row ───────────────────────────────────
 .clear-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
   margin-top: 4px;
 }
