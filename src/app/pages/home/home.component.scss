@@ -113,6 +113,19 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+.remove-btn-section-mobile {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  transition: color 0.2s $ease;
+
+  &:hover {
+    color: #c44;
+  }
+}
+
 .section-nav-left,
 .section-nav-right {
   display: grid;
@@ -207,6 +220,24 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   align-items: center;
   width: 200px;
 
+  .remove-btn-section {
+    opacity: 0 !important;
+    transition: opacity 0.2s $ease, color 0.2s $ease !important;
+  }
+
+  &:hover .remove-btn-section {
+    opacity: 0.6 !important;
+  }
+
+  &:hover .remove-btn-section:hover {
+    opacity: 1 !important;
+  }
+
+  // Keep confirm dialog always visible
+  .clear-confirm {
+    opacity: 1;
+  }
+
   &.cdk-drag-preview {
     border-radius: 6px;
     background: var(--active-tab-bg, rgba(128,128,128,0.12));
@@ -215,11 +246,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .section-tab-placeholder {
-  min-width: 40px;
+  width: 200px;
   height: 32px;
   border: 1.5px dashed var(--text-secondary, #888);
   border-radius: 6px;
-  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
 .section-tabs.cdk-drop-list-dragging .section-tab:not(.cdk-drag-placeholder) {
@@ -315,16 +345,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.remove-btn-section {
-  opacity: 0.6 !important;
-  transition: opacity 0.2s $ease, color 0.2s $ease !important;
-
-  &:hover {
-    opacity: 1;
-    color: #c44 !important;
-  }
 }
 
 .subtask-list {
@@ -609,12 +629,17 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+// ─── Main drop zone ───────────────────────────────────────
+.main-drop-zone {
+  flex: 1;
+  min-height: 200px;
+}
+
 // ─── Task list ─────────────────────────────────────────────
 .task-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 24px;
   min-height: 40px;
 }
 
@@ -1073,6 +1098,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   gap: 8px;
   margin-bottom: 6px;
   overflow: hidden;
+  min-height: 28px;
 }
 
 .edit-title-btn {
@@ -1084,6 +1110,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   &:hover {
     opacity: 1 !important;
   }
+}
+
+.sec-eye-btn-collapsed {
+  margin-left: auto;
 }
 
 .sec-title-input {
@@ -1109,6 +1139,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── CDK drag & drop ──────────────────────────────────────
 .visually-hidden {
   height: 0;
+  min-height: 0 !important;
   overflow: hidden;
   margin: 0 !important;
   padding: 0 !important;
@@ -1218,12 +1249,27 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   margin: 0 6px;
 }
 
-// ─── Editing active: block clicks on text ──────────────────
+// ─── Editing active: block all interaction ─────────────────
 .editing-active {
+  button,
+  a,
   .task-text,
   .subtask-text,
-  .sec-task-text,
-  .add-subtask-btn {
+  .sec-task-text {
     pointer-events: none;
+  }
+
+  // Re-enable inputs & their form buttons so they stay interactive
+  input,
+  .add-form button {
+    pointer-events: auto;
+  }
+
+  // Re-enable mobile section delete button while editing section name
+  .section-nav-mobile-underneath button {
+    pointer-events: auto;
+  }
+  .section-nav-mobile-underneath .clear-confirm button {
+    pointer-events: auto;
   }
 }

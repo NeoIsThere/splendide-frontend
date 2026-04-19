@@ -204,8 +204,8 @@
     </div>
   </div>
   <div class="section-nav-mobile-underneath">
-    @if (sections().length > 1) {
-      @if (confirmingDeleteSection()) {
+    @if (sections().length > 1 && (editingSectionId() === activeSectionId() || confirmingDeleteSectionId() === activeSectionId())) {
+      @if (confirmingDeleteSectionId() === activeSectionId()) {
         <div class="clear-confirm">
           <span class="clear-confirm-label">Delete section:</span>
           <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
@@ -213,8 +213,8 @@
         </div>
       } @else {
         <button
-          class="icon-btn-sm remove-btn remove-btn-section"
-          (click)="startDeleteSection()"
+          class="icon-btn-sm remove-btn-section-mobile"
+          (click)="startDeleteSection(activeSectionId()!)"
           aria-label="Delete section"
         >
           <svg
@@ -271,8 +271,8 @@
           }
         </div>
         <div>
-          @if (activeSectionId() === sec.id && sections().length > 1) {
-            @if (confirmingDeleteSection()) {
+          @if (sections().length > 1) {
+            @if (confirmingDeleteSectionId() === sec.id) {
               <div class="clear-confirm">
                 <span class="clear-confirm-label">Delete section:</span>
                 <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
@@ -281,7 +281,7 @@
             } @else {
               <button
                 class="icon-btn-sm remove-btn remove-btn-section"
-                (click)="startDeleteSection()"
+                (click)="startDeleteSection(sec.id)"
                 aria-label="Delete section"
               >
                 <svg
@@ -340,14 +340,18 @@
           {{ completedCount() }} / {{ taskCount() }}
         </p>
 
-        <!-- Task list (drag-drop) -->
+        <!-- Main drop zone (drag-drop) -->
         <div
-          class="task-list"
+          class="main-drop-zone"
           cdkDropList
           #mainList="cdkDropList"
           [cdkDropListData]="tasks()"
           [cdkDropListConnectedTo]="[secList]"
           (cdkDropListDropped)="dropMainTask($any($event))"
+        >
+        <!-- Task list -->
+        <div
+          class="task-list"
           role="list"
           aria-label="Tasks"
         >
@@ -577,7 +581,7 @@
 
         <!-- Add task form -->
         @if (adding()) {
-          <div class="add-form">
+          <div class="add-form" (focusout)="onAddFormFocusOut($event)">
             <input
               class="input-minimal"
               type="text"
@@ -647,43 +651,6 @@
                   subtask
                 </button>
               }
-              <span class="spacer"></span>
-              <button class="icon-btn-sm" (click)="cancelAdding()" aria-label="Cancel">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-              <button
-                class="icon-btn-sm confirm-btn"
-                (click)="confirmAdd()"
-                [disabled]="!newTaskText().trim()"
-                aria-label="Add task"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </button>
             </div>
           </div>
         } @else if (canAdd()) {
@@ -713,6 +680,7 @@
             <button class="add-btn" (click)="startAdding()" aria-label="Add a new task">+</button>
           }
         }
+        </div><!-- /.main-drop-zone -->
 
         @if (taskCount() > 0) {
           @if (confirmingClear()) {
@@ -741,50 +709,48 @@
     <div class="my-list-col secondary-section" #secondarySection>
       <div class="my-secondary-list-container">
         <div class="sec-header">
-          @if (editingSecondaryTitle()) {
-            <input
-              class="sec-title-input"
-              type="text"
-              [value]="secondaryTitle()"
-              (blur)="saveSecondaryTitle($event)"
-              (keydown)="handleSecondaryTitleKeydown($event)"
-              autofocus
-              aria-label="Edit list title"
-              maxlength="40"
-            />
-          } @else {
-            <h2 class="section-title" (click)="startEditingSecondaryTitle()">
-              {{ secondaryTitle() }}
-            </h2>
-          }
-          <div class="my-second-list-buttons">
-            <button
-              class="icon-btn-sm edit-title-btn"
-              (click)="startEditingSecondaryTitle()"
-              aria-label="Edit list title"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
+          @if (secondaryVisible()) {
+            @if (editingSecondaryTitle()) {
+              <input
+                class="sec-title-input"
+                type="text"
+                [value]="secondaryTitle()"
+                (blur)="saveSecondaryTitle($event)"
+                (keydown)="handleSecondaryTitleKeydown($event)"
+                autofocus
+                aria-label="Edit list title"
+                maxlength="40"
+              />
+            } @else {
+              <h2 class="section-title" (click)="startEditingSecondaryTitle()">
+                {{ secondaryTitle() }}
+              </h2>
+            }
+            <div class="my-second-list-buttons">
+              <button
+                class="icon-btn-sm edit-title-btn"
+                (click)="startEditingSecondaryTitle()"
+                aria-label="Edit list title"
               >
-                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-              </svg>
-            </button>
-            <button
-              class="icon-btn-sm"
-              (click)="toggleSecondaryVisibility()"
-              [attr.aria-label]="
-                secondaryVisible() ? 'Hide secondary tasks' : 'Show secondary tasks'
-              "
-            >
-              @if (secondaryVisible()) {
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                </svg>
+              </button>
+              <button
+                class="icon-btn-sm"
+                (click)="toggleSecondaryVisibility()"
+                aria-label="Hide secondary tasks"
+              >
                 <svg
                   width="16"
                   height="16"
@@ -801,24 +767,30 @@
                   />
                   <line x1="1" y1="1" x2="23" y2="23" />
                 </svg>
-              } @else {
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              }
+              </button>
+            </div>
+          } @else {
+            <button
+              class="icon-btn-sm sec-eye-btn-collapsed"
+              (click)="toggleSecondaryVisibility()"
+              aria-label="Show secondary tasks"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
-          </div>
+          }
         </div>
 
         <p
@@ -1066,9 +1038,9 @@
           }
         </div>
 
-        @if (secondaryVisible() || secondaryCount() === 0) {
+        @if (secondaryVisible()) {
           @if (addingSecondary()) {
-            <div class="add-form add-form-sec">
+            <div class="add-form add-form-sec" (focusout)="onSecAddFormFocusOut($event)">
               <input
                 class="input-minimal input-sec"
                 type="text"
@@ -1138,43 +1110,6 @@
                     subtask
                   </button>
                 }
-                <span class="spacer"></span>
-                <button class="icon-btn-sm" (click)="cancelAddingSecondary()" aria-label="Cancel">
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-                <button
-                  class="icon-btn-sm confirm-btn"
-                  (click)="confirmAddSecondary()"
-                  [disabled]="!newSecondaryText().trim()"
-                  aria-label="Add task"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </button>
               </div>
             </div>
           } @else if (canAddSecondary()) {

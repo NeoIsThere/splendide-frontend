@@ -50,7 +50,7 @@ export class HomeComponent implements OnDestroy {
   // ─── Section editing ────────────────────────────────────
   protected readonly editingSectionId = signal<string | null>(null);
   protected readonly addingSectionTitle = signal<string | null>(null);
-  protected readonly confirmingDeleteSection = signal(false);
+  protected readonly confirmingDeleteSectionId = signal<string | null>(null);
 
   // ─── Active section lists ───────────────────────────────
   protected readonly mainList = computed(() => {
@@ -278,7 +278,7 @@ export class HomeComponent implements OnDestroy {
   protected startAddingSection(): void {
     if (!this.canAddSection() || this.isEditing()) return;
     this.addingSectionTitle.set('');
-    setTimeout(() => document.querySelector<HTMLInputElement>('.section-add-input')?.focus());
+    this.focusVisibleInput('.section-add-input');
   }
 
   protected cancelAddingSection(): void {
@@ -333,9 +333,7 @@ export class HomeComponent implements OnDestroy {
   protected startEditingSection(sectionId: string): void {
     if (this.isEditing()) return;
     this.editingSectionId.set(sectionId);
-    afterNextRender(() => {
-      document.querySelector<HTMLInputElement>(`[data-edit-section="${sectionId}"]`)?.focus();
-    }, { injector: this.injector });
+    this.focusVisibleInput(`[data-edit-section="${sectionId}"]`, true);
   }
 
   protected saveSectionEdit(sectionId: string, event: Event): void {
@@ -364,24 +362,26 @@ export class HomeComponent implements OnDestroy {
 
   // ─── Section deletion ──────────────────────────────────
 
-  protected startDeleteSection(): void {
-    this.confirmingDeleteSection.set(true);
+  protected startDeleteSection(sectionId: string): void {
+    this.confirmingDeleteSectionId.set(sectionId);
   }
 
   protected cancelDeleteSection(): void {
-    this.confirmingDeleteSection.set(false);
+    this.confirmingDeleteSectionId.set(null);
   }
 
   protected confirmDeleteSection(): void {
-    const id = this.activeSectionId();
+    const id = this.confirmingDeleteSectionId();
     if (!id) return;
 
     this.storage.removeSection(id);
     this.refreshSectionsFromStorage();
-    this.confirmingDeleteSection.set(false);
+    this.confirmingDeleteSectionId.set(null);
 
     const remaining = this.sections();
-    this.activeSectionId.set(remaining[0]?.id ?? null);
+    if (this.activeSectionId() === id) {
+      this.activeSectionId.set(remaining[0]?.id ?? null);
+    }
 
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
       this.sync.syncSections().then(synced => this.sections.set(synced)).catch(() => {});
@@ -534,7 +534,7 @@ export class HomeComponent implements OnDestroy {
 
   protected confirmAdd(): void {
     const text = this.newTaskText().trim();
-    if (!text) return;
+    if (!text) { this.cancelAdding(); return; }
     const subtasks: Subtask[] = this.newSubtasks()
       .map(s => s.trim())
       .filter(s => s.length > 0)
@@ -544,6 +544,14 @@ export class HomeComponent implements OnDestroy {
       { id: Date.now(), text, subtasks, done: false },
     ]);
     this.cancelAdding();
+  }
+
+  protected onAddFormFocusOut(event: FocusEvent): void {
+    const form = (event.currentTarget as HTMLElement);
+    const next = event.relatedTarget as Node | null;
+    if (!next || !form.contains(next)) {
+      this.confirmAdd();
+    }
   }
 
   protected addSubtaskField(): void {
@@ -712,7 +720,7 @@ export class HomeComponent implements OnDestroy {
 
   protected confirmAddSecondary(): void {
     const text = this.newSecondaryText().trim();
-    if (!text) return;
+    if (!text) { this.cancelAddingSecondary(); return; }
     const subtasks: Subtask[] = this.newSecondarySubtasks()
       .map(s => s.trim())
       .filter(s => s.length > 0)
@@ -722,6 +730,14 @@ export class HomeComponent implements OnDestroy {
       { id: Date.now(), text, subtasks, done: false },
     ]);
     this.cancelAddingSecondary();
+  }
+
+  protected onSecAddFormFocusOut(event: FocusEvent): void {
+    const form = (event.currentTarget as HTMLElement);
+    const next = event.relatedTarget as Node | null;
+    if (!next || !form.contains(next)) {
+      this.confirmAddSecondary();
+    }
   }
 
   protected onNewSecondaryInput(event: Event): void {
@@ -978,6 +994,15 @@ export class HomeComponent implements OnDestroy {
   }
 
   // ─── Focus helper ───────────────────────────────────────
+  private focusVisibleInput(selector: string, select = false): void {
+    requestAnimationFrame(() => setTimeout(() => {
+      const all = document.querySelectorAll<HTMLInputElement>(selector);
+      const el = Array.from(all).find(i => i.offsetParent !== null) ?? all[0];
+      el?.focus();
+      if (select) el?.select();
+    }));
+  }
+
   private focusEditInput(editId: string): void {
     afterNextRender(() => {
       const input = document.querySelector<HTMLInputElement>(`[data-edit-id="${editId}"]`);
