@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { APP_VERSION } from '../../../environments/environment';
 
 @Component({
   selector: 'app-terms',
@@ -53,7 +54,7 @@ import { RouterLink } from '@angular/router';
 
         <h2>12. Contact</h2>
         <p>For questions about these Terms, contact us at <strong>support&#64;email.splendide.app</strong>.</p>
-        <p class="legal-version">v1.0.0</p>
+        <p class="legal-version">{{ version }}</p>
       </div>
     </div>
   `,
@@ -107,4 +108,6 @@ import { RouterLink } from '@angular/router';
     li { margin-bottom: 4px; }
   `],
 })
-export class TermsComponent {}
+export class TermsComponent {
+  protected readonly version = APP_VERSION;
+}

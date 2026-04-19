@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { APP_VERSION } from '../../../environments/environment';
 
 @Component({
   selector: 'app-privacy',
@@ -103,7 +104,7 @@ import { RouterLink } from '@angular/router';
         <h2>14. Contact & Complaints</h2>
         <p>For privacy inquiries: <strong>privacy&#64;email.splendide.app</strong></p>
         <p>EU users may also lodge a complaint with your local data protection authority.</p>
-        <p class="legal-version">v1.0.0</p>
+        <p class="legal-version">{{ version }}</p>
       </div>
     </div>
   `,
@@ -166,4 +167,6 @@ import { RouterLink } from '@angular/router';
     li { margin-bottom: 4px; }
   `],
 })
-export class PrivacyComponent {}
+export class PrivacyComponent {
+  protected readonly version = APP_VERSION;
+}
