@@ -30,6 +30,7 @@
           </button>
 
           @if (menuOpen() && auth.isLoggedIn()) {
+            <div class="user-menu-backdrop" (click)="toggleMenu()"></div>
             <div class="user-menu">
               <p class="user-menu-email">{{ auth.user()?.email }}</p>
               @if (auth.isPremium()) {
@@ -685,23 +686,28 @@
         @if (taskCount() > 0) {
           @if (confirmingClear()) {
             <div class="clear-confirm">
-              <span class="clear-confirm-label">Clear the list:</span>
-              <button class="clear-yes" (click)="confirmClear()">yes</button>
-              <button class="clear-no" (click)="cancelClear()">cancel</button>
+              <span class="clear-confirm-label">Delete:</span>
+              @if (completedCount() > 0) {
+                <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">Done only</button>
+              }
+              <button class="clear-yes" (click)="confirmClear()">All</button>
+              <button class="clear-no" (click)="cancelClear()">Cancel</button>
             </div>
           } @else {
             <div class="clear-actions">
-              <button class="clear-btn" (click)="startClear()">Clear</button>
-              @if (completedCount() > 0) {
-                <button class="clear-btn" (click)="clearDoneTasks()">Clear done</button>
-              }
+              <button class="clear-btn" (click)="startClear()" aria-label="Clear the list">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                  <path d="M9 6V4h6v2" />
+                </svg>
+              </button>
             </div>
           }
         }
 
-        @if (allDone()) {
-          <p class="done-message">All clear. &#10024;</p>
-        }
       </div>
     </div>
 
@@ -803,13 +809,16 @@
         </p>
 
         <div
-          class="task-list"
-          [class.visually-hidden]="!secondaryVisible()"
+          class="sec-drop-zone"
           cdkDropList
           #secList="cdkDropList"
           [cdkDropListData]="secondaryTasks()"
           [cdkDropListConnectedTo]="[mainList]"
           (cdkDropListDropped)="dropSecondaryTask($any($event))"
+        >
+        <div
+          class="task-list"
+          [class.visually-hidden]="!secondaryVisible()"
           role="list"
           aria-label="Secondary tasks"
         >
@@ -1146,20 +1155,29 @@
             }
           }
         }
+        </div><!-- /.sec-drop-zone -->
 
         @if (secondaryVisible() && secondaryCount() > 0) {
           @if (confirmingSecondaryClear()) {
             <div class="clear-confirm">
-              <span class="clear-confirm-label">Clear the list:</span>
-              <button class="clear-yes" (click)="confirmSecondaryClear()">yes</button>
-              <button class="clear-no" (click)="cancelSecondaryClear()">cancel</button>
+              <span class="clear-confirm-label">Delete:</span>
+              @if (secondaryCompletedCount() > 0) {
+                <button class="clear-yes" (click)="clearDoneSecondary(); cancelSecondaryClear()">Done only</button>
+              }
+              <button class="clear-yes" (click)="confirmSecondaryClear()">All</button>
+              <button class="clear-no" (click)="cancelSecondaryClear()">Cancel</button>
             </div>
           } @else {
             <div class="clear-actions">
-              <button class="clear-btn" (click)="startSecondaryClear()">Clear</button>
-              @if (secondaryCompletedCount() > 0) {
-                <button class="clear-btn" (click)="clearDoneSecondary()">Clear done</button>
-              }
+              <button class="clear-btn" (click)="startSecondaryClear()" aria-label="Clear the list">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                  <path d="M9 6V4h6v2" />
+                </svg>
+              </button>
             </div>
           }
         }

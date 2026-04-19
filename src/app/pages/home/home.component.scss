@@ -276,7 +276,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   .section-tab.active & {
     color: var(--text-primary, #222);
-    font-weight: 600;
     background: var(--active-tab-bg, rgba(128,128,128,0.12));
   }
 }
@@ -389,6 +388,20 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
     overflow-x: hidden;
   }
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.2);
+    border-radius: 2px;
+  }
 }
 
 .my-first-list-col{
@@ -487,16 +500,22 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
+.user-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
 .user-menu {
   position: absolute;
   top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  right: 0;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 16px;
   min-width: 200px;
+  max-width: calc(100vw - 32px);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
   z-index: 100;
 }
@@ -505,8 +524,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.78rem;
   color: var(--text-muted);
   margin: 0 0 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -635,12 +652,26 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 200px;
 }
 
+// ─── Secondary drop zone ─────────────────────────────────
+.sec-drop-zone {
+  min-height: 200px;
+  margin-bottom: 24px;
+
+  @media (max-width: 768px) {
+    min-height: 80px;
+  }
+}
+
 // ─── Task list ─────────────────────────────────────────────
 .task-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 40px;
+
+  @media (max-width: 768px) {
+    min-height: 0;
+  }
 }
 
 // ─── Main task item ────────────────────────────────────────
@@ -869,15 +900,17 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   font-size: 0.75rem;
   font-family: inherit;
-  padding: 4px 0;
-  line-height: 1.4;
+  padding: 0;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
   transition:
     opacity 0.2s $ease,
     color 0.2s $ease;
 
   &:hover {
     opacity: 1;
-    color: var(--text);
+    color: #c44;
   }
   &:focus-visible {
     outline: 2px solid var(--text);
@@ -891,12 +924,13 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   gap: 8px;
   margin-top: 4px;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text);
   line-height: 1.4;
 }
 
 .clear-confirm-label {
-  opacity: 0.6;
+  color: var(--text);
+  opacity: 0.85;
 }
 
 .clear-yes,
@@ -922,9 +956,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .clear-no {
-  color: var(--text-muted);
+  color: var(--text);
+  opacity: 0.85;
   &:hover {
-    color: var(--text);
+    background: rgba(128, 128, 128, 0.1);
   }
 }
 
@@ -1181,14 +1216,31 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
     overflow-x: hidden;
   }
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.2);
+    border-radius: 2px;
+  }
 }
 
 // ─── Clear actions row ───────────────────────────────────
 .clear-actions {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 12px;
   margin-top: 4px;
+  line-height: 1;
+  margin-top: 10px;
 }
 
 // ─── Mobile-only move button ─────────────────────────────
