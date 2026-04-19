@@ -14,6 +14,7 @@ export interface User {
 interface AuthResponse {
   accessToken: string;
   user: User;
+  isNewUser?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -29,6 +30,12 @@ export class AuthService {
   readonly isLoggedIn = computed(() => !!this._token());
   readonly isPremium = computed(() => this._user()?.isPremium ?? false);
 
+  constructor() {
+    if (this._token()) {
+      this.fetchUser();
+    }
+  }
+
   // ─── Email / Password ───────────────────────────────────
 
   async register(email: string, password: string, name?: string): Promise<void> {
@@ -43,9 +50,10 @@ export class AuthService {
 
   // ─── Google ─────────────────────────────────────────────
 
-  async googleAuth(idToken: string): Promise<void> {
+  async googleAuth(idToken: string): Promise<{ isNewUser: boolean }> {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google`, { idToken }, { withCredentials: true }));
     this.setSession(res);
+    return { isNewUser: res.isNewUser ?? false };
   }
 
   // ─── Forgot / Reset Password ────────────────────────────
@@ -112,6 +120,13 @@ export class AuthService {
       if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
     }
     return isPremium;
+  }
+
+  async redeemVipCode(code: string): Promise<void> {
+    await firstValueFrom(this.http.post(`${this.apiUrl}/payment/redeem-code`, { code }));
+    this._user.update(u => u ? { ...u, isPremium: true } : u);
+    const user = this._user();
+    if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
   }
 
   // ─── Session ────────────────────────────────────────────

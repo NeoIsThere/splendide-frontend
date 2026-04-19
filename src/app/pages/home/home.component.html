@@ -1,4 +1,4 @@
-<div class="layout">
+<div class="layout" [class.editing-active]="isEditing()">
   <!-- ═══ Top bar ═══ -->
 
   <div class="my-top-bar">
@@ -34,8 +34,20 @@
               <p class="user-menu-email">{{ auth.user()?.email }}</p>
               @if (auth.isPremium()) {
                 <p class="user-menu-badge">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polygon
+                      points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                    />
                   </svg>
                   Premium
                 </p>
@@ -43,7 +55,9 @@
                 <p class="user-menu-badge">Free</p>
               }
               @if (auth.isPremium()) {
-                <button class="user-menu-item" (click)="manageSubscription()">Manage subscription</button>
+                <button class="user-menu-item" (click)="manageSubscription()">
+                  Manage subscription
+                </button>
               }
               <button class="user-menu-item" (click)="signOut()">Sign out</button>
             </div>
@@ -111,6 +125,209 @@
     </div>
   </div>
 
+  <!-- ═══ Section Nav (mobile) ═══ -->
+  <div class="section-nav-mobile">
+    <div class="section-nav-left">
+      @if (showPrevArrow()) {
+        <button class="section-nav-arrow" (click)="goToPrevSection()" aria-label="Previous section">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+      }
+    </div>
+    <div class="section-nav-center">
+      @if (addingSectionTitle() !== null) {
+        <input
+          class="section-add-input"
+          [value]="addingSectionTitle()"
+          (input)="onAddSectionInput($event)"
+          (keydown)="handleAddSectionKeydown($event)"
+          (blur)="confirmAddSection()"
+          placeholder="Section name"
+        />
+      } @else if (editingSectionId() === activeSectionId()) {
+        <input
+          class="section-tab-input"
+          [attr.data-edit-section]="activeSectionId()"
+          [value]="activeSection()?.title"
+          (blur)="saveSectionEdit(activeSectionId()!, $event)"
+          (keydown)="handleSectionEditKeydown(activeSectionId()!, $event)"
+        />
+      } @else {
+        <button class="section-nav-title" (click)="startEditingSection(activeSectionId()!)">
+          {{ activeSection()?.title }}
+        </button>
+      }
+      @if (sections().length > 1) {
+        @if (confirmingDeleteSection()) {
+          <div class="clear-confirm">
+            <span class="clear-confirm-label">Delete section:</span>
+            <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
+            <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
+          </div>
+        } @else {
+          <button
+            class="icon-btn-sm remove-btn remove-btn-section"
+            (click)="startDeleteSection()"
+            aria-label="Delete section"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        }
+      }
+    </div>
+    <div class="section-nav-right">
+      <div class="section-nav-right-inner">
+        @if (canAddSection() && addingSectionTitle() === null) {
+          <button
+            class="add-btn add-btn-section"
+            (click)="startAddingSection()"
+            aria-label="Add section"
+          >
+            +
+          </button>
+        }
+      </div>
+      <div class="section-nav-right-inner">
+        @if (showNextArrow()) {
+          <button class="section-nav-arrow" (click)="goToNextSection()" aria-label="Next section">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Section Tabs (desktop) ═══ -->
+  <div
+    class="section-tabs"
+    cdkDropList
+    cdkDropListOrientation="horizontal"
+    (cdkDropListDropped)="dropSection($any($event))"
+  >
+    @for (sec of sections(); track sec.id) {
+      <div
+        class="section-tab"
+        [class.active]="activeSectionId() === sec.id"
+        cdkDrag
+        [cdkDragData]="sec"
+        [cdkDragStartDelay]="dragDelay()"
+      >
+        <div>
+          <div class="section-tab-placeholder" *cdkDragPlaceholder></div>
+          @if (editingSectionId() === sec.id) {
+            <input
+              class="section-tab-input"
+              [attr.data-edit-section]="sec.id"
+              [value]="sec.title"
+              (blur)="saveSectionEdit(sec.id, $event)"
+              (keydown)="handleSectionEditKeydown(sec.id, $event)"
+            />
+          } @else {
+            <button
+              class="section-tab-btn"
+              (click)="selectSection(sec.id)"
+              (dblclick)="startEditingSection(sec.id)"
+            >
+              {{ sec.title }}
+            </button>
+          }
+        </div>
+        <div>
+          @if (activeSectionId() === sec.id && sections().length > 1) {
+            @if (confirmingDeleteSection()) {
+              <div class="clear-confirm">
+                <span class="clear-confirm-label">Delete section:</span>
+                <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
+                <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
+              </div>
+            } @else {
+              <button
+                class="icon-btn-sm remove-btn remove-btn-section"
+                (click)="startDeleteSection()"
+                aria-label="Delete section"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            }
+          }
+        </div>
+      </div>
+    }
+
+    @if (canAddSection()) {
+      <div>
+        @if (addingSectionTitle() !== null) {
+          <input
+            class="section-add-input"
+            [value]="addingSectionTitle()"
+            (input)="onAddSectionInput($event)"
+            (keydown)="handleAddSectionKeydown($event)"
+            (blur)="confirmAddSection()"
+            placeholder="Section name"
+          />
+        } @else {
+          <button
+            class="add-btn add-btn-section"
+            (click)="startAddingSection()"
+            aria-label="Add section"
+          >
+            +
+          </button>
+        }
+      </div>
+    }
+  </div>
+
   <!-- ═══ Lists ═══ -->
   <div class="lists">
     <div class="my-first-list-col my-list-col"></div>
@@ -118,7 +335,9 @@
     <!-- ═══ Main Section ═══ -->
     <div class="my-list-col main-section" #mainSection>
       <div class="my-primary-list-container">
-        <p class="counter" [class.counter-invisible]="taskCount() === 0 || completedCount() === 0">{{ completedCount() }} / {{ taskCount() }}</p>
+        <p class="counter" [class.counter-invisible]="taskCount() === 0 || completedCount() === 0">
+          {{ completedCount() }} / {{ taskCount() }}
+        </p>
 
         <!-- Task list (drag-drop) -->
         <div
@@ -136,6 +355,7 @@
               class="task-item"
               [class.done]="task.done"
               cdkDrag
+              [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
               role="listitem"
             >
@@ -191,8 +411,8 @@
                   [attr.aria-label]="'Move to backlog: ' + task.text"
                 >
                   <svg
-                    width="16"
-                    height="16"
+                    width="22"
+                    height="22"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -227,77 +447,84 @@
               </div>
 
               <!-- Subtasks -->
-              @for (sub of task.subtasks; track sub.id) {
-                <div class="subtask-row">
-                  <button
-                    class="check-btn check-btn-sub"
-                    [class.checked]="sub.done"
-                    (click)="toggleSubtask(task.id, sub.id)"
-                    [attr.aria-label]="
-                      (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
-                    "
-                  >
-                    @if (sub.done) {
+              <div
+                class="subtask-list"
+                cdkDropList
+                [cdkDropListData]="task.subtasks"
+                (cdkDropListDropped)="dropSubtask(task.id, $any($event))"
+              >
+                @for (sub of task.subtasks; track sub.id) {
+                  <div class="subtask-row" cdkDrag [cdkDragStartDelay]="dragDelay()">
+                    <button
+                      class="check-btn check-btn-sub"
+                      [class.checked]="sub.done"
+                      (click)="toggleSubtask(task.id, sub.id)"
+                      [attr.aria-label]="
+                        (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
+                      "
+                    >
+                      @if (sub.done) {
+                        <svg
+                          width="8"
+                          height="8"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      }
+                    </button>
+
+                    @if (
+                      editingSubtask()?.taskId === task.id && editingSubtask()?.subtaskId === sub.id
+                    ) {
+                      <input
+                        class="edit-input edit-input-sub"
+                        type="text"
+                        [value]="sub.text"
+                        [attr.data-edit-id]="'sub-' + sub.id"
+                        (blur)="saveSubtaskEdit(task.id, sub.id, $event)"
+                        (keydown)="handleSubtaskEditKeydown(task.id, sub.id, $event)"
+                        aria-label="Edit subtask"
+                        maxlength="120"
+                      />
+                    } @else {
+                      <span
+                        class="subtask-text"
+                        [class.struck]="sub.done"
+                        (click)="startEditingSubtask(task.id, sub.id)"
+                        >{{ sub.text }}</span
+                      >
+                    }
+
+                    <button
+                      class="icon-btn-sm remove-btn"
+                      (click)="removeSubtask(task.id, sub.id)"
+                      [attr.aria-label]="'Remove subtask: ' + sub.text"
+                    >
                       <svg
-                        width="8"
-                        height="8"
+                        width="14"
+                        height="14"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        stroke-width="3"
+                        stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         aria-hidden="true"
                       >
-                        <polyline points="20 6 9 17 4 12" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
-                    }
-                  </button>
-
-                  @if (
-                    editingSubtask()?.taskId === task.id && editingSubtask()?.subtaskId === sub.id
-                  ) {
-                    <input
-                      class="edit-input edit-input-sub"
-                      type="text"
-                      [value]="sub.text"
-                      [attr.data-edit-id]="'sub-' + sub.id"
-                      (blur)="saveSubtaskEdit(task.id, sub.id, $event)"
-                      (keydown)="handleSubtaskEditKeydown(task.id, sub.id, $event)"
-                      aria-label="Edit subtask"
-                      maxlength="120"
-                    />
-                  } @else {
-                    <span
-                      class="subtask-text"
-                      [class.struck]="sub.done"
-                      (click)="startEditingSubtask(task.id, sub.id)"
-                      >{{ sub.text }}</span
-                    >
-                  }
-
-                  <button
-                    class="icon-btn-sm remove-btn"
-                    (click)="removeSubtask(task.id, sub.id)"
-                    [attr.aria-label]="'Remove subtask: ' + sub.text"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              }
+                    </button>
+                  </div>
+                }
+              </div>
 
               <!-- Inline add subtask input -->
               @if (addingSubtaskToId() === task.id) {
@@ -318,7 +545,7 @@
               }
 
               <!-- Add subtask button -->
-              @if (task.subtasks.length < 5 && addingSubtaskToId() !== task.id) {
+              @if (task.subtasks.length < 10 && addingSubtaskToId() !== task.id) {
                 <button
                   class="add-subtask-btn"
                   (click)="startAddingSubtask(task.id)"
@@ -396,7 +623,7 @@
               </div>
             }
             <div class="form-actions">
-              @if (newSubtasks().length < 5) {
+              @if (newSubtasks().length < 10) {
                 <button
                   class="add-subtask-btn add-subtask-btn-form"
                   (click)="addSubtaskField()"
@@ -593,7 +820,12 @@
           </div>
         </div>
 
-        <p class="counter counter-sec" [class.counter-invisible]="!secondaryVisible() || secondaryCount() === 0 || secondaryCompletedCount() === 0">
+        <p
+          class="counter counter-sec"
+          [class.counter-invisible]="
+            !secondaryVisible() || secondaryCount() === 0 || secondaryCompletedCount() === 0
+          "
+        >
           {{ secondaryCompletedCount() }} / {{ secondaryCount() }}
         </p>
 
@@ -613,6 +845,7 @@
               class="sec-task-item"
               [class.done]="task.done"
               cdkDrag
+              [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
               role="listitem"
             >
@@ -668,8 +901,8 @@
                   [attr.aria-label]="'Move to main: ' + task.text"
                 >
                   <svg
-                    width="14"
-                    height="14"
+                    width="22"
+                    height="22"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -704,77 +937,85 @@
               </div>
 
               <!-- Subtasks -->
-              @for (sub of task.subtasks; track sub.id) {
-                <div class="subtask-row">
-                  <button
-                    class="check-btn check-btn-sub"
-                    [class.checked]="sub.done"
-                    (click)="toggleSecSubtask(task.id, sub.id)"
-                    [attr.aria-label]="
-                      (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
-                    "
-                  >
-                    @if (sub.done) {
+              <div
+                class="subtask-list"
+                cdkDropList
+                [cdkDropListData]="task.subtasks"
+                (cdkDropListDropped)="dropSecSubtask(task.id, $any($event))"
+              >
+                @for (sub of task.subtasks; track sub.id) {
+                  <div class="subtask-row" cdkDrag [cdkDragStartDelay]="dragDelay()">
+                    <button
+                      class="check-btn check-btn-sub"
+                      [class.checked]="sub.done"
+                      (click)="toggleSecSubtask(task.id, sub.id)"
+                      [attr.aria-label]="
+                        (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
+                      "
+                    >
+                      @if (sub.done) {
+                        <svg
+                          width="8"
+                          height="8"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      }
+                    </button>
+
+                    @if (
+                      editingSecSubtask()?.taskId === task.id &&
+                      editingSecSubtask()?.subtaskId === sub.id
+                    ) {
+                      <input
+                        class="edit-input edit-input-sub"
+                        type="text"
+                        [value]="sub.text"
+                        [attr.data-edit-id]="'secsub-' + sub.id"
+                        (blur)="saveSecSubtaskEdit(task.id, sub.id, $event)"
+                        (keydown)="handleSecSubtaskEditKeydown(task.id, sub.id, $event)"
+                        aria-label="Edit subtask"
+                        maxlength="120"
+                      />
+                    } @else {
+                      <span
+                        class="subtask-text"
+                        [class.struck]="sub.done"
+                        (click)="startEditingSecSubtask(task.id, sub.id)"
+                        >{{ sub.text }}</span
+                      >
+                    }
+
+                    <button
+                      class="icon-btn-sm remove-btn"
+                      (click)="removeSecSubtask(task.id, sub.id)"
+                      [attr.aria-label]="'Remove subtask: ' + sub.text"
+                    >
                       <svg
-                        width="8"
-                        height="8"
+                        width="14"
+                        height="14"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        stroke-width="3"
+                        stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         aria-hidden="true"
                       >
-                        <polyline points="20 6 9 17 4 12" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
-                    }
-                  </button>
-
-                  @if (
-                    editingSecSubtask()?.taskId === task.id && editingSecSubtask()?.subtaskId === sub.id
-                  ) {
-                    <input
-                      class="edit-input edit-input-sub"
-                      type="text"
-                      [value]="sub.text"
-                      [attr.data-edit-id]="'secsub-' + sub.id"
-                      (blur)="saveSecSubtaskEdit(task.id, sub.id, $event)"
-                      (keydown)="handleSecSubtaskEditKeydown(task.id, sub.id, $event)"
-                      aria-label="Edit subtask"
-                      maxlength="120"
-                    />
-                  } @else {
-                    <span
-                      class="subtask-text"
-                      [class.struck]="sub.done"
-                      (click)="startEditingSecSubtask(task.id, sub.id)"
-                      >{{ sub.text }}</span
-                    >
-                  }
-
-                  <button
-                    class="icon-btn-sm remove-btn"
-                    (click)="removeSecSubtask(task.id, sub.id)"
-                    [attr.aria-label]="'Remove subtask: ' + sub.text"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              }
+                    </button>
+                  </div>
+                }
+              </div>
 
               <!-- Inline add subtask input -->
               @if (addingSecSubtaskToId() === task.id) {
@@ -795,7 +1036,7 @@
               }
 
               <!-- Add subtask button -->
-              @if (task.subtasks.length < 5 && addingSecSubtaskToId() !== task.id) {
+              @if (task.subtasks.length < 10 && addingSecSubtaskToId() !== task.id) {
                 <button
                   class="add-subtask-btn"
                   (click)="startAddingSecSubtask(task.id)"
@@ -824,7 +1065,7 @@
           }
         </div>
 
-        @if (secondaryVisible()) {
+        @if (secondaryVisible() || secondaryCount() === 0) {
           @if (addingSecondary()) {
             <div class="add-form add-form-sec">
               <input
@@ -873,7 +1114,7 @@
                 </div>
               }
               <div class="form-actions">
-                @if (newSecondarySubtasks().length < 5) {
+                @if (newSecondarySubtasks().length < 10) {
                   <button
                     class="add-subtask-btn add-subtask-btn-form"
                     (click)="addSecSubtaskField()"
@@ -998,5 +1239,3 @@
     <a href="mailto:support&#64;email.splendide.app">Contact us</a>
   </footer>
 </div>
-
-

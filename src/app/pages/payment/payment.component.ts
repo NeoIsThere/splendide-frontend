@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { StorageService } from '../../services/storage.service';
 
 interface PriceOption {
   currency: string;
@@ -153,6 +154,49 @@ function guessCurrency(): string {
       text-decoration: none;
     }
     .back:hover { color: var(--text); }
+    .code-link {
+      display: block;
+      text-align: center;
+      margin-top: 16px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color 0.2s;
+    }
+    .code-link:hover { color: var(--text-secondary); }
+    .code-form {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .code-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid var(--border, #ddd);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      font-size: 0.8125rem;
+      font-family: inherit;
+    }
+    .code-input:focus { outline: 1px solid var(--text-secondary); }
+    .code-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .code-btn:hover { opacity: 0.85; }
+    .code-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .result-title {
       font-size: 1.25rem;
       font-weight: 600;
@@ -204,7 +248,7 @@ function guessCurrency(): string {
         @if (mode() === 'success') {
           <h2 class="result-title">Welcome to Premium.</h2>
           <p class="result-text">Your subscription is active. Tasks now sync across all your devices.</p>
-          <a class="result-link" routerLink="/">Enjoy it</a>
+          <a class="result-link" routerLink="/" (click)="onEnjoyIt()">Enjoy it</a>
         } @else if (mode() === 'cancel') {
           <h2 class="result-title">Payment cancelled</h2>
           <p class="result-text">No worries — you can upgrade anytime.</p>
@@ -244,6 +288,23 @@ function guessCurrency(): string {
           </button>
 
           <a class="back" routerLink="/">Maybe later</a>
+
+          @if (!showCodeInput()) {
+            <button class="code-link" (click)="showCodeInput.set(true)">I have a code</button>
+          } @else {
+            <div class="code-form">
+              <input
+                class="code-input"
+                type="text"
+                placeholder="Enter your code"
+                [value]="codeValue()"
+                (input)="codeValue.set($any($event.target).value)"
+                (keydown.enter)="redeemCode()"
+                maxlength="64"
+              />
+              <button class="code-btn" (click)="redeemCode()" [disabled]="codeLoading() || !codeValue().trim()">Redeem</button>
+            </div>
+          }
         }
       </div>
     </div>
@@ -253,6 +314,7 @@ export class PaymentComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly storage = inject(StorageService);
 
   protected readonly mode = signal<'upgrade' | 'success' | 'cancel'>('upgrade');
   protected readonly loading = signal(false);
@@ -263,15 +325,29 @@ export class PaymentComponent implements OnInit {
   protected readonly availableCurrencies = signal<string[]>([]);
   protected readonly currentPrice = signal<{ amount: number; symbol: string } | null>(null);
 
-  ngOnInit(): void {
+  protected readonly showCodeInput = signal(false);
+  protected readonly codeValue = signal('');
+  protected readonly codeLoading = signal(false);
+
+  async ngOnInit(): Promise<void> {
     const url = this.router.url;
     if (url.includes('/payment/success')) {
       this.mode.set('success');
-      this.auth.checkPremiumStatus();
+      const isPremium = await this.auth.checkPremiumStatus();
+      if (isPremium) {
+        this.copyAnonymousToUserPartition();
+      }
     } else if (url.includes('/payment/cancel')) {
       this.mode.set('cancel');
     } else {
       this.loadPrices();
+    }
+  }
+
+  private copyAnonymousToUserPartition(): void {
+    const userId = this.auth.user()?.id;
+    if (userId) {
+      this.storage.copyAnonymousToUser(userId);
     }
   }
 
@@ -295,6 +371,25 @@ export class PaymentComponent implements OnInit {
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'Could not start checkout. Please try again.');
       this.loading.set(false);
+    }
+  }
+
+  protected onEnjoyIt(): void {
+    // copy already happened in ngOnInit / redeemCode
+  }
+
+  protected async redeemCode(): Promise<void> {
+    const code = this.codeValue().trim();
+    if (!code) return;
+    this.codeLoading.set(true);
+    this.error.set('');
+    try {
+      await this.auth.redeemVipCode(code);
+      this.copyAnonymousToUserPartition();
+      this.mode.set('success');
+    } catch (e: any) {
+      this.error.set(e?.error?.error ?? 'Invalid or expired code.');
+      this.codeLoading.set(false);
     }
   }
 

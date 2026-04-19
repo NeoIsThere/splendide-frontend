@@ -90,6 +90,260 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+// ─── Section nav (mobile) ─────────────────────────────────
+.section-nav-mobile {
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 0 8px;
+  }
+}
+
+.section-nav-left,
+.section-nav-center,
+.section-nav-right {
+  display: grid;
+  grid-template-columns: 50 50;
+  width: 70px;
+  border: 2px solid red;
+}
+
+.section-nav-right-inner{
+  width: 100%;
+}
+
+.section-nav-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.section-nav-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  flex-grow: 1;
+
+  .section-tab-input,
+  .section-add-input {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+.section-nav-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.section-nav-arrow {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #888);
+  padding: 6px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  transition: color 0.2s $ease, background 0.2s $ease;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--text);
+    background: var(--hover-bg, rgba(128,128,128,0.1));
+  }
+}
+
+.section-nav-title {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  text-align: center;
+}
+
+// ─── Section tabs (desktop) ──────────────────────────────
+.section-tabs {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  padding: 0 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  border: 2px solid red;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.section-tab {
+  flex-shrink: 0;
+  cursor: grab;
+  border: 1px solid blue;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 200px;
+
+  &.cdk-drag-preview {
+    border-radius: 6px;
+    background: var(--active-tab-bg, rgba(128,128,128,0.12));
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+}
+
+.section-tab-placeholder {
+  min-width: 40px;
+  height: 32px;
+  border: 1.5px dashed var(--text-secondary, #888);
+  border-radius: 6px;
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.section-tabs.cdk-drop-list-dragging .section-tab:not(.cdk-drag-placeholder) {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.section-tab-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #888);
+  transition: background $ease 0.15s, color $ease 0.15s;
+  white-space: nowrap;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover {
+    background: var(--hover-bg, rgba(128,128,128,0.1));
+  }
+
+  .section-tab.active & {
+    color: var(--text-primary, #222);
+    font-weight: 600;
+    background: var(--active-tab-bg, rgba(128,128,128,0.12));
+  }
+}
+
+.section-tab-input,
+.section-add-input {
+  background: none;
+  border: none;
+  border-bottom: 1.5px solid var(--text-secondary, #888);
+  outline: none;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  color: var(--text-primary, #222);
+  width: 120px;
+}
+
+.add-btn-section {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 1.5rem !important;
+  width: 30px !important;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: color 0.2s $ease;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border: 2px solid purple;
+}
+
+.btn-sm {
+  background: none;
+  border: 1px solid var(--text-secondary, #888);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  color: var(--text-primary, #222);
+  transition: background $ease 0.15s;
+
+  &:hover {
+    background: var(--hover-bg, rgba(128,128,128,0.1));
+  }
+}
+
+.btn-danger {
+  color: #e74c3c;
+  border-color: #e74c3c;
+
+  &:hover {
+    background: rgba(231, 76, 60, 0.1);
+  }
+}
+
+.btn-delete-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.remove-btn-section {
+  opacity: 0.6 !important;
+  transition: opacity 0.2s $ease, color 0.2s $ease !important;
+
+  &:hover {
+    opacity: 1;
+    color: #c44 !important;
+  }
+}
+
+.subtask-list {
+  &.cdk-drop-list-dragging .subtask-row:not(.cdk-drag-placeholder) {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.subtask-row {
+  &.cdk-drag-preview {
+    background: var(--card, #fff);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  &.cdk-drag-placeholder {
+    opacity: 0.3;
+  }
+}
+
+.confirm-text {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #888);
+}
+
 // ─── Lists row ────────────────────────────────────────────
 .lists {
   //border: 2px solid pink;
@@ -355,6 +609,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   flex-direction: column;
   gap: 12px;
   margin-bottom: 24px;
+  min-height: 40px;
 }
 
 // ─── Main task item ────────────────────────────────────────
@@ -554,7 +809,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px 0;
-  margin-top: 12px;
   font-size: 1.8rem;
   line-height: 1;
   display: block;
@@ -956,4 +1210,14 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .footer-sep {
   margin: 0 6px;
+}
+
+// ─── Editing active: block clicks on text ──────────────────
+.editing-active {
+  .task-text,
+  .subtask-text,
+  .sec-task-text,
+  .add-subtask-btn {
+    pointer-events: none;
+  }
 }

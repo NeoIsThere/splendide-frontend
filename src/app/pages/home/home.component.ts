@@ -1,9 +1,10 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, Injector, inject, signal, viewChild, ElementRef } from '@angular/core';
-import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy } from '@angular/core';
+import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { ListSyncService } from '../../services/list-sync.service';
 import { ThemeService } from '../../services/theme.service';
+import { StorageService, StoredSection, StoredList } from '../../services/storage.service';
+import { SyncService } from '../../services/sync.service';
 
 interface Subtask {
   id: number;
@@ -18,33 +19,55 @@ interface Task {
   done: boolean;
 }
 
-interface SecondaryTask {
-  id: number;
-  text: string;
-  subtasks: Subtask[];
-  done: boolean;
-}
-
-const DEFAULT_SECONDARY_TITLE = 'Backlog';
+const DEFAULT_BACKLOG_TITLE = 'Backlog';
+const MAX_SECTIONS = 5;
+const MAX_MAIN_TASKS = 5;
+const MAX_BACKLOG_TASKS = 1000;
 
 @Component({
   selector: 'app-home',
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CdkDrag, CdkDropList, RouterLink],
+  imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, RouterLink],
 })
-export class HomeComponent {
+export class HomeComponent implements OnDestroy {
   private readonly injector = inject(Injector);
   protected readonly auth = inject(AuthService);
-  private readonly listSync = inject(ListSyncService);
   private readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
+  private readonly storage = inject(StorageService);
+  private readonly sync = inject(SyncService);
 
   protected readonly dark = this.theme.dark;
 
-  // ─── Main tasks ─────────────────────────────────────────
-  protected readonly tasks = signal<Task[]>(this.load('splendide_tasks', []));
+  // ─── Sections ───────────────────────────────────────────
+  protected readonly sections = signal<StoredSection[]>([]);
+  protected readonly activeSectionId = signal<string | null>(null);
+  protected readonly activeSection = computed(() => this.sections().find(s => s.id === this.activeSectionId()) ?? null);
+  protected readonly canAddSection = computed(() => this.sections().length < MAX_SECTIONS);
+
+  // ─── Section editing ────────────────────────────────────
+  protected readonly editingSectionId = signal<string | null>(null);
+  protected readonly addingSectionTitle = signal<string | null>(null);
+  protected readonly confirmingDeleteSection = signal(false);
+
+  // ─── Active section lists ───────────────────────────────
+  protected readonly mainList = computed(() => {
+    const sec = this.activeSection();
+    return sec?.lists.find(l => !l.isBacklog) ?? null;
+  });
+  protected readonly backlogList = computed(() => {
+    const sec = this.activeSection();
+    return sec?.lists.find(l => l.isBacklog) ?? null;
+  });
+
+  // ─── Tasks from active lists ────────────────────────────
+  protected readonly tasks = computed<Task[]>(() => (this.mainList()?.content as Task[]) ?? []);
+  protected readonly secondaryTasks = computed<Task[]>(() => (this.backlogList()?.content as Task[]) ?? []);
+  protected readonly secondaryTitle = computed(() => this.backlogList()?.title || DEFAULT_BACKLOG_TITLE);
+
+  // ─── Main tasks state ──────────────────────────────────
   protected readonly adding = signal(false);
   protected readonly newTaskText = signal('');
   protected readonly newSubtasks = signal<string[]>([]);
@@ -55,14 +78,13 @@ export class HomeComponent {
 
   protected readonly taskCount = computed(() => this.tasks().length);
   protected readonly completedCount = computed(() => this.tasks().filter(t => t.done).length);
-  protected readonly canAdd = computed(() => this.taskCount() < 5);
+  protected readonly canAdd = computed(() => this.taskCount() < MAX_MAIN_TASKS);
   protected readonly allDone = computed(() => {
     const t = this.tasks();
     return t.length > 0 && t.every(task => task.done && task.subtasks.every(s => s.done));
   });
 
-  // ─── Secondary tasks ───────────────────────────────────
-  protected readonly secondaryTasks = signal<SecondaryTask[]>(this.load('splendide_secondary', []));
+  // ─── Secondary tasks state ─────────────────────────────
   protected readonly addingSecondary = signal(false);
   protected readonly newSecondaryText = signal('');
   protected readonly newSecondarySubtasks = signal<string[]>([]);
@@ -70,52 +92,369 @@ export class HomeComponent {
   protected readonly editingSecSubtask = signal<{ taskId: number; subtaskId: number } | null>(null);
   protected readonly addingSecSubtaskToId = signal<number | null>(null);
   protected readonly newInlineSecSubtaskText = signal('');
-  protected readonly secondaryTitle = signal(this.load('splendide_sec_title', DEFAULT_SECONDARY_TITLE));
   protected readonly editingSecondaryTitle = signal(false);
-  protected readonly secondaryVisible = signal(this.load('splendide_sec_visible', true));
+  protected readonly secondaryVisible = signal(true);
 
   // ─── User menu ──────────────────────────────────────────
   protected readonly menuOpen = signal(false);
 
-  constructor() {
-    effect(() => this.save('splendide_tasks', this.tasks()));
-    effect(() => this.save('splendide_secondary', this.secondaryTasks()));
-    effect(() => this.save('splendide_sec_title', this.secondaryTitle()));
-    effect(() => this.save('splendide_sec_visible', this.secondaryVisible()));
-
-    // Auto-sync for premium users
-    effect(() => {
-      // Read all reactive state to track
-      const data = {
-        tasks: this.tasks(),
-        secondaryTasks: this.secondaryTasks(),
-        secondaryTitle: this.secondaryTitle(),
-        secondaryVisible: this.secondaryVisible(),
-      };
-      if (this.auth.isPremium()) {
-        this.listSync.debouncedSave(data);
-      }
-    });
-
-    // Load from server for premium users
-    if (this.auth.isPremium()) {
-      this.listSync.load().then(data => {
-        if (data) {
-          this.tasks.set(data.tasks ?? []);
-          this.secondaryTasks.set(data.secondaryTasks ?? []);
-          this.secondaryTitle.set(data.secondaryTitle ?? DEFAULT_SECONDARY_TITLE);
-          this.secondaryVisible.set(data.secondaryVisible ?? true);
-        }
-      });
-    }
-  }
+  // ─── Global editing guard ──────────────────────────────
+  protected readonly isEditing = computed(() =>
+    this.adding() ||
+    this.addingSecondary() ||
+    this.editingTaskId() !== null ||
+    this.editingSecondaryId() !== null ||
+    this.editingSubtask() !== null ||
+    this.editingSecSubtask() !== null ||
+    this.addingSubtaskToId() !== null ||
+    this.addingSecSubtaskToId() !== null ||
+    this.editingSecondaryTitle() ||
+    this.editingSectionId() !== null ||
+    this.addingSectionTitle() !== null
+  );
 
   protected readonly secondaryCount = computed(() => this.secondaryTasks().length);
   protected readonly secondaryCompletedCount = computed(() => this.secondaryTasks().filter(t => t.done).length);
-  protected readonly canAddSecondary = computed(() => this.secondaryCount() < 1000);
+  protected readonly canAddSecondary = computed(() => this.secondaryCount() < MAX_BACKLOG_TASKS);
 
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragDelay = computed(() => this.isMobile() ? { touch: 200, mouse: 0 } : { touch: 0, mouse: 0 });
+  protected readonly activeSectionIndex = computed(() => this.sections().findIndex(s => s.id === this.activeSectionId()));
+  protected readonly showPrevArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() > 0);
+  protected readonly showNextArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() < this.sections().length - 1);
+
+  private syncIntervalId: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    this.initFromStorage();
+  }
+
+  ngOnDestroy(): void {
+    if (this.syncIntervalId !== null) {
+      clearInterval(this.syncIntervalId);
+      this.syncIntervalId = null;
+    }
+  }
+
+  private initFromStorage(): void {
+    // Set active partition
+    const userId = this.auth.user()?.id;
+    if (userId && this.auth.isPremium()) {
+      this.storage.setActivePartition(userId);
+    } else {
+      this.storage.setActivePartition();
+    }
+
+    const loaded = this.storage.loadSections();
+    this.sections.set(loaded);
+    if (loaded.length > 0) {
+      this.activeSectionId.set(loaded[0].id);
+    }
+
+    // Sync if premium
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.doFullSync();
+    }
+  }
+
+  private async doFullSync(): Promise<void> {
+    try {
+      const synced = await this.sync.syncSections();
+      this.sections.set(synced);
+      const first = synced[0];
+      if (first) {
+        this.activeSectionId.set(first.id);
+        await this.doSyncSectionLists(first.id);
+      }
+    } catch { /* silently fail */ }
+    this.startPeriodicSync();
+  }
+
+  private startPeriodicSync(): void {
+    if (this.syncIntervalId !== null) return;
+    this.syncIntervalId = setInterval(() => {
+      if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+        this.doPeriodicSync();
+      }
+    }, 30_000);
+  }
+
+  private async doPeriodicSync(): Promise<void> {
+    try {
+      const synced = await this.sync.syncSections();
+      this.sections.set(synced);
+      const activeId = this.activeSectionId();
+      if (activeId) {
+        await this.doSyncSectionLists(activeId);
+      }
+    } catch { /* silently fail */ }
+  }
+
+  private async doSyncSectionLists(sectionId: string): Promise<void> {
+    try {
+      const lists = await this.sync.syncSectionLists(sectionId);
+      this.refreshSectionsFromStorage();
+    } catch { /* silently fail */ }
+  }
+
+  private refreshSectionsFromStorage(): void {
+    this.sections.set(this.storage.loadSections());
+  }
+
+  // ─── Section tab switching ─────────────────────────────
+
+  protected selectSection(sectionId: string): void {
+    if (this.activeSectionId() === sectionId) return;
+    this.activeSectionId.set(sectionId);
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSections().then(synced => {
+        this.sections.set(synced);
+        return this.doSyncSectionLists(sectionId);
+      }).catch(() => {});
+    }
+  }
+
+  protected goToPrevSection(): void {
+    const idx = this.activeSectionIndex();
+    if (idx > 0) this.selectSection(this.sections()[idx - 1].id);
+  }
+
+  protected goToNextSection(): void {
+    const idx = this.activeSectionIndex();
+    if (idx < this.sections().length - 1) this.selectSection(this.sections()[idx + 1].id);
+  }
+
+  protected dropSection(event: CdkDragDrop<StoredSection[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    const items = [...this.sections()];
+    const movedSection = items[event.previousIndex];
+    moveItemInArray(items, event.previousIndex, event.currentIndex);
+    items.forEach((s, i) => s.position = i);
+    this.storage.saveSections(items);
+    this.sections.set(items);
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.reorderSections(movedSection.id, event.previousIndex, event.currentIndex)
+        .then(positions => {
+          const current = [...this.sections()];
+          for (const p of positions) {
+            const sec = current.find(s => s.id === p.id);
+            if (sec) sec.position = p.position;
+          }
+          current.sort((a, b) => a.position - b.position);
+          this.storage.saveSections(current);
+          this.sections.set(current);
+        }).catch(() => {});
+    }
+  }
+
+  protected dropSubtask(taskId: number, event: CdkDragDrop<Subtask[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    this.updateMainList(tasks =>
+      tasks.map(t => {
+        if (t.id !== taskId) return t;
+        const subs = [...t.subtasks];
+        moveItemInArray(subs, event.previousIndex, event.currentIndex);
+        return { ...t, subtasks: subs };
+      })
+    );
+  }
+
+  protected dropSecSubtask(taskId: number, event: CdkDragDrop<Subtask[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    this.updateBacklogList(tasks =>
+      tasks.map(t => {
+        if (t.id !== taskId) return t;
+        const subs = [...t.subtasks];
+        moveItemInArray(subs, event.previousIndex, event.currentIndex);
+        return { ...t, subtasks: subs };
+      })
+    );
+  }
+
+  // ─── Section creation ──────────────────────────────────
+
+  protected startAddingSection(): void {
+    if (!this.canAddSection() || this.isEditing()) return;
+    this.addingSectionTitle.set('');
+    setTimeout(() => document.querySelector<HTMLInputElement>('.section-add-input')?.focus());
+  }
+
+  protected cancelAddingSection(): void {
+    this.addingSectionTitle.set(null);
+  }
+
+  protected confirmAddSection(): void {
+    const title = (this.addingSectionTitle() ?? '').trim();
+    if (!title) { this.cancelAddingSection(); return; }
+
+    const now = new Date().toISOString();
+    const sectionId = crypto.randomUUID();
+    const mainListId = crypto.randomUUID();
+    const backlogListId = crypto.randomUUID();
+
+    const newSection: StoredSection = {
+      id: sectionId,
+      title,
+      position: this.sections().length,
+      metadataLastModifiedAt: now,
+      isNew: true,
+      lists: [
+        { id: mainListId, title: '', lastModifiedAt: now, content: [], isBacklog: false },
+        { id: backlogListId, title: DEFAULT_BACKLOG_TITLE, lastModifiedAt: now, content: [], isBacklog: true },
+      ],
+    };
+
+    this.storage.upsertSection(newSection);
+    this.refreshSectionsFromStorage();
+    this.activeSectionId.set(sectionId);
+    this.cancelAddingSection();
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSections().then(synced => {
+        this.sections.set(synced);
+        return this.sync.syncSectionLists(sectionId);
+      }).then(() => this.refreshSectionsFromStorage()).catch(() => {});
+    }
+  }
+
+  protected handleAddSectionKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') this.confirmAddSection();
+    else if (event.key === 'Escape') this.cancelAddingSection();
+  }
+
+  protected onAddSectionInput(event: Event): void {
+    this.addingSectionTitle.set((event.target as HTMLInputElement).value);
+  }
+
+  // ─── Section rename ────────────────────────────────────
+
+  protected startEditingSection(sectionId: string): void {
+    if (this.isEditing()) return;
+    this.editingSectionId.set(sectionId);
+    afterNextRender(() => {
+      document.querySelector<HTMLInputElement>(`[data-edit-section="${sectionId}"]`)?.focus();
+    }, { injector: this.injector });
+  }
+
+  protected saveSectionEdit(sectionId: string, event: Event): void {
+    const value = (event.target as HTMLInputElement).value.trim();
+    if (value) {
+      const p = this.storage.load();
+      const sec = p.sections.find(s => s.id === sectionId);
+      if (sec) {
+        sec.title = value;
+        sec.metadataLastModifiedAt = new Date().toISOString();
+        this.storage.save(p);
+        this.refreshSectionsFromStorage();
+
+        if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+          this.sync.syncSections().then(synced => this.sections.set(synced)).catch(() => {});
+        }
+      }
+    }
+    this.editingSectionId.set(null);
+  }
+
+  protected handleSectionEditKeydown(sectionId: string, event: KeyboardEvent): void {
+    if (event.key === 'Enter') this.saveSectionEdit(sectionId, event);
+    else if (event.key === 'Escape') this.editingSectionId.set(null);
+  }
+
+  // ─── Section deletion ──────────────────────────────────
+
+  protected startDeleteSection(): void {
+    this.confirmingDeleteSection.set(true);
+  }
+
+  protected cancelDeleteSection(): void {
+    this.confirmingDeleteSection.set(false);
+  }
+
+  protected confirmDeleteSection(): void {
+    const id = this.activeSectionId();
+    if (!id) return;
+
+    this.storage.removeSection(id);
+    this.refreshSectionsFromStorage();
+    this.confirmingDeleteSection.set(false);
+
+    const remaining = this.sections();
+    this.activeSectionId.set(remaining[0]?.id ?? null);
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSections().then(synced => this.sections.set(synced)).catch(() => {});
+    }
+  }
+
+  // ─── List mutation helper ──────────────────────────────
+
+  private updateMainList(updater: (tasks: Task[]) => Task[]): void {
+    const sec = this.activeSection();
+    const ml = this.mainList();
+    if (!sec || !ml) return;
+
+    const newContent = updater(ml.content as Task[]);
+    const now = new Date().toISOString();
+    const updatedList: StoredList = { ...ml, content: newContent, lastModifiedAt: now };
+    this.storage.upsertList(sec.id, updatedList);
+    this.refreshSectionsFromStorage();
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSectionLists(sec.id).then(() => this.refreshSectionsFromStorage()).catch(() => {});
+    }
+  }
+
+  private updateBacklogList(updater: (tasks: Task[]) => Task[]): void {
+    const sec = this.activeSection();
+    const bl = this.backlogList();
+    if (!sec || !bl) return;
+
+    const newContent = updater(bl.content as Task[]);
+    const now = new Date().toISOString();
+    const updatedList: StoredList = { ...bl, content: newContent, lastModifiedAt: now };
+    this.storage.upsertList(sec.id, updatedList);
+    this.refreshSectionsFromStorage();
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSectionLists(sec.id).then(() => this.refreshSectionsFromStorage()).catch(() => {});
+    }
+  }
+
+  private updateBothLists(mainUpdater: (tasks: Task[]) => Task[], backlogUpdater: (tasks: Task[]) => Task[]): void {
+    const sec = this.activeSection();
+    const ml = this.mainList();
+    const bl = this.backlogList();
+    if (!sec || !ml || !bl) return;
+
+    const now = new Date().toISOString();
+    const updatedMain: StoredList = { ...ml, content: mainUpdater(ml.content as Task[]), lastModifiedAt: now };
+    const updatedBacklog: StoredList = { ...bl, content: backlogUpdater(bl.content as Task[]), lastModifiedAt: now };
+    this.storage.upsertList(sec.id, updatedMain);
+    this.storage.upsertList(sec.id, updatedBacklog);
+    this.refreshSectionsFromStorage();
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSectionLists(sec.id).then(() => this.refreshSectionsFromStorage()).catch(() => {});
+    }
+  }
+
+  private updateBacklogMeta(title?: string): void {
+    const sec = this.activeSection();
+    const bl = this.backlogList();
+    if (!sec || !bl) return;
+
+    const now = new Date().toISOString();
+    const updatedList: StoredList = { ...bl, lastModifiedAt: now };
+    if (title !== undefined) updatedList.title = title;
+    this.storage.upsertList(sec.id, updatedList);
+    this.refreshSectionsFromStorage();
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSectionLists(sec.id).then(() => this.refreshSectionsFromStorage()).catch(() => {});
+    }
+  }
 
   // ─── Clear list ─────────────────────────────────────────
   protected readonly confirmingClear = signal(false);
@@ -124,21 +463,21 @@ export class HomeComponent {
   protected startClear(): void { this.confirmingClear.set(true); }
   protected cancelClear(): void { this.confirmingClear.set(false); }
   protected confirmClear(): void {
-    this.tasks.set([]);
+    this.updateMainList(() => []);
     this.confirmingClear.set(false);
   }
   protected clearDoneTasks(): void {
-    this.tasks.update(tasks => tasks.filter(t => !t.done));
+    this.updateMainList(tasks => tasks.filter(t => !t.done));
   }
 
   protected startSecondaryClear(): void { this.confirmingSecondaryClear.set(true); }
   protected cancelSecondaryClear(): void { this.confirmingSecondaryClear.set(false); }
   protected confirmSecondaryClear(): void {
-    this.secondaryTasks.set([]);
+    this.updateBacklogList(() => []);
     this.confirmingSecondaryClear.set(false);
   }
   protected clearDoneSecondary(): void {
-    this.secondaryTasks.update(tasks => tasks.filter(t => !t.done));
+    this.updateBacklogList(tasks => tasks.filter(t => !t.done));
   }
 
   // ─── Scroll ─────────────────────────────────────────────
@@ -160,7 +499,12 @@ export class HomeComponent {
 
   protected signOut(): void {
     this.menuOpen.set(false);
+    this.storage.setActivePartition(); // switch to anonymous
     this.auth.logout();
+    this.refreshSectionsFromStorage();
+    const loaded = this.storage.loadSections();
+    this.sections.set(loaded);
+    this.activeSectionId.set(loaded[0]?.id ?? null);
   }
 
   protected async manageSubscription(): Promise<void> {
@@ -173,25 +517,9 @@ export class HomeComponent {
     }
   }
 
-  // ─── Persistence ────────────────────────────────────────
-  private load<T>(key: string, fallback: T): T {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw != null ? JSON.parse(raw) as T : fallback;
-    } catch {
-      return fallback;
-    }
-  }
-
-  private save(key: string, value: unknown): void {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch { /* quota exceeded — ignore */ }
-  }
-
   // ─── Main task: add ─────────────────────────────────────
   protected startAdding(): void {
-    if (!this.canAdd()) return;
+    if (!this.canAdd() || this.isEditing()) return;
     this.adding.set(true);
     this.newTaskText.set('');
     this.newSubtasks.set([]);
@@ -211,7 +539,7 @@ export class HomeComponent {
       .map(s => s.trim())
       .filter(s => s.length > 0)
       .map((s, i) => ({ id: Date.now() + i + 1, text: s, done: false }));
-    this.tasks.update(tasks => [
+    this.updateMainList(tasks => [
       ...tasks,
       { id: Date.now(), text, subtasks, done: false },
     ]);
@@ -219,7 +547,7 @@ export class HomeComponent {
   }
 
   protected addSubtaskField(): void {
-    if (this.newSubtasks().length >= 5) return;
+    if (this.newSubtasks().length >= 10) return;
     this.newSubtasks.update(s => [...s, '']);
   }
 
@@ -243,41 +571,18 @@ export class HomeComponent {
 
   // ─── Main task: toggle / remove ─────────────────────────
   protected toggleTask(id: number): void {
-    this.tasks.update(tasks =>
+    this.updateMainList(tasks =>
       tasks.map(t => (t.id === id ? { ...t, done: !t.done } : t))
     );
   }
 
   protected removeTask(id: number): void {
-    this.tasks.update(tasks => tasks.filter(t => t.id !== id));
-  }
-
-  // ─── Guard: block edits while any task name input is empty ─
-  private hasEmptyTaskEdit(): boolean {
-    if (this.editingTaskId() !== null) {
-      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="task-${this.editingTaskId()}"]`);
-      if (el && !el.value.trim()) return true;
-    }
-    if (this.editingSecondaryId() !== null) {
-      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="sec-${this.editingSecondaryId()}"]`);
-      if (el && !el.value.trim()) return true;
-    }
-    const sub = this.editingSubtask();
-    if (sub) {
-      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="sub-${sub.subtaskId}"]`);
-      if (el && !el.value.trim()) return true;
-    }
-    const secSub = this.editingSecSubtask();
-    if (secSub) {
-      const el = document.querySelector<HTMLInputElement>(`[data-edit-id="secsub-${secSub.subtaskId}"]`);
-      if (el && !el.value.trim()) return true;
-    }
-    return false;
+    this.updateMainList(tasks => tasks.filter(t => t.id !== id));
   }
 
   // ─── Main task: inline edit ─────────────────────────────
   protected startEditingTask(id: number): void {
-    if (this.hasEmptyTaskEdit()) return;
+    if (this.isEditing()) return;
     this.editingTaskId.set(id);
     this.focusEditInput('task-' + id);
   }
@@ -285,7 +590,7 @@ export class HomeComponent {
   protected saveTaskEdit(id: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
     if (!value) return;
-    this.tasks.update(tasks =>
+    this.updateMainList(tasks =>
       tasks.map(t => (t.id === id ? { ...t, text: value } : t))
     );
     this.editingTaskId.set(null);
@@ -294,15 +599,13 @@ export class HomeComponent {
   protected handleTaskEditKeydown(id: number, event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveTaskEdit(id, event);
     else if (event.key === 'Escape') {
-      const task = this.tasks().find(t => t.id === id);
-      if (task) (event.target as HTMLInputElement).value = task.text;
       this.editingTaskId.set(null);
     }
   }
 
   // ─── Subtask: toggle / remove / edit ────────────────────
   protected toggleSubtask(taskId: number, subtaskId: number): void {
-    this.tasks.update(tasks =>
+    this.updateMainList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, done: !s.done } : s)) }
@@ -312,7 +615,7 @@ export class HomeComponent {
   }
 
   protected removeSubtask(taskId: number, subtaskId: number): void {
-    this.tasks.update(tasks =>
+    this.updateMainList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) }
@@ -322,7 +625,7 @@ export class HomeComponent {
   }
 
   protected startEditingSubtask(taskId: number, subtaskId: number): void {
-    if (this.hasEmptyTaskEdit()) return;
+    if (this.isEditing()) return;
     this.editingSubtask.set({ taskId, subtaskId });
     this.focusEditInput('sub-' + subtaskId);
   }
@@ -330,7 +633,7 @@ export class HomeComponent {
   protected saveSubtaskEdit(taskId: number, subtaskId: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
     if (value) {
-      this.tasks.update(tasks =>
+      this.updateMainList(tasks =>
         tasks.map(t =>
           t.id === taskId
             ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, text: value } : s)) }
@@ -348,9 +651,9 @@ export class HomeComponent {
 
   // ─── Subtask: add to existing task ─────────────────────
   protected startAddingSubtask(taskId: number): void {
-    if (this.hasEmptyTaskEdit()) return;
+    if (this.isEditing()) return;
     const task = this.tasks().find(t => t.id === taskId);
-    if (!task || task.subtasks.length >= 5) return;
+    if (!task || task.subtasks.length >= 10) return;
     this.addingSubtaskToId.set(taskId);
     this.newInlineSubtaskText.set('');
     afterNextRender(() => {
@@ -369,7 +672,7 @@ export class HomeComponent {
       this.cancelAddingSubtask();
       return;
     }
-    this.tasks.update(tasks =>
+    this.updateMainList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: [...t.subtasks, { id: Date.now(), text, done: false }] }
@@ -394,7 +697,7 @@ export class HomeComponent {
 
   // ─── Secondary tasks ───────────────────────────────────
   protected startAddingSecondary(): void {
-    if (!this.canAddSecondary()) return;
+    if (!this.canAddSecondary() || this.isEditing()) return;
     this.addingSecondary.set(true);
     this.newSecondaryText.set('');
     this.newSecondarySubtasks.set([]);
@@ -405,7 +708,6 @@ export class HomeComponent {
     this.addingSecondary.set(false);
     this.newSecondaryText.set('');
     this.newSecondarySubtasks.set([]);
-    this.newSecondaryText.set('');
   }
 
   protected confirmAddSecondary(): void {
@@ -415,7 +717,7 @@ export class HomeComponent {
       .map(s => s.trim())
       .filter(s => s.length > 0)
       .map((s, i) => ({ id: Date.now() + i + 1, text: s, done: false }));
-    this.secondaryTasks.update(tasks => [
+    this.updateBacklogList(tasks => [
       ...tasks,
       { id: Date.now(), text, subtasks, done: false },
     ]);
@@ -432,17 +734,17 @@ export class HomeComponent {
   }
 
   protected toggleSecondaryTask(id: number): void {
-    this.secondaryTasks.update(tasks =>
+    this.updateBacklogList(tasks =>
       tasks.map(t => (t.id === id ? { ...t, done: !t.done } : t))
     );
   }
 
   protected removeSecondaryTask(id: number): void {
-    this.secondaryTasks.update(tasks => tasks.filter(t => t.id !== id));
+    this.updateBacklogList(tasks => tasks.filter(t => t.id !== id));
   }
 
   protected startEditingSecondary(id: number): void {
-    if (this.hasEmptyTaskEdit()) return;
+    if (this.isEditing()) return;
     this.editingSecondaryId.set(id);
     this.focusEditInput('sec-' + id);
   }
@@ -450,7 +752,7 @@ export class HomeComponent {
   protected saveSecondaryEdit(id: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
     if (!value) return;
-    this.secondaryTasks.update(tasks =>
+    this.updateBacklogList(tasks =>
       tasks.map(t => (t.id === id ? { ...t, text: value } : t))
     );
     this.editingSecondaryId.set(null);
@@ -459,14 +761,13 @@ export class HomeComponent {
   protected handleSecondaryEditKeydown(id: number, event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveSecondaryEdit(id, event);
     else if (event.key === 'Escape') {
-      const task = this.secondaryTasks().find(t => t.id === id);
-      if (task) (event.target as HTMLInputElement).value = task.text;
       this.editingSecondaryId.set(null);
     }
   }
 
   // ─── Secondary title editing ────────────────────────────
   protected startEditingSecondaryTitle(): void {
+    if (this.isEditing()) return;
     this.editingSecondaryTitle.set(true);
     afterNextRender(() => {
       document.querySelector<HTMLInputElement>('.sec-title-input')?.focus();
@@ -476,7 +777,7 @@ export class HomeComponent {
   protected saveSecondaryTitle(event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
     if (value) {
-      this.secondaryTitle.set(value);
+      this.updateBacklogMeta(value);
     }
     this.editingSecondaryTitle.set(false);
   }
@@ -488,7 +789,7 @@ export class HomeComponent {
 
   // ─── Secondary subtasks ─────────────────────────────────
   protected addSecSubtaskField(): void {
-    if (this.newSecondarySubtasks().length >= 5) return;
+    if (this.newSecondarySubtasks().length >= 10) return;
     this.newSecondarySubtasks.update(s => [...s, '']);
   }
 
@@ -502,7 +803,7 @@ export class HomeComponent {
   }
 
   protected toggleSecSubtask(taskId: number, subtaskId: number): void {
-    this.secondaryTasks.update(tasks =>
+    this.updateBacklogList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, done: !s.done } : s)) }
@@ -512,7 +813,7 @@ export class HomeComponent {
   }
 
   protected removeSecSubtask(taskId: number, subtaskId: number): void {
-    this.secondaryTasks.update(tasks =>
+    this.updateBacklogList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) }
@@ -522,7 +823,7 @@ export class HomeComponent {
   }
 
   protected startEditingSecSubtask(taskId: number, subtaskId: number): void {
-    if (this.hasEmptyTaskEdit()) return;
+    if (this.isEditing()) return;
     this.editingSecSubtask.set({ taskId, subtaskId });
     this.focusEditInput('secsub-' + subtaskId);
   }
@@ -530,7 +831,7 @@ export class HomeComponent {
   protected saveSecSubtaskEdit(taskId: number, subtaskId: number, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
     if (value) {
-      this.secondaryTasks.update(tasks =>
+      this.updateBacklogList(tasks =>
         tasks.map(t =>
           t.id === taskId
             ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, text: value } : s)) }
@@ -547,9 +848,9 @@ export class HomeComponent {
   }
 
   protected startAddingSecSubtask(taskId: number): void {
-    if (this.hasEmptyTaskEdit()) return;
+    if (this.isEditing()) return;
     const task = this.secondaryTasks().find(t => t.id === taskId);
-    if (!task || task.subtasks.length >= 5) return;
+    if (!task || task.subtasks.length >= 10) return;
     this.addingSecSubtaskToId.set(taskId);
     this.newInlineSecSubtaskText.set('');
     afterNextRender(() => {
@@ -568,7 +869,7 @@ export class HomeComponent {
       this.cancelAddingSecSubtask();
       return;
     }
-    this.secondaryTasks.update(tasks =>
+    this.updateBacklogList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: [...t.subtasks, { id: Date.now(), text, done: false }] }
@@ -598,100 +899,89 @@ export class HomeComponent {
 
   // ─── Move between lists (mobile buttons) ──────────────
   protected moveToBacklog(taskId: number): void {
+    if (this.isEditing()) return;
     const mainItems = [...this.tasks()];
+    const secItems = [...this.secondaryTasks()];
     const idx = mainItems.findIndex(t => t.id === taskId);
     if (idx === -1) return;
     const [task] = mainItems.splice(idx, 1);
-    const secItems = [...this.secondaryTasks()];
-    const newSec: SecondaryTask = { id: task.id, text: task.text, subtasks: task.subtasks, done: task.done };
 
-    if (secItems.length >= 1000) {
+    if (secItems.length >= MAX_BACKLOG_TASKS) {
       const displaced = secItems.shift()!;
-      const newMain: Task = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
-      mainItems.push(newMain);
+      mainItems.push(displaced);
     }
 
-    secItems.push(newSec);
-    this.tasks.set(mainItems);
-    this.secondaryTasks.set(secItems);
+    secItems.push(task);
+    this.updateBothLists(() => mainItems, () => secItems);
   }
 
   protected moveToMain(taskId: number): void {
+    if (this.isEditing()) return;
     const secItems = [...this.secondaryTasks()];
+    const mainItems = [...this.tasks()];
     const idx = secItems.findIndex(t => t.id === taskId);
     if (idx === -1) return;
     const [task] = secItems.splice(idx, 1);
-    const mainItems = [...this.tasks()];
-    const newMain: Task = { id: task.id, text: task.text, subtasks: task.subtasks, done: task.done };
 
-    if (mainItems.length >= 5) {
+    if (mainItems.length >= MAX_MAIN_TASKS) {
       const displaced = mainItems.pop()!;
-      const newSec: SecondaryTask = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
-      secItems.unshift(newSec);
+      secItems.unshift(displaced);
     }
 
-    mainItems.push(newMain);
-    this.tasks.set(mainItems);
-    this.secondaryTasks.set(secItems);
+    mainItems.push(task);
+    this.updateBothLists(() => mainItems, () => secItems);
   }
 
   // ─── Drag & drop: main tasks ────────────────────────────
   protected dropMainTask(event: CdkDragDrop<unknown[]>): void {
+    if (this.isEditing()) return;
     if (event.previousContainer === event.container) {
       const items = [...this.tasks()];
       moveItemInArray(items, event.previousIndex, event.currentIndex);
-      this.tasks.set(items);
+      this.updateMainList(() => items);
     } else {
       const secItems = [...this.secondaryTasks()];
       const mainItems = [...this.tasks()];
       const secTask = secItems[event.previousIndex]!;
       secItems.splice(event.previousIndex, 1);
-      const newTask: Task = { id: secTask.id, text: secTask.text, subtasks: secTask.subtasks, done: secTask.done };
 
-      if (mainItems.length >= 5) {
-        // Main list full — last main item goes to first position of backlog
+      if (mainItems.length >= MAX_MAIN_TASKS) {
         const displaced = mainItems.pop()!;
-        const newSec: SecondaryTask = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
-        secItems.unshift(newSec);
+        secItems.unshift(displaced);
       }
 
-      mainItems.splice(event.currentIndex, 0, newTask);
-      this.secondaryTasks.set(secItems);
-      this.tasks.set(mainItems);
+      mainItems.splice(event.currentIndex, 0, secTask);
+      this.updateBothLists(() => mainItems, () => secItems);
     }
   }
 
   protected dropSecondaryTask(event: CdkDragDrop<unknown[]>): void {
+    if (this.isEditing()) return;
     if (event.previousContainer === event.container) {
       const items = [...this.secondaryTasks()];
       moveItemInArray(items, event.previousIndex, event.currentIndex);
-      this.secondaryTasks.set(items);
+      this.updateBacklogList(() => items);
     } else {
       const mainItems = [...this.tasks()];
       const secItems = [...this.secondaryTasks()];
       const mainTask = mainItems[event.previousIndex]!;
       mainItems.splice(event.previousIndex, 1);
-      const newSec: SecondaryTask = { id: mainTask.id, text: mainTask.text, subtasks: mainTask.subtasks, done: mainTask.done };
 
-      if (secItems.length >= 1000) {
-        // Backlog full — first backlog item goes to last position of main list
+      if (secItems.length >= MAX_BACKLOG_TASKS) {
         const displaced = secItems.shift()!;
-        const newMain: Task = { id: displaced.id, text: displaced.text, subtasks: displaced.subtasks, done: displaced.done };
-        mainItems.push(newMain);
+        mainItems.push(displaced);
       }
 
-      secItems.splice(event.currentIndex, 0, newSec);
-      this.tasks.set(mainItems);
-      this.secondaryTasks.set(secItems);
+      secItems.splice(event.currentIndex, 0, mainTask);
+      this.updateBothLists(() => mainItems, () => secItems);
     }
   }
 
-  // ─── Scroll between sections ────────────────────────────
+  // ─── Focus helper ───────────────────────────────────────
   private focusEditInput(editId: string): void {
     afterNextRender(() => {
       const input = document.querySelector<HTMLInputElement>(`[data-edit-id="${editId}"]`);
       input?.focus();
     }, { injector: this.injector });
   }
-
 }
