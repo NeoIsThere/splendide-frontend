@@ -169,36 +169,6 @@
           {{ activeSection()?.title }}
         </button>
       }
-      @if (sections().length > 1) {
-        @if (confirmingDeleteSection()) {
-          <div class="clear-confirm">
-            <span class="clear-confirm-label">Delete section:</span>
-            <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
-            <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
-          </div>
-        } @else {
-          <button
-            class="icon-btn-sm remove-btn remove-btn-section"
-            (click)="startDeleteSection()"
-            aria-label="Delete section"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        }
-      }
     </div>
     <div class="section-nav-right">
       <div class="section-nav-right-inner">
@@ -233,7 +203,38 @@
       </div>
     </div>
   </div>
-
+  <div class="section-nav-mobile-underneath">
+    @if (sections().length > 1) {
+      @if (confirmingDeleteSection()) {
+        <div class="clear-confirm">
+          <span class="clear-confirm-label">Delete section:</span>
+          <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
+          <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
+        </div>
+      } @else {
+        <button
+          class="icon-btn-sm remove-btn remove-btn-section"
+          (click)="startDeleteSection()"
+          aria-label="Delete section"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      }
+    }
+  </div>
   <!-- ═══ Section Tabs (desktop) ═══ -->
   <div
     class="section-tabs"

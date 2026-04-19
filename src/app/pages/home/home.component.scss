@@ -96,20 +96,28 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   @media (max-width: 768px) {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 0 0 8px;
+  }
+}
+
+.section-nav-mobile-underneath{
+   display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
   }
 }
 
 .section-nav-left,
-.section-nav-center,
 .section-nav-right {
   display: grid;
   grid-template-columns: 50 50;
   width: 70px;
-  border: 2px solid red;
 }
 
 .section-nav-right-inner{
@@ -125,6 +133,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .section-nav-center {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
   min-width: 0;
   flex-grow: 1;
@@ -184,7 +193,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   overflow-x: auto;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
-  border: 2px solid red;
 
   @media (max-width: 768px) {
     display: none;
@@ -194,7 +202,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .section-tab {
   flex-shrink: 0;
   cursor: grab;
-  border: 1px solid blue;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -278,7 +285,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   align-items: center;
   gap: 8px;
   padding-bottom: 8px;
-  border: 2px solid purple;
 }
 
 .btn-sm {
