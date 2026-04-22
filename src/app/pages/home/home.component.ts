@@ -19,7 +19,7 @@ interface Task {
   done: boolean;
 }
 
-const DEFAULT_BACKLOG_TITLE = 'Backlog';
+const DEFAULT_BACKLOG_TITLE = 'Later';
 const MAX_SECTIONS = 5;
 const MAX_MAIN_TASKS = 5;
 const MAX_BACKLOG_TASKS = 1000;
@@ -332,6 +332,7 @@ export class HomeComponent implements OnDestroy {
 
   protected startEditingSection(sectionId: string): void {
     if (this.isEditing()) return;
+    if (this.sections().length < 2) return;
     this.editingSectionId.set(sectionId);
     this.focusVisibleInput(`[data-edit-section="${sectionId}"]`, true);
   }

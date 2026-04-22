@@ -40,12 +40,12 @@ function createDefaultPartition(): Partition {
     sections: [
       {
         id: sectionId,
-        title: 'Main',
+        title: 'My Tasks',
         position: 0,
         metadataLastModifiedAt: now,
         lists: [
           { id: mainListId, title: '', lastModifiedAt: now, content: [], isBacklog: false },
-          { id: backlogListId, title: 'Backlog', lastModifiedAt: now, content: [], isBacklog: true },
+          { id: backlogListId, title: 'Later', lastModifiedAt: now, content: [], isBacklog: true },
         ],
       },
     ],

@@ -23,6 +23,9 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
           <p class="auth-error" role="alert">{{ error() }}</p>
         }
 
+        @if (googleLoading()) {
+          <p class="auth-loading">Signing in…</p>
+        } @else {
         <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
           <label class="auth-label" for="name">Name (optional)</label>
           <input
@@ -71,6 +74,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
         <div class="auth-divider"><span>or</span></div>
 
         <app-google-button (credentialResponse)="onGoogleSignUp($event)" />
+        }
 
         <p class="auth-switch">
           Already have an account? <a routerLink="/sign-in">Sign in</a>
@@ -89,6 +93,11 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
     }
     .auth-input--error {
       border-color: #e53e3e;
+    }
+    .auth-loading {
+      text-align: center;
+      color: var(--text-muted);
+      margin: 24px 0;
     }
     .auth-legal {
       text-align: center;
@@ -111,6 +120,7 @@ export class SignUpComponent {
 
   protected readonly error = signal('');
   protected readonly loading = signal(false);
+  protected readonly googleLoading = signal(false);
 
   protected readonly form = this.fb.nonNullable.group({
     name: [''],
@@ -127,7 +137,7 @@ export class SignUpComponent {
     try {
       const { email, password, name } = this.form.getRawValue();
       await this.auth.register(email, password, name || undefined);
-      this.router.navigate(['/']);
+      this.router.navigate(this.auth.isPremium() ? ['/'] : ['/payment']);
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'Registration failed. Please try again.');
     } finally {
@@ -136,15 +146,17 @@ export class SignUpComponent {
   }
 
   protected async onGoogleSignUp(idToken: string): Promise<void> {
+    this.googleLoading.set(true);
     this.loading.set(true);
     this.error.set('');
     try {
       await this.auth.googleAuth(idToken);
-      this.router.navigate(['/']);
+      this.router.navigate(this.auth.isPremium() ? ['/'] : ['/payment']);
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'Google sign up failed.');
     } finally {
       this.loading.set(false);
+      this.googleLoading.set(false);
     }
   }
 }
