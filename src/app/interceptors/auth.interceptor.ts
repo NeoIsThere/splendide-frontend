@@ -16,26 +16,26 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
     });
   }
 
-  // Attach CSRF token to all state-changing requests
-  const MUTATING = ['POST', 'PUT', 'PATCH', 'DELETE'];
-  if (MUTATING.includes(req.method.toUpperCase())) {
-    const csrf = auth.getCsrfToken();
-    if (csrf) {
-      authReq = authReq.clone({ setHeaders: { 'x-csrf-token': csrf } });
-    }
-  }
+  return send(authReq, req, next, auth);
+};
 
+function send(
+  authReq: HttpRequest<unknown>,
+  originalReq: HttpRequest<unknown>,
+  next: HttpHandlerFn,
+  auth: AuthService,
+) {
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {
       const isPublicAuthRoute =
-        req.url.includes('/auth/refresh') ||
-        req.url.includes('/auth/login') ||
-        req.url.includes('/auth/register') ||
-        req.url.includes('/auth/google') ||
-        req.url.includes('/auth/forgot-password') ||
-        req.url.includes('/auth/reset-password') ||
-        req.url.includes('/auth/verify-email') ||
-        req.url.includes('/auth/resend-verification');
+        originalReq.url.includes('/auth/refresh') ||
+        originalReq.url.includes('/auth/login') ||
+        originalReq.url.includes('/auth/register') ||
+        originalReq.url.includes('/auth/google') ||
+        originalReq.url.includes('/auth/forgot-password') ||
+        originalReq.url.includes('/auth/reset-password') ||
+        originalReq.url.includes('/auth/verify-email') ||
+        originalReq.url.includes('/auth/resend-verification');
 
       if (error.status === 401 && !isPublicAuthRoute && !isRefreshing) {
         isRefreshing = true;
@@ -48,7 +48,7 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
           switchMap((newToken) => {
             isRefreshing = false;
             if (newToken) {
-              const retryReq = req.clone({
+              const retryReq = originalReq.clone({
                 setHeaders: { Authorization: `Bearer ${newToken}` },
               });
               return next(retryReq);
@@ -61,4 +61,4 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
       return throwError(() => error);
     }),
   );
-};
+}

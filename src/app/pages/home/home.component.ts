@@ -127,7 +127,7 @@ export class HomeComponent implements OnDestroy {
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    this.initFromStorage();
+    void this.initFromStorage();
   }
 
   ngOnDestroy(): void {
@@ -137,7 +137,11 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  private initFromStorage(): void {
+  private async initFromStorage(): Promise<void> {
+    if (this.auth.isLoggedIn()) {
+      await this.auth.fetchUser();
+    }
+
     // Set active partition
     const userId = this.auth.user()?.id;
     if (userId) {
@@ -157,7 +161,9 @@ export class HomeComponent implements OnDestroy {
 
     // Sync if premium
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
-      this.doFullSync();
+      await this.doFullSync();
+    } else {
+      this.startPeriodicSync();
     }
   }
 
@@ -176,9 +182,12 @@ export class HomeComponent implements OnDestroy {
 
   private startPeriodicSync(): void {
     if (this.syncIntervalId !== null) return;
-    this.syncIntervalId = setInterval(() => {
+    this.syncIntervalId = setInterval(async () => {
+      if (this.auth.isLoggedIn()) {
+        await this.auth.fetchUser();
+      }
       if (this.auth.isLoggedIn() && this.auth.isPremium()) {
-        this.doPeriodicSync();
+        await this.doPeriodicSync();
       }
     }, 30_000);
   }

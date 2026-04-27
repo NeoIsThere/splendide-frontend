@@ -33,7 +33,7 @@ export class AuthService {
 
   constructor() {
     if (this._token()) {
-      this.fetchUser();
+      void this.fetchUser();
     }
   }
 
@@ -89,25 +89,6 @@ export class AuthService {
     this.router.navigate(['/']);
   }
 
-  // ─── CSRF ────────────────────────────────────────────────
-
-  private _csrfToken: string | null = null;
-
-  getCsrfToken(): string | null {
-    return this._csrfToken;
-  }
-
-  async initCsrf(): Promise<void> {
-    try {
-      const res = await firstValueFrom(
-        this.http.get<{ csrfToken: string }>(`${this.apiUrl}/csrf-token`),
-      );
-      this._csrfToken = res.csrfToken;
-    } catch {
-      console.warn('[CSRF] Failed to fetch CSRF token');
-    }
-  }
-
   // ─── Token Refresh ──────────────────────────────────────
 
   async refreshToken(): Promise<string | null> {
@@ -126,13 +107,15 @@ export class AuthService {
 
   // ─── Fetch user profile ─────────────────────────────────
 
-  async fetchUser(): Promise<void> {
+  async fetchUser(): Promise<User | null> {
     try {
       const user = await firstValueFrom(this.http.get<User>(`${this.apiUrl}/user/me`));
       this._user.set(user);
       localStorage.setItem('splendide_user', JSON.stringify(user));
+      return user;
     } catch {
       // ignore — user may not be logged in
+      return null;
     }
   }
 
