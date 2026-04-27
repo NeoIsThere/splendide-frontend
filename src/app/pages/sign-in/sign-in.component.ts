@@ -17,58 +17,73 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
           </svg>
         </a>
         <h1 class="auth-logo">splendide.</h1>
-        <h2 class="auth-title">Sign in</h2>
-
-        @if (error()) {
-          <p class="auth-error" role="alert">{{ error() }}</p>
+        @if (!pendingVerification()) {
+          <h2 class="auth-title">Sign in</h2>
         }
 
-        @if (googleLoading()) {
-          <p class="auth-loading">Signing in…</p>
+        @if (pendingVerification()) {
+          <div class="auth-verify-notice" role="status">
+            <p>Your email isn't verified yet. Check your inbox or request a new link.</p>
+            @if (resendSuccess()) {
+              <p class="auth-resend-success">A new link has been sent.</p>
+            } @else {
+              <button class="auth-resend-btn" [disabled]="resendLoading()" (click)="onResend()">
+                {{ resendLoading() ? 'Sending…' : 'Resend verification email' }}
+              </button>
+            }
+          </div>
         } @else {
-        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
-          <label class="auth-label" for="email">Email</label>
-          <input
-            id="email"
-            class="auth-input"
-            [class.auth-input--error]="form.controls.email.invalid && form.controls.email.touched"
-            type="email"
-            formControlName="email"
-            autocomplete="email"
-          />
-          @if (form.controls.email.touched && form.controls.email.errors) {
-            <p class="auth-field-error" role="alert">
-              Enter a valid email address.
-            </p>
+          @if (error()) {
+            <p class="auth-error" role="alert">{{ error() }}</p>
           }
 
-          <label class="auth-label" for="password">Password</label>
-          <input
-            id="password"
-            class="auth-input"
-            type="password"
-            formControlName="password"
-            autocomplete="current-password"
-          />
+          @if (googleLoading()) {
+            <p class="auth-loading">Signing in…</p>
+          } @else {
+          <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
+            <label class="auth-label" for="email">Email</label>
+            <input
+              id="email"
+              class="auth-input"
+              [class.auth-input--error]="form.controls.email.invalid && form.controls.email.touched"
+              type="email"
+              formControlName="email"
+              autocomplete="email"
+            />
+            @if (form.controls.email.touched && form.controls.email.errors) {
+              <p class="auth-field-error" role="alert">
+                Enter a valid email address.
+              </p>
+            }
 
-          <a class="auth-forgot" routerLink="/forgot-password">Forgot password?</a>
+            <label class="auth-label" for="password">Password</label>
+            <input
+              id="password"
+              class="auth-input"
+              type="password"
+              formControlName="password"
+              autocomplete="current-password"
+            />
 
-          <button class="auth-btn" type="submit" [disabled]="loading()">
-            @if (loading()) { Signing in… } @else { Sign in }
-          </button>
-        </form>
+            <a class="auth-forgot" routerLink="/forgot-password">Forgot password?</a>
 
-        <div class="auth-divider"><span>or</span></div>
+            <button class="auth-btn" type="submit" [disabled]="loading()">
+              @if (loading()) { Signing in… } @else { Sign in }
+            </button>
+          </form>
 
-        <app-google-button (credentialResponse)="onGoogleSignIn($event)" />
+          <div class="auth-divider"><span>or</span></div>
+
+          <app-google-button (credentialResponse)="onGoogleSignIn($event)" />
+          }
+
+          <p class="auth-switch">
+            Don't have an account? <a routerLink="/sign-up">Sign up</a>
+          </p>
+          <p class="auth-legal">
+            <a routerLink="/terms">Terms</a> · <a routerLink="/privacy">Privacy</a>
+          </p>
         }
-
-        <p class="auth-switch">
-          Don't have an account? <a routerLink="/sign-up">Sign up</a>
-        </p>
-        <p class="auth-legal">
-          <a routerLink="/terms">Terms</a> · <a routerLink="/privacy">Privacy</a>
-        </p>
       </div>
     </div>
   `,
@@ -97,6 +112,32 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
         &:hover { color: var(--text); }
       }
     }
+    .auth-verify-notice {
+      text-align: center;
+      padding: 16px 0;
+      p {
+        font-size: 0.9rem;
+        color: var(--text);
+        line-height: 1.5;
+        margin: 0 0 16px;
+      }
+    }
+    .auth-resend-btn {
+      background: none;
+      border: 1px solid var(--border, #e0e0e0);
+      border-radius: 6px;
+      padding: 8px 16px;
+      margin-top: 10px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: var(--text);
+      &:hover:not(:disabled) { background: var(--surface-hover, #f5f5f5); }
+      &:disabled { opacity: 0.5; cursor: default; }
+    }
+    .auth-resend-success {
+      font-size: 0.85rem;
+      color: #2f9e44;
+    }
   `],
 })
 export class SignInComponent {
@@ -107,6 +148,10 @@ export class SignInComponent {
   protected readonly error = signal('');
   protected readonly loading = signal(false);
   protected readonly googleLoading = signal(false);
+  protected readonly pendingVerification = signal(false);
+  protected readonly resendLoading = signal(false);
+  protected readonly resendSuccess = signal(false);
+  private pendingEmail = '';
 
   protected readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -122,11 +167,29 @@ export class SignInComponent {
     try {
       const { email, password } = this.form.getRawValue();
       await this.auth.login(email, password);
-      this.router.navigate(this.auth.isPremium() ? ['/'] : ['/payment']);
+      this.router.navigate(['/']);
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'Sign in failed. Please try again.');
+      if (e?.error?.error === 'PENDING_VERIFICATION') {
+        this.pendingEmail = this.form.getRawValue().email;
+        this.pendingVerification.set(true);
+      } else {
+        this.error.set(e?.error?.error ?? 'Sign in failed. Please try again.');
+      }
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  protected async onResend(): Promise<void> {
+    if (!this.pendingEmail) return;
+    this.resendLoading.set(true);
+    try {
+      await this.auth.resendVerification(this.pendingEmail);
+      this.resendSuccess.set(true);
+    } catch {
+      this.resendSuccess.set(true);
+    } finally {
+      this.resendLoading.set(false);
     }
   }
 
@@ -136,7 +199,7 @@ export class SignInComponent {
     this.error.set('');
     try {
       await this.auth.googleAuth(idToken);
-      this.router.navigate(this.auth.isPremium() ? ['/'] : ['/payment']);
+      this.router.navigate(['/']);
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'Google sign in failed.');
     } finally {
@@ -145,3 +208,4 @@ export class SignInComponent {
     }
   }
 }
+

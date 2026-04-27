@@ -6,9 +6,7 @@
     <div class="my-title logo">splendide.</div>
     <div>
       <div class="my-buttons">
-        <div class="my-buttons-stack">
-        <div class="my-buttons-icons">
-          <div class="user-menu-wrapper">
+        <div class="user-menu-wrapper">
           <button
             class="icon-btn"
             (click)="toggleMenu()"
@@ -62,6 +60,7 @@
                   Manage subscription
                 </button>
               }
+              <button class="user-menu-item" (click)="openSettings()">Settings</button>
               <button class="user-menu-item" (click)="signOut()">Sign out</button>
             </div>
           }
@@ -109,17 +108,23 @@
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
             </svg>
           }
-          </button>
-        </div>
-        @if (!auth.isPremium()) {
-          <a class="upgrade-link" [routerLink]="auth.isLoggedIn() ? '/payment' : '/sign-in'" aria-label="Go Premium">Go Premium</a>
-        }
+        </button>
+        <div class="my-upgrade-desktop">
+          @if (auth.isLoggedIn() && !auth.isPremium()) {
+            <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium"
+              >Upgrade</a
+            >
+          }
         </div>
       </div>
     </div>
   </div>
   <div class="my-below-top-bar">
-   
+    <div class="my-upgrade-mobile">
+      @if (auth.isLoggedIn() && !auth.isPremium()) {
+        <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium">Upgrade</a>
+      }
+    </div>
   </div>
 
   <!-- ═══ Section Nav (mobile) ═══ -->
@@ -151,7 +156,7 @@
           (input)="onAddSectionInput($event)"
           (keydown)="handleAddSectionKeydown($event)"
           (blur)="confirmAddSection()"
-          placeholder="Section name"
+          placeholder="Page name"
         />
       } @else if (editingSectionId() === activeSectionId()) {
         <input
@@ -169,15 +174,47 @@
     </div>
     <div class="section-nav-right">
       <div class="section-nav-right-inner">
-        @if (canAddSection() && addingSectionTitle() === null) {
+        <div class="section-menu-wrapper">
           <button
-            class="add-btn add-btn-section"
-            (click)="startAddingSection()"
-            aria-label="Add section"
+            class="section-menu-trigger"
+            (click)="toggleSectionMenu()"
+            aria-label="Page actions"
+            [attr.aria-expanded]="sectionMenuOpen()"
           >
-            +
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="5" cy="12" r="1" />
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="19" cy="12" r="1" />
+            </svg>
           </button>
-        }
+          @if (sectionMenuOpen()) {
+            <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
+            <div class="section-menu">
+              <button
+                class="section-menu-item"
+                (click)="startAddingSectionFromMenu()"
+                [disabled]="!canAddSection()"
+              >
+                Add new page
+              </button>
+              @if (sections().length > 1) {
+                <button class="section-menu-item danger" (click)="startDeletingActiveSectionFromMenu()">
+                  Delete page
+                </button>
+              }
+            </div>
+          }
+        </div>
       </div>
       <div class="section-nav-right-inner">
         @if (showNextArrow()) {
@@ -200,38 +237,6 @@
       </div>
     </div>
   </div>
-  <div class="section-nav-mobile-underneath">
-    @if (sections().length > 1 && (editingSectionId() === activeSectionId() || confirmingDeleteSectionId() === activeSectionId())) {
-      @if (confirmingDeleteSectionId() === activeSectionId()) {
-        <div class="clear-confirm">
-          <span class="clear-confirm-label">Delete section:</span>
-          <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
-          <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
-        </div>
-      } @else {
-        <button
-          class="icon-btn-sm remove-btn-section-mobile"
-          (click)="startDeleteSection(activeSectionId()!)"
-          aria-label="Delete section"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      }
-    }
-  </div>
   <!-- ═══ Section Tabs (desktop) ═══ -->
   <div
     class="section-tabs"
@@ -239,15 +244,17 @@
     cdkDropListOrientation="horizontal"
     (cdkDropListDropped)="dropSection($any($event))"
   >
-      @for (sec of sections(); track sec.id) {
+    @for (sec of sections(); track sec.id) {
         <div
           class="section-tab"
           [class.active]="activeSectionId() === sec.id"
-          cdkDrag
-          [cdkDragData]="sec"
-          [cdkDragStartDelay]="dragDelay()"
         >
-          <div>
+          <div
+            class="section-tab-surface"
+            cdkDrag
+            [cdkDragData]="sec"
+            [cdkDragStartDelay]="dragDelay()"
+          >
             <div class="section-tab-placeholder" *cdkDragPlaceholder></div>
             @if (editingSectionId() === sec.id) {
               <input
@@ -267,38 +274,36 @@
               </button>
             }
           </div>
-          @if (sections().length > 1) {
-            <div>
-              @if (confirmingDeleteSectionId() === sec.id) {
-                <div class="clear-confirm">
-                  <span class="clear-confirm-label">Delete section:</span>
-                  <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
-                  <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
-                </div>
-              } @else {
-                <button
-                  class="icon-btn-sm remove-btn remove-btn-section"
-                  (click)="startDeleteSection(sec.id)"
-                  aria-label="Delete section"
+          <div class="section-tab-actions">
+            @if (confirmingDeleteSectionId() === sec.id) {
+              <div class="clear-confirm">
+                <span class="clear-confirm-label">Delete page:</span>
+                <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
+                <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
+              </div>
+            } @else if (sections().length > 1) {
+              <button
+                class="icon-btn-sm remove-btn remove-btn-section"
+                (click)="startDeleteSection(sec.id)"
+                aria-label="Delete section"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              }
-            </div>
-          }
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            }
+          </div>
         </div>
       }
 
@@ -311,7 +316,7 @@
               (input)="onAddSectionInput($event)"
               (keydown)="handleAddSectionKeydown($event)"
               (blur)="confirmAddSection()"
-              placeholder="Section name"
+              placeholder="Page name"
             />
           } @else {
             <button
@@ -328,7 +333,7 @@
 
   <!-- ═══ Lists ═══ -->
   <div class="lists">
-    <div class="my-first-list-col my-list-col"></div>
+    <div class="my-first-list-col"></div>
 
     <!-- ═══ Main Section ═══ -->
     <div class="my-list-col main-section" #mainSection>

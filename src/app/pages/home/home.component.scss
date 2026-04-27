@@ -3,7 +3,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .my-top-bar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  align-items: start;
+  align-items: center;
 }
 
 .my-left {
@@ -16,28 +16,30 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   position: relative;
   z-index: 10;
+  @media (max-width: 768px) {
+    gap: 3px;
+  }
 }
 
 .my-below-top-bar {
-  height: 32px;
+  height: 50px;
+  display: flex;
+  justify-content: flex-end;
 }
 
-.my-buttons-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.my-buttons-icons {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
+.my-upgrade-desktop {
   @media (max-width: 768px) {
-    gap: 3px;
+    display: none;
+  }
+}
+
+.my-upgrade-mobile {
+  @media (min-width: 769px) {
+    display: none;
   }
 }
 
@@ -97,42 +99,20 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
     justify-content: space-between;
     width: 100%;
-  }
-}
-
-.section-nav-mobile-underneath {
-  display: none;
-
-  @media (max-width: 768px) {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    width: 100%;
-  }
-}
-
-.remove-btn-section-mobile {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 4px;
-  transition: color 0.2s $ease;
-
-  &:hover {
-    color: #c44;
+    margin-bottom: 10px;
   }
 }
 
 .section-nav-left,
 .section-nav-right {
-  display: grid;
-  grid-template-columns: 50 50;
+  flex: 0 0 70px;
   width: 70px;
 }
 
-.section-nav-right-inner {
-  width: 100%;
+.section-nav-right-inner{
+  width: 30px;
+  display: grid;
+  place-items: center;
 }
 
 .section-nav-left {
@@ -147,7 +127,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   justify-content: center;
   align-items: center;
   min-width: 0;
-  flex-grow: 1;
+  flex: 0 0 95px;
+  width: 95px;
 
   .section-tab-input,
   .section-add-input {
@@ -172,14 +153,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  transition:
-    color 0.2s $ease,
-    background 0.2s $ease;
+  transition: color 0.2s $ease, background 0.2s $ease;
   flex-shrink: 0;
 
   &:hover {
     color: var(--text);
-    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
+    background: var(--hover-bg, rgba(128,128,128,0.1));
   }
 }
 
@@ -197,17 +176,91 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   text-align: center;
 }
 
+.section-menu-wrapper {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.section-menu-trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  transition: color 0.2s $ease;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+}
+
+.section-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+
+.section-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 132px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+  z-index: 21;
+}
+
+.section-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  display: block;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.2s $ease, color 0.2s $ease;
+
+  &:hover:not(:disabled) {
+    background: var(--hover-bg, rgba(128,128,128,0.1));
+  }
+
+  &:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+
+  &.danger {
+    color: #c44;
+  }
+}
+
 // ─── Section tabs (desktop) ──────────────────────────────
 .section-tabs {
   display: flex;
   flex-direction: row;
   gap: 4px;
-  padding: 0 0 8px;
+  padding: 0 0 8px 32px;
   overflow-x: auto;
   scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
+  &::-webkit-scrollbar { display: none; }
 
   @media (max-width: 768px) {
     display: none;
@@ -216,17 +269,14 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .section-tab {
   flex-shrink: 0;
-  cursor: grab;
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 200px;
+  width: 95px;
 
   .remove-btn-section {
     opacity: 0 !important;
-    transition:
-      opacity 0.2s $ease,
-      color 0.2s $ease !important;
+    transition: opacity 0.2s $ease, color 0.2s $ease !important;
   }
 
   &:hover .remove-btn-section {
@@ -242,21 +292,40 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 1;
   }
 
+}
+
+.section-tab-surface {
+  width: 95px;
+  height: 32px;
+  cursor: grab;
+
   &.cdk-drag-preview {
+    width: 95px;
+    height: 32px;
+    padding: 0;
     border-radius: 6px;
-    background: var(--active-tab-bg, rgba(128, 128, 128, 0.12));
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background: var(--active-tab-bg, rgba(128,128,128,0.12));
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+}
+
+.section-tab-actions {
+  min-height: 26px;
+
+  .clear-confirm {
+    width: max-content;
+    min-width: 190px;
   }
 }
 
 .section-tab-placeholder {
-  width: 200px;
+  width: 95px;
   height: 32px;
   border: 1.5px dashed var(--text-secondary, #888);
   border-radius: 6px;
 }
 
-.section-tabs.cdk-drop-list-dragging .section-tab:not(.cdk-drag-placeholder) {
+.section-tabs.cdk-drop-list-dragging .section-tab-surface:not(.cdk-drag-placeholder) {
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
@@ -268,21 +337,20 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 6px;
   font-size: 0.85rem;
   color: var(--text-secondary, #888);
-  transition:
-    background $ease 0.15s,
-    color $ease 0.15s;
+  transition: background $ease 0.15s, color $ease 0.15s;
   white-space: nowrap;
   width: 100%;
+  height: 32px;
   overflow: hidden;
   text-overflow: ellipsis;
 
   &:hover {
-    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
+    background: var(--hover-bg, rgba(128,128,128,0.1));
   }
 
   .section-tab.active & {
     color: var(--text-primary, #222);
-    background: var(--active-tab-bg, rgba(128, 128, 128, 0.12));
+    background: var(--active-tab-bg, rgba(128,128,128,0.12));
   }
 }
 
@@ -295,7 +363,9 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.85rem;
   padding: 6px 8px;
   color: var(--text-primary, #222);
-  width: 120px;
+  width: 95px;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .add-btn-section {
@@ -344,7 +414,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   transition: background $ease 0.15s;
 
   &:hover {
-    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
+    background: var(--hover-bg, rgba(128,128,128,0.1));
   }
 }
 
@@ -373,7 +443,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   &.cdk-drag-preview {
     background: var(--card, #fff);
     border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   }
 
   &.cdk-drag-placeholder {
@@ -421,7 +491,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
-.my-first-list-col {
+.my-first-list-col{
   @media (max-width: 768px) {
     display: none;
   }
@@ -504,7 +574,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   padding: 4px 10px;
   border: 1px solid var(--border);
   border-radius: 20px;
-  margin-top: 4px;
   transition:
     color 0.2s $ease,
     border-color 0.2s $ease;
@@ -518,7 +587,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
     text-align: center;
     margin-top: 4px;
-    font-size: 0.6rem;
   }
 }
 
@@ -658,17 +726,23 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Section title ─────────────────────────────────────────
 .section-title {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.08em;
   margin: 0 0 6px;
 
   .sec-header & {
+    font-size: 0.88rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: calc(100% - 56px);
+  
+  }
+
+  @media (max-width: 768px) {
+    font-weight: 400;
   }
 }
 
@@ -774,7 +848,9 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
-.my-second-list-buttons {
+
+
+.my-second-list-buttons{
   //border: 2px solid orange;
   display: flex;
 }
@@ -959,6 +1035,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.75rem;
   color: var(--text);
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 .clear-confirm-label {
@@ -1104,6 +1181,20 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 // ─── Empty / done states ───────────────────────────────────
+@media (max-width: 768px) {
+  .sec-header .section-title,
+  .sec-title-input,
+  .sec-task-text,
+  .edit-input-sec,
+  .input-sec {
+    font-size: 1.05rem;
+  }
+
+  .empty-state-sec {
+    font-size: 0.9rem;
+  }
+}
+
 .empty-state {
   text-align: center;
   color: var(--text-muted);
@@ -1192,7 +1283,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   border-bottom: 1.5px solid var(--border);
   background: transparent;
   color: var(--text);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   font-family: inherit;
   letter-spacing: 0.08em;
@@ -1286,9 +1377,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .move-btn {
   opacity: 0.5;
-  transition:
-    opacity 0.2s $ease,
-    color 0.2s $ease !important;
+  transition: opacity 0.2s $ease, color 0.2s $ease !important;
   &:hover {
     opacity: 1;
     color: var(--text);
@@ -1352,11 +1441,4 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: auto;
   }
 
-  // Re-enable mobile section delete button while editing section name
-  .section-nav-mobile-underneath button {
-    pointer-events: auto;
-  }
-  .section-nav-mobile-underneath .clear-confirm button {
-    pointer-events: auto;
-  }
 }

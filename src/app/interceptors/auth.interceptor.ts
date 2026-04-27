@@ -16,11 +16,35 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
     });
   }
 
+  // Attach CSRF token to all state-changing requests
+  const MUTATING = ['POST', 'PUT', 'PATCH', 'DELETE'];
+  if (MUTATING.includes(req.method.toUpperCase())) {
+    const csrf = auth.getCsrfToken();
+    if (csrf) {
+      authReq = authReq.clone({ setHeaders: { 'x-csrf-token': csrf } });
+    }
+  }
+
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 && !req.url.includes('/auth/') && !isRefreshing) {
+      const isPublicAuthRoute =
+        req.url.includes('/auth/refresh') ||
+        req.url.includes('/auth/login') ||
+        req.url.includes('/auth/register') ||
+        req.url.includes('/auth/google') ||
+        req.url.includes('/auth/forgot-password') ||
+        req.url.includes('/auth/reset-password') ||
+        req.url.includes('/auth/verify-email') ||
+        req.url.includes('/auth/resend-verification');
+
+      if (error.status === 401 && !isPublicAuthRoute && !isRefreshing) {
         isRefreshing = true;
         return from(auth.refreshToken()).pipe(
+          catchError(() => {
+            isRefreshing = false;
+            auth.logout();
+            return throwError(() => error);
+          }),
           switchMap((newToken) => {
             isRefreshing = false;
             if (newToken) {
@@ -29,12 +53,8 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
               });
               return next(retryReq);
             }
-            return throwError(() => error);
-          }),
-          catchError((refreshError) => {
-            isRefreshing = false;
             auth.logout();
-            return throwError(() => refreshError);
+            return throwError(() => error);
           }),
         );
       }

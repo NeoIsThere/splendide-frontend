@@ -9,6 +9,7 @@ export interface User {
   email: string;
   name: string | null;
   isPremium: boolean;
+  hasPassword: boolean;
 }
 
 interface AuthResponse {
@@ -38,9 +39,18 @@ export class AuthService {
 
   // ─── Email / Password ───────────────────────────────────
 
-  async register(email: string, password: string, name?: string): Promise<void> {
-    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, { email, password, name }, { withCredentials: true }));
+  async register(email: string, password: string, name?: string): Promise<{ status: 'VERIFY_EMAIL' }> {
+    await firstValueFrom(this.http.post<{ message: string }>(`${this.apiUrl}/auth/register`, { email, password, name }, { withCredentials: true }));
+    return { status: 'VERIFY_EMAIL' };
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-email`, { token }, { withCredentials: true }));
     this.setSession(res);
+  }
+
+  async resendVerification(email: string): Promise<void> {
+    await firstValueFrom(this.http.post(`${this.apiUrl}/auth/resend-verification`, { email }));
   }
 
   async login(email: string, password: string): Promise<void> {
@@ -64,6 +74,38 @@ export class AuthService {
 
   async resetPassword(token: string, password: string): Promise<void> {
     await firstValueFrom(this.http.post(`${this.apiUrl}/auth/reset-password`, { token, password }));
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await firstValueFrom(this.http.post(`${this.apiUrl}/auth/change-password`, { currentPassword, newPassword }));
+  }
+
+  async deleteAccount(): Promise<void> {
+    await firstValueFrom(this.http.delete(`${this.apiUrl}/user`, { withCredentials: true }));
+    this._user.set(null);
+    this._token.set(null);
+    localStorage.removeItem('splendide_token');
+    localStorage.removeItem('splendide_user');
+    this.router.navigate(['/']);
+  }
+
+  // ─── CSRF ────────────────────────────────────────────────
+
+  private _csrfToken: string | null = null;
+
+  getCsrfToken(): string | null {
+    return this._csrfToken;
+  }
+
+  async initCsrf(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ csrfToken: string }>(`${this.apiUrl}/csrf-token`),
+      );
+      this._csrfToken = res.csrfToken;
+    } catch {
+      console.warn('[CSRF] Failed to fetch CSRF token');
+    }
   }
 
   // ─── Token Refresh ──────────────────────────────────────
@@ -114,11 +156,9 @@ export class AuthService {
   async checkPremiumStatus(): Promise<boolean> {
     const res = await firstValueFrom(this.http.get<{ isPremium: boolean }>(`${this.apiUrl}/payment/status`));
     const isPremium = res.isPremium;
-    if (isPremium) {
-      this._user.update(u => u ? { ...u, isPremium: true } : u);
-      const user = this._user();
-      if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
-    }
+    this._user.update(u => u ? { ...u, isPremium } : u);
+    const user = this._user();
+    if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
     return isPremium;
   }
 

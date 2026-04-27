@@ -49,6 +49,15 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/legal/privacy.component').then(m => m.PrivacyComponent),
   },
   {
+    path: 'verify-email',
+    loadComponent: () => import('./pages/verify-email/verify-email.component').then(m => m.VerifyEmailComponent),
+  },
+  {
+    path: 'settings',
+    loadComponent: () => import('./pages/settings/settings.component').then(m => m.SettingsComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '**',
     redirectTo: '',
   },

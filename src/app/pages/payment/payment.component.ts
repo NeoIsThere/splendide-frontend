@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@ang
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { StorageService } from '../../services/storage.service';
+import { SyncService } from '../../services/sync.service';
 
 interface PriceOption {
   currency: string;
@@ -315,6 +316,7 @@ export class PaymentComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly storage = inject(StorageService);
+  private readonly sync = inject(SyncService);
 
   protected readonly mode = signal<'upgrade' | 'success' | 'cancel'>('upgrade');
   protected readonly loading = signal(false);
@@ -335,7 +337,7 @@ export class PaymentComponent implements OnInit {
       this.mode.set('success');
       const isPremium = await this.auth.checkPremiumStatus();
       if (isPremium) {
-        this.copyAnonymousToUserPartition();
+        await this.syncSignedInPartition();
       }
     } else if (url.includes('/payment/cancel')) {
       this.mode.set('cancel');
@@ -344,11 +346,17 @@ export class PaymentComponent implements OnInit {
     }
   }
 
-  private copyAnonymousToUserPartition(): void {
+  private ensureSignedInPartition(): void {
     const userId = this.auth.user()?.id;
     if (userId) {
-      this.storage.copyAnonymousToUser(userId);
+      this.storage.setActivePartition(userId);
     }
+  }
+
+  private async syncSignedInPartition(): Promise<void> {
+    this.ensureSignedInPartition();
+    const sections = await this.sync.syncSections();
+    await Promise.all(sections.map(section => this.sync.syncSectionLists(section.id)));
   }
 
   protected onCurrencyChange(event: Event): void {
@@ -375,7 +383,7 @@ export class PaymentComponent implements OnInit {
   }
 
   protected onEnjoyIt(): void {
-    // copy already happened in ngOnInit / redeemCode
+    // sync already happened in ngOnInit / redeemCode
   }
 
   protected async redeemCode(): Promise<void> {
@@ -385,7 +393,7 @@ export class PaymentComponent implements OnInit {
     this.error.set('');
     try {
       await this.auth.redeemVipCode(code);
-      this.copyAnonymousToUserPartition();
+      await this.syncSignedInPartition();
       this.mode.set('success');
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'Invalid or expired code.');

@@ -69,6 +69,18 @@ export class StorageService {
     this.activeKey = this.buildKey(userId);
   }
 
+  isPartitionEmpty(userId?: string): boolean {
+    const key = this.buildKey(userId);
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return true;
+      const partition = JSON.parse(raw) as Partition;
+      return partition.sections.filter(s => !s.deleted).length === 0;
+    } catch {
+      return true;
+    }
+  }
+
   getActiveUserId(): string | undefined {
     const suffix = this.activeKey.slice(LS_PREFIX.length);
     return suffix === 'anonymous' ? undefined : suffix;
@@ -183,21 +195,27 @@ export class StorageService {
 
   // ─── Partition copy ────────────────────────────────────
 
-  /** Copy anonymous partition to user partition (on subscription purchase). */
+  /** Copy anonymous partition to user partition when the user partition has no data yet. */
   copyAnonymousToUser(userId: string): void {
     const anonKey = this.buildKey();
     const userKey = this.buildKey(userId);
     try {
       const raw = localStorage.getItem(anonKey);
       if (raw) {
-        // Strip sync flags since this data hasn't been synced yet
-        const partition: Partition = JSON.parse(raw);
+        const source = JSON.parse(raw) as Partition;
+        const partition: Partition = {
+          sections: source.sections
+            .filter(s => !s.deleted)
+            .map(s => ({
+              ...s,
+              deleted: undefined,
+              isNew: true,
+              lists: s.lists.map(l => ({ ...l })),
+            })),
+        };
         for (const sec of partition.sections) {
           delete sec.deleted;
-          sec.isNew = true;
         }
-        // Remove deleted sections
-        partition.sections = partition.sections.filter(s => !s.deleted);
         localStorage.setItem(userKey, JSON.stringify(partition));
       }
     } catch { /* ignore */ }

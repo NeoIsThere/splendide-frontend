@@ -51,6 +51,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly editingSectionId = signal<string | null>(null);
   protected readonly addingSectionTitle = signal<string | null>(null);
   protected readonly confirmingDeleteSectionId = signal<string | null>(null);
+  protected readonly sectionMenuOpen = signal(false);
 
   // ─── Active section lists ───────────────────────────────
   protected readonly mainList = computed(() => {
@@ -139,8 +140,11 @@ export class HomeComponent implements OnDestroy {
   private initFromStorage(): void {
     // Set active partition
     const userId = this.auth.user()?.id;
-    if (userId && this.auth.isPremium()) {
+    if (userId) {
       this.storage.setActivePartition(userId);
+      if (!this.auth.isPremium() && this.storage.isPartitionEmpty(userId)) {
+        this.storage.copyAnonymousToUser(userId);
+      }
     } else {
       this.storage.setActivePartition();
     }
@@ -205,6 +209,7 @@ export class HomeComponent implements OnDestroy {
 
   protected selectSection(sectionId: string): void {
     if (this.activeSectionId() === sectionId) return;
+    this.sectionMenuOpen.set(false);
     this.activeSectionId.set(sectionId);
 
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
@@ -277,6 +282,7 @@ export class HomeComponent implements OnDestroy {
 
   protected startAddingSection(): void {
     if (!this.canAddSection() || this.isEditing()) return;
+    this.sectionMenuOpen.set(false);
     this.addingSectionTitle.set('');
     this.focusVisibleInput('.section-add-input');
   }
@@ -332,7 +338,6 @@ export class HomeComponent implements OnDestroy {
 
   protected startEditingSection(sectionId: string): void {
     if (this.isEditing()) return;
-    if (this.sections().length < 2) return;
     this.editingSectionId.set(sectionId);
     this.focusVisibleInput(`[data-edit-section="${sectionId}"]`, true);
   }
@@ -364,6 +369,7 @@ export class HomeComponent implements OnDestroy {
   // ─── Section deletion ──────────────────────────────────
 
   protected startDeleteSection(sectionId: string): void {
+    this.sectionMenuOpen.set(false);
     this.confirmingDeleteSectionId.set(sectionId);
   }
 
@@ -375,12 +381,36 @@ export class HomeComponent implements OnDestroy {
     const id = this.confirmingDeleteSectionId();
     if (!id) return;
 
-    this.storage.removeSection(id);
-    this.refreshSectionsFromStorage();
+    this.deleteSection(id);
     this.confirmingDeleteSectionId.set(null);
+  }
+
+  protected toggleSectionMenu(): void {
+    if (this.isEditing()) return;
+    this.sectionMenuOpen.update(open => !open);
+  }
+
+  protected closeSectionMenu(): void {
+    this.sectionMenuOpen.set(false);
+  }
+
+  protected startAddingSectionFromMenu(): void {
+    this.startAddingSection();
+  }
+
+  protected startDeletingActiveSectionFromMenu(): void {
+    const sectionId = this.activeSectionId();
+    if (!sectionId || this.sections().length < 2) return;
+    this.sectionMenuOpen.set(false);
+    this.deleteSection(sectionId);
+  }
+
+  private deleteSection(sectionId: string): void {
+    this.storage.removeSection(sectionId);
+    this.refreshSectionsFromStorage();
 
     const remaining = this.sections();
-    if (this.activeSectionId() === id) {
+    if (this.activeSectionId() === sectionId) {
       this.activeSectionId.set(remaining[0]?.id ?? null);
     }
 
@@ -506,6 +536,11 @@ export class HomeComponent implements OnDestroy {
     const loaded = this.storage.loadSections();
     this.sections.set(loaded);
     this.activeSectionId.set(loaded[0]?.id ?? null);
+  }
+
+  protected openSettings(): void {
+    this.menuOpen.set(false);
+    this.router.navigate(['/settings']);
   }
 
   protected async manageSubscription(): Promise<void> {
