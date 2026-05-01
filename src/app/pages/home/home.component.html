@@ -338,7 +338,21 @@
     <!-- ═══ Main Section ═══ -->
     <div class="my-list-col main-section" #mainSection>
       <div class="my-primary-list-container">
-        <h2 class="section-title main-list-title">Now</h2>
+        @if (editingMainTitle()) {
+          <input
+            class="list-title-input main-title-input"
+            type="text"
+            [value]="mainTitle()"
+            (blur)="saveMainTitle($event)"
+            (keydown)="handleMainTitleKeydown($event)"
+            aria-label="Edit list title"
+            maxlength="40"
+          />
+        } @else {
+          <h2 class="section-title main-list-title" (click)="startEditingMainTitle()">
+            {{ mainTitle() }}
+          </h2>
+        }
         <p class="counter" [class.counter-invisible]="taskCount() === 0 || completedCount() === 0">
           {{ completedCount() }} / {{ taskCount() }}
         </p>
@@ -689,7 +703,7 @@
           @if (confirmingClear()) {
             <div class="clear-confirm">
               <span class="clear-confirm-label">Delete:</span>
-              @if (completedCount() > 0) {
+              @if (completedCount() > 0 && completedCount() < taskCount()) {
                 <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">Done only</button>
               }
               <button class="clear-yes" (click)="confirmClear()">All</button>
@@ -720,7 +734,7 @@
           @if (secondaryVisible()) {
             @if (editingSecondaryTitle()) {
               <input
-                class="sec-title-input"
+                class="list-title-input sec-title-input"
                 type="text"
                 [value]="secondaryTitle()"
                 (blur)="saveSecondaryTitle($event)"
@@ -735,25 +749,6 @@
               </h2>
             }
             <div class="my-second-list-buttons">
-              <button
-                class="icon-btn-sm edit-title-btn"
-                (click)="startEditingSecondaryTitle()"
-                aria-label="Edit list title"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                </svg>
-              </button>
               <button
                 class="icon-btn-sm"
                 (click)="toggleSecondaryVisibility()"
@@ -1163,7 +1158,7 @@
           @if (confirmingSecondaryClear()) {
             <div class="clear-confirm">
               <span class="clear-confirm-label">Delete:</span>
-              @if (secondaryCompletedCount() > 0) {
+              @if (secondaryCompletedCount() > 0 && secondaryCompletedCount() < secondaryCount()) {
                 <button class="clear-yes" (click)="clearDoneSecondary(); cancelSecondaryClear()">Done only</button>
               }
               <button class="clear-yes" (click)="confirmSecondaryClear()">All</button>

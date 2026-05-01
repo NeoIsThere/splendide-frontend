@@ -737,7 +737,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: calc(100% - 56px);
+    max-width: calc(100% - 32px);
   
   }
 
@@ -1183,7 +1183,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── Empty / done states ───────────────────────────────────
 @media (max-width: 768px) {
   .sec-header .section-title,
-  .sec-title-input,
+  .list-title-input,
   .sec-task-text,
   .edit-input-sec,
   .input-sec {
@@ -1260,23 +1260,11 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 28px;
 }
 
-.edit-title-btn {
-  opacity: 1;
-  transition:
-    opacity 0.2s $ease,
-    color 0.2s $ease !important;
-
-  &:hover {
-    opacity: 1 !important;
-  }
-}
-
 .sec-eye-btn-collapsed {
   margin-left: auto;
 }
 
-.sec-title-input {
-  flex: 1;
+.list-title-input {
   min-width: 0;
   padding: 2px 0;
   border: none;
@@ -1293,6 +1281,17 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   &:focus {
     border-color: var(--text);
   }
+}
+
+.main-title-input {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 0 6px;
+}
+
+.sec-title-input {
+  flex: 1;
 }
 
 // ─── CDK drag & drop ──────────────────────────────────────

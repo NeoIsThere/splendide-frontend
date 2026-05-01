@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy, HostListener } from '@angular/core';
 import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -20,6 +20,7 @@ interface Task {
 }
 
 const DEFAULT_BACKLOG_TITLE = 'Later';
+const DEFAULT_MAIN_TITLE = 'Now';
 const MAX_SECTIONS = 5;
 const MAX_MAIN_TASKS = 5;
 const MAX_BACKLOG_TASKS = 1000;
@@ -66,6 +67,7 @@ export class HomeComponent implements OnDestroy {
   // ─── Tasks from active lists ────────────────────────────
   protected readonly tasks = computed<Task[]>(() => (this.mainList()?.content as Task[]) ?? []);
   protected readonly secondaryTasks = computed<Task[]>(() => (this.backlogList()?.content as Task[]) ?? []);
+  protected readonly mainTitle = computed(() => this.mainList()?.title || DEFAULT_MAIN_TITLE);
   protected readonly secondaryTitle = computed(() => this.backlogList()?.title || DEFAULT_BACKLOG_TITLE);
 
   // ─── Main tasks state ──────────────────────────────────
@@ -76,6 +78,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly editingSubtask = signal<{ taskId: number; subtaskId: number } | null>(null);
   protected readonly addingSubtaskToId = signal<number | null>(null);
   protected readonly newInlineSubtaskText = signal('');
+  protected readonly editingMainTitle = signal(false);
 
   protected readonly taskCount = computed(() => this.tasks().length);
   protected readonly completedCount = computed(() => this.tasks().filter(t => t.done).length);
@@ -109,6 +112,7 @@ export class HomeComponent implements OnDestroy {
     this.editingSecSubtask() !== null ||
     this.addingSubtaskToId() !== null ||
     this.addingSecSubtaskToId() !== null ||
+    this.editingMainTitle() ||
     this.editingSecondaryTitle() ||
     this.editingSectionId() !== null ||
     this.addingSectionTitle() !== null
@@ -128,6 +132,16 @@ export class HomeComponent implements OnDestroy {
 
   constructor() {
     void this.initFromStorage();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  protected handleDocumentKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.repeat || event.isComposing) return;
+    if (event.key === 'Tab' && !event.shiftKey && this.startSubtaskFromActiveTaskEdit(event)) return;
+    if (event.key !== 'Enter' || this.isEditing() || this.isInteractiveTarget(event.target)) return;
+
+    event.preventDefault();
+    this.startAdding();
   }
 
   ngOnDestroy(): void {
@@ -316,7 +330,7 @@ export class HomeComponent implements OnDestroy {
       metadataLastModifiedAt: now,
       isNew: true,
       lists: [
-        { id: mainListId, title: '', lastModifiedAt: now, content: [], isBacklog: false },
+        { id: mainListId, title: DEFAULT_MAIN_TITLE, lastModifiedAt: now, content: [], isBacklog: false },
         { id: backlogListId, title: DEFAULT_BACKLOG_TITLE, lastModifiedAt: now, content: [], isBacklog: true },
       ],
     };
@@ -599,9 +613,26 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  protected addSubtaskField(): void {
+  protected addSubtaskField(focusNew = false): void {
     if (this.newSubtasks().length >= 10) return;
     this.newSubtasks.update(s => [...s, '']);
+    if (focusNew) this.focusLastVisibleInput('.add-form:not(.add-form-sec) .input-sub');
+  }
+
+  private updateMainMeta(title?: string): void {
+    const sec = this.activeSection();
+    const ml = this.mainList();
+    if (!sec || !ml) return;
+
+    const now = new Date().toISOString();
+    const updatedList: StoredList = { ...ml, lastModifiedAt: now };
+    if (title !== undefined) updatedList.title = title;
+    this.storage.upsertList(sec.id, updatedList);
+    this.refreshSectionsFromStorage();
+
+    if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      this.sync.syncSectionLists(sec.id).then(() => this.refreshSectionsFromStorage()).catch(() => {});
+    }
   }
 
   protected removeSubtaskField(index: number): void {
@@ -619,13 +650,45 @@ export class HomeComponent implements OnDestroy {
 
   protected handleAddKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') this.confirmAdd();
+    else if (event.key === 'Tab' && !event.shiftKey) {
+      event.preventDefault();
+      this.addSubtaskField(true);
+    }
     else if (event.key === 'Escape') this.cancelAdding();
+  }
+
+  // ─── Main title editing ─────────────────────────────────
+  protected startEditingMainTitle(): void {
+    if (this.isEditing()) return;
+    this.editingMainTitle.set(true);
+    this.focusVisibleInput('.main-title-input', true);
+  }
+
+  protected saveMainTitle(event: Event): void {
+    const value = (event.target as HTMLInputElement).value.trim();
+    if (value) {
+      this.updateMainMeta(value);
+    }
+    this.editingMainTitle.set(false);
+  }
+
+  protected handleMainTitleKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') this.saveMainTitle(event);
+    else if (event.key === 'Escape') this.editingMainTitle.set(false);
   }
 
   // ─── Main task: toggle / remove ─────────────────────────
   protected toggleTask(id: number): void {
     this.updateMainList(tasks =>
-      tasks.map(t => (t.id === id ? { ...t, done: !t.done } : t))
+      tasks.map(t => {
+        if (t.id !== id) return t;
+        const done = !t.done;
+        return {
+          ...t,
+          done,
+          subtasks: done ? t.subtasks.map(s => ({ ...s, done: true })) : t.subtasks,
+        };
+      })
     );
   }
 
@@ -650,7 +713,13 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected handleTaskEditKeydown(id: number, event: KeyboardEvent): void {
-    if (event.key === 'Enter') this.saveTaskEdit(id, event);
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.saveTaskEdit(id, event);
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      this.startSubtaskFromTaskEdit(id, event.target);
+    }
     else if (event.key === 'Escape') {
       this.editingTaskId.set(null);
     }
@@ -703,15 +772,13 @@ export class HomeComponent implements OnDestroy {
   }
 
   // ─── Subtask: add to existing task ─────────────────────
-  protected startAddingSubtask(taskId: number): void {
-    if (this.isEditing()) return;
+  protected startAddingSubtask(taskId: number, fromTaskEdit = false): void {
+    if (!fromTaskEdit && this.isEditing()) return;
     const task = this.tasks().find(t => t.id === taskId);
     if (!task || task.subtasks.length >= 10) return;
     this.addingSubtaskToId.set(taskId);
     this.newInlineSubtaskText.set('');
-    afterNextRender(() => {
-      document.querySelector<HTMLInputElement>('[data-inline-subtask]')?.focus();
-    }, { injector: this.injector });
+    this.focusVisibleInput('[data-inline-subtask]');
   }
 
   protected cancelAddingSubtask(): void {
@@ -791,12 +858,24 @@ export class HomeComponent implements OnDestroy {
 
   protected handleSecondaryKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') this.confirmAddSecondary();
+    else if (event.key === 'Tab' && !event.shiftKey) {
+      event.preventDefault();
+      this.addSecSubtaskField(true);
+    }
     else if (event.key === 'Escape') this.cancelAddingSecondary();
   }
 
   protected toggleSecondaryTask(id: number): void {
     this.updateBacklogList(tasks =>
-      tasks.map(t => (t.id === id ? { ...t, done: !t.done } : t))
+      tasks.map(t => {
+        if (t.id !== id) return t;
+        const done = !t.done;
+        return {
+          ...t,
+          done,
+          subtasks: done ? t.subtasks.map(s => ({ ...s, done: true })) : t.subtasks,
+        };
+      })
     );
   }
 
@@ -820,7 +899,13 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected handleSecondaryEditKeydown(id: number, event: KeyboardEvent): void {
-    if (event.key === 'Enter') this.saveSecondaryEdit(id, event);
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.saveSecondaryEdit(id, event);
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      this.startSubtaskFromSecondaryEdit(id, event.target);
+    }
     else if (event.key === 'Escape') {
       this.editingSecondaryId.set(null);
     }
@@ -849,9 +934,10 @@ export class HomeComponent implements OnDestroy {
   }
 
   // ─── Secondary subtasks ─────────────────────────────────
-  protected addSecSubtaskField(): void {
+  protected addSecSubtaskField(focusNew = false): void {
     if (this.newSecondarySubtasks().length >= 10) return;
     this.newSecondarySubtasks.update(s => [...s, '']);
+    if (focusNew) this.focusLastVisibleInput('.add-form-sec .input-sub');
   }
 
   protected removeSecSubtaskField(index: number): void {
@@ -908,15 +994,13 @@ export class HomeComponent implements OnDestroy {
     else if (event.key === 'Escape') this.editingSecSubtask.set(null);
   }
 
-  protected startAddingSecSubtask(taskId: number): void {
-    if (this.isEditing()) return;
+  protected startAddingSecSubtask(taskId: number, fromTaskEdit = false): void {
+    if (!fromTaskEdit && this.isEditing()) return;
     const task = this.secondaryTasks().find(t => t.id === taskId);
     if (!task || task.subtasks.length >= 10) return;
     this.addingSecSubtaskToId.set(taskId);
     this.newInlineSecSubtaskText.set('');
-    afterNextRender(() => {
-      document.querySelector<HTMLInputElement>('[data-inline-sec-subtask]')?.focus();
-    }, { injector: this.injector });
+    this.focusVisibleInput('[data-inline-sec-subtask]');
   }
 
   protected cancelAddingSecSubtask(): void {
@@ -1048,10 +1132,68 @@ export class HomeComponent implements OnDestroy {
     }));
   }
 
+  private focusLastVisibleInput(selector: string): void {
+    requestAnimationFrame(() => setTimeout(() => {
+      const all = Array.from(document.querySelectorAll<HTMLInputElement>(selector));
+      const visible = all.filter(i => i.offsetParent !== null);
+      (visible.at(-1) ?? all.at(-1))?.focus();
+    }));
+  }
+
   private focusEditInput(editId: string): void {
     afterNextRender(() => {
       const input = document.querySelector<HTMLInputElement>(`[data-edit-id="${editId}"]`);
       input?.focus();
     }, { injector: this.injector });
+  }
+
+  private startSubtaskFromActiveTaskEdit(event: KeyboardEvent): boolean {
+    const mainTaskId = this.editingTaskId();
+    if (mainTaskId !== null && this.startSubtaskFromTaskEdit(mainTaskId, event.target)) {
+      event.preventDefault();
+      return true;
+    }
+
+    const secondaryTaskId = this.editingSecondaryId();
+    if (secondaryTaskId !== null && this.startSubtaskFromSecondaryEdit(secondaryTaskId, event.target)) {
+      event.preventDefault();
+      return true;
+    }
+
+    return false;
+  }
+
+  private startSubtaskFromTaskEdit(taskId: number, target: EventTarget | null): boolean {
+    const input = this.getEditInput(target, `task-${taskId}`);
+    if (!input || !input.value.trim()) return false;
+
+    this.saveTaskEdit(taskId, { target: input } as unknown as Event);
+    this.startAddingSubtask(taskId, true);
+    return true;
+  }
+
+  private startSubtaskFromSecondaryEdit(taskId: number, target: EventTarget | null): boolean {
+    const input = this.getEditInput(target, `sec-${taskId}`);
+    if (!input || !input.value.trim()) return false;
+
+    this.saveSecondaryEdit(taskId, { target: input } as unknown as Event);
+    this.startAddingSecSubtask(taskId, true);
+    return true;
+  }
+
+  private getEditInput(target: EventTarget | null, editId: string): HTMLInputElement | null {
+    const targetInput = target instanceof HTMLInputElement ? target : null;
+    if (targetInput?.dataset['editId'] === editId) return targetInput;
+
+    const activeInput = document.activeElement instanceof HTMLInputElement ? document.activeElement : null;
+    if (activeInput?.dataset['editId'] === editId) return activeInput;
+
+    return null;
+  }
+
+  private isInteractiveTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && Boolean(
+      target.closest('input, textarea, select, button, a, [contenteditable="true"], [role="button"]')
+    );
   }
 }

@@ -44,7 +44,7 @@ function createDefaultPartition(): Partition {
         position: 0,
         metadataLastModifiedAt: now,
         lists: [
-          { id: mainListId, title: '', lastModifiedAt: now, content: [], isBacklog: false },
+          { id: mainListId, title: 'Now', lastModifiedAt: now, content: [], isBacklog: false },
           { id: backlogListId, title: 'Later', lastModifiedAt: now, content: [], isBacklog: true },
         ],
       },
