@@ -2,11 +2,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .my-top-bar {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto 1dr 1fr;
   align-items: center;
 }
 
 .my-left {
+  padding-left: 32px;
 }
 
 .my-title {
@@ -256,7 +257,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .section-tabs {
   display: flex;
   flex-direction: row;
-  gap: 4px;
+  gap: 10px;
   padding: 0 0 8px 32px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -303,7 +304,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     width: 95px;
     height: 32px;
     padding: 0;
-    border-radius: 6px;
+    border-radius: 8px 8px 0 0;
     background: var(--active-tab-bg, rgba(128,128,128,0.12));
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   }
@@ -322,7 +323,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   width: 95px;
   height: 32px;
   border: 1.5px dashed var(--text-secondary, #888);
-  border-radius: 6px;
+  border-radius: 8px 8px 0 0;
 }
 
 .section-tabs.cdk-drop-list-dragging .section-tab-surface:not(.cdk-drag-placeholder) {
@@ -330,11 +331,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .section-tab-btn {
-  background: none;
-  border: none;
+  background: rgba(128, 128, 128, 0.04);
+  border: 1px solid var(--border);
+  border-bottom: none;
   cursor: pointer;
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: 8px 8px 0 0;
   font-size: 0.85rem;
   color: var(--text-secondary, #888);
   transition: background $ease 0.15s, color $ease 0.15s;
@@ -351,6 +353,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   .section-tab.active & {
     color: var(--text-primary, #222);
     background: var(--active-tab-bg, rgba(128,128,128,0.12));
+    border-color: var(--text-secondary, #888);
   }
 }
 
@@ -366,6 +369,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   width: 95px;
   height: 32px;
   box-sizing: border-box;
+}
+
+.section-tab-input {
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
 }
 
 .add-btn-section {
@@ -458,13 +467,29 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Lists row ────────────────────────────────────────────
 .lists {
-  //border: 2px solid pink;
   flex: 1;
   overflow: hidden;
+  padding: 0 0 0 32px;
 
   @media (min-width: 768px) {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 35vw 20vw 1fr;
+    grid-column-gap: 32px;
+  }
+
+  @media (min-width: 1200px) {
+    display: grid;
+    grid-template-columns: 30vw 20vw 1fr;
+  }
+
+  @media (min-width: 1600px) {
+    display: grid;
+    grid-template-columns: 25vw 15vw 1fr;
+  }
+
+  @media (min-width: 2000px) {
+    display: grid;
+    grid-template-columns: 20vw 12vw 1fr;
   }
 
   @media (max-width: 768px) {
@@ -474,6 +499,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     gap: 50px;
     overflow-y: auto;
     overflow-x: hidden;
+    padding: 0;
   }
 
   scrollbar-width: thin;
@@ -491,17 +517,17 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
-.my-first-list-col{
-  @media (max-width: 768px) {
-    display: none;
-  }
-}
-
 .my-list-col {
   @media (max-width: 768px) {
     display: flex;
     flex-direction: column;
     flex: 1;
+  }
+}
+
+.my-last-list-col{
+  @media (max-width: 768px) {
+    display: none !important;
   }
 }
 
@@ -512,30 +538,22 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     flex: 1;
   }
 
-  @media (min-width: 768px) {
-    width: 35vw;
-  }
-  @media (min-width: 1200px) {
-    width: 25vw;
-  }
+  width: 100%;
 }
 
 .my-secondary-list-container {
-  //border: 2px solid blue;
-  @media (min-width: 768px) {
-    width: 25vw;
-  }
-  @media (min-width: 1200px) {
-    width: 15vw;
-  }
+  width: 100%;
+}
+
+.my-tertiary-list-container {
+  width: 100%;
 }
 
 .secondary-section {
-  //border: 2px solid yellow;
 
   @media (min-width: 768px) {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     overflow-y: auto;
     overflow-x: hidden;
   }
