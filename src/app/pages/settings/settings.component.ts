@@ -80,10 +80,23 @@ import { AuthService } from '../../services/auth.service';
         <section class="settings-section settings-section--danger">
           <div class="settings-section-header">
             <h3 class="settings-section-title settings-section-title--danger">Delete Account</h3>
-            <p class="settings-section-desc">Permanently delete your account and all data. This cannot be undone.</p>
+            <p class="settings-section-desc">
+              @if (auth.isPremium()) {
+                Cancel your subscription before deleting your account.
+              } @else {
+                Permanently delete your account and all data. This cannot be undone.
+              }
+            </p>
           </div>
 
-          @if (!confirmDelete()) {
+          @if (auth.isPremium()) {
+            <button class="settings-btn settings-btn--primary" [disabled]="subscriptionLoading()" (click)="manageSubscription()">
+              {{ subscriptionLoading() ? 'Opening...' : 'Manage subscription' }}
+            </button>
+            @if (deleteError()) {
+              <p class="settings-error" role="alert">{{ deleteError() }}</p>
+            }
+          } @else if (!confirmDelete()) {
             <button class="settings-btn settings-btn--danger-outline" (click)="confirmDelete.set(true)">
               Delete my account
             </button>
@@ -283,8 +296,25 @@ export class SettingsComponent {
   protected readonly confirmDelete = signal(false);
   protected readonly deleteLoading = signal(false);
   protected readonly deleteError = signal('');
+  protected readonly subscriptionLoading = signal(false);
+
+  protected async manageSubscription(): Promise<void> {
+    this.subscriptionLoading.set(true);
+    this.deleteError.set('');
+    try {
+      const url = await this.auth.manageSubscription();
+      window.location.href = url;
+    } catch (e: any) {
+      this.deleteError.set(e?.error?.error ?? 'Could not open subscription management.');
+      this.subscriptionLoading.set(false);
+    }
+  }
 
   protected async deleteAccount(): Promise<void> {
+    if (this.auth.isPremium()) {
+      this.deleteError.set('Cancel your active subscription before deleting your account.');
+      return;
+    }
     this.deleteLoading.set(true);
     this.deleteError.set('');
     try {

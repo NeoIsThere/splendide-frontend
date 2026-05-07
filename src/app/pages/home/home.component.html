@@ -254,6 +254,8 @@
             cdkDrag
             [cdkDragData]="sec"
             [cdkDragStartDelay]="dragDelay()"
+            (cdkDragStarted)="setDragging(true)"
+            (cdkDragEnded)="setDragging(false)"
           >
             <div class="section-tab-placeholder" *cdkDragPlaceholder></div>
             @if (editingSectionId() === sec.id) {
@@ -379,6 +381,8 @@
               cdkDrag
               [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
+              (cdkDragStarted)="setDragging(true)"
+              (cdkDragEnded)="setDragging(false)"
               role="listitem"
             >
               <div class="task-main">
@@ -476,7 +480,13 @@
                 (cdkDropListDropped)="dropSubtask(task.id, $any($event))"
               >
                 @for (sub of task.subtasks; track sub.id) {
-                  <div class="subtask-row" cdkDrag [cdkDragStartDelay]="dragDelay()">
+                  <div
+                    class="subtask-row"
+                    cdkDrag
+                    [cdkDragStartDelay]="dragDelay()"
+                    (cdkDragStarted)="setDragging(true)"
+                    (cdkDragEnded)="setDragging(false)"
+                  >
                     <button
                       class="check-btn check-btn-sub"
                       [class.checked]="sub.done"
@@ -826,6 +836,8 @@
               cdkDrag
               [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
+              (cdkDragStarted)="setDragging(true)"
+              (cdkDragEnded)="setDragging(false)"
               role="listitem"
             >
               <div class="sec-task-main">
@@ -923,7 +935,13 @@
                 (cdkDropListDropped)="dropSecSubtask(task.id, $any($event))"
               >
                 @for (sub of task.subtasks; track sub.id) {
-                  <div class="subtask-row" cdkDrag [cdkDragStartDelay]="dragDelay()">
+                  <div
+                    class="subtask-row"
+                    cdkDrag
+                    [cdkDragStartDelay]="dragDelay()"
+                    (cdkDragStarted)="setDragging(true)"
+                    (cdkDragEnded)="setDragging(false)"
+                  >
                     <button
                       class="check-btn check-btn-sub"
                       [class.checked]="sub.done"

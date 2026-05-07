@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { StorageService } from './storage.service';
 
 export interface User {
   id: string;
@@ -22,6 +23,7 @@ interface AuthResponse {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly storage = inject(StorageService);
   private readonly apiUrl = environment.apiUrl;
 
   private readonly _user = signal<User | null>(this.loadUser());
@@ -47,6 +49,7 @@ export class AuthService {
   async verifyEmail(token: string): Promise<void> {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-email`, { token }, { withCredentials: true }));
     this.setSession(res);
+    this.storage.copyAnonymousToUser(res.user.id);
   }
 
   async resendVerification(email: string): Promise<void> {
@@ -63,6 +66,9 @@ export class AuthService {
   async googleAuth(idToken: string): Promise<{ isNewUser: boolean }> {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google`, { idToken }, { withCredentials: true }));
     this.setSession(res);
+    if (res.isNewUser) {
+      this.storage.copyAnonymousToUser(res.user.id);
+    }
     return { isNewUser: res.isNewUser ?? false };
   }
 

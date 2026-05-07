@@ -2,61 +2,97 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { StorageService, StoredSection, StoredList } from './storage.service';
+import { StorageService, StoredSection, StoredList, StoredItem } from './storage.service';
 
 @Injectable({ providedIn: 'root' })
 export class SyncService {
   private readonly http = inject(HttpClient);
   private readonly storage = inject(StorageService);
   private readonly apiUrl = environment.apiUrl;
+  private sectionsSyncGeneration = 0;
+  private readonly listsSyncGeneration = new Map<string, number>();
+  private readonly itemsSyncGeneration = new Map<string, number>();
 
-  // ─── Section sync ──────────────────────────────────────
+  private nextGeneration(map: Map<string, number>, key: string): number {
+    const next = (map.get(key) ?? 0) + 1;
+    map.set(key, next);
+    return next;
+  }
+
+  reserveListItemsSync(sectionId: string, listId: string): void {
+    this.nextGeneration(this.itemsSyncGeneration, `${sectionId}:${listId}`);
+  }
 
   async syncSections(): Promise<StoredSection[]> {
-    const local = this.storage.loadAllSectionsForSync();
-    const payload = local.map(s => ({
-      id: s.id,
-      title: s.title,
-      metadataLastModifiedAt: s.metadataLastModifiedAt,
-      ...(s.deleted ? { deleted: true } : {}),
-      ...(s.isNew ? { isNew: true } : {}),
+    const generation = ++this.sectionsSyncGeneration;
+    const payload = this.storage.loadAllSectionsForSync().map(section => ({
+      id: section.id,
+      title: section.title,
+      metadataLastModifiedAt: section.metadataLastModifiedAt,
+      ...(section.deleted ? { deleted: true } : {}),
+      ...(section.created ? { created: true } : {}),
     }));
 
     const synced = await firstValueFrom(
       this.http.post<StoredSection[]>(`${this.apiUrl}/sections/sync`, payload),
     );
 
-    this.storage.applySyncedSections(synced);
+    if (generation === this.sectionsSyncGeneration) {
+      this.storage.applySyncedSections(synced);
+    }
     return this.storage.loadSections();
   }
 
-  // ─── List sync ─────────────────────────────────────────
-
   async syncSectionLists(sectionId: string): Promise<StoredList[]> {
-    const local = this.storage.getListsForSection(sectionId);
-    const payload = local.map(l => ({
-      id: l.id,
-      title: l.title,
-      lastModifiedAt: l.lastModifiedAt,
-      content: l.content,
-      isBacklog: l.isBacklog,
+    const generation = this.nextGeneration(this.listsSyncGeneration, sectionId);
+    const payload = this.storage.getListsForSection(sectionId).map(list => ({
+      id: list.id,
+      title: list.title,
+      isBacklog: list.isBacklog,
+      metadataLastModifiedAt: list.metadataLastModifiedAt,
     }));
 
     const synced = await firstValueFrom(
       this.http.post<StoredList[]>(`${this.apiUrl}/sections/${sectionId}/sync`, payload),
     );
 
-    this.storage.setListsForSection(sectionId, synced);
-    return synced;
+    if (generation === this.listsSyncGeneration.get(sectionId)) {
+      this.storage.setListsForSection(sectionId, synced);
+    }
+    return this.storage.getListsForSection(sectionId);
   }
 
-  // ─── Reorder ───────────────────────────────────────────
+  async syncListItems(sectionId: string, listId: string): Promise<StoredItem[]> {
+    const key = `${sectionId}:${listId}`;
+    const generation = this.nextGeneration(this.itemsSyncGeneration, key);
+    const revision = this.storage.getItemsRevision(sectionId, listId);
+    const payload = this.storage.getItemsForList(sectionId, listId).map(item => ({
+      id: item.id,
+      content: item.content,
+      lastModifiedAt: item.lastModifiedAt,
+      ...(item.deleted ? { deleted: true } : {}),
+      ...(item.created ? { created: true } : {}),
+    }));
 
-  async reorderSections(id: string, oldPosition: number, newPosition: number): Promise<{ id: string; position: number }[]> {
+    const synced = await firstValueFrom(
+      this.http.post<StoredItem[]>(`${this.apiUrl}/sections/${sectionId}/lists/${listId}/sync`, payload),
+    );
+
+    if (generation === this.itemsSyncGeneration.get(key)) {
+      this.storage.applySyncedItems(sectionId, listId, synced, revision);
+    }
+    return this.storage.getItemsForList(sectionId, listId);
+  }
+
+  async reorderSections(sections: { id: string; position: number }[]): Promise<{ id: string; position: number }[]> {
     return firstValueFrom(
-      this.http.patch<{ id: string; position: number }[]>(`${this.apiUrl}/sections/reorder`, { id, oldPosition, newPosition }),
+      this.http.patch<{ id: string; position: number }[]>(`${this.apiUrl}/sections/reorder`, sections),
     );
   }
 
-
+  async reorderItems(sectionId: string, listId: string, items: { id: string; position: number }[]): Promise<{ id: string; position: number }[]> {
+    return firstValueFrom(
+      this.http.patch<{ id: string; position: number }[]>(`${this.apiUrl}/sections/${sectionId}/lists/${listId}/reorder`, items),
+    );
+  }
 }

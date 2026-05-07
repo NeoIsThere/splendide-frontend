@@ -356,7 +356,12 @@ export class PaymentComponent implements OnInit {
   private async syncSignedInPartition(): Promise<void> {
     this.ensureSignedInPartition();
     const sections = await this.sync.syncSections();
-    await Promise.all(sections.map(section => this.sync.syncSectionLists(section.id)));
+    for (const section of sections) {
+      const lists = await this.sync.syncSectionLists(section.id);
+      for (const list of lists) {
+        await this.sync.syncListItems(section.id, list.id);
+      }
+    }
   }
 
   protected onCurrencyChange(event: Event): void {
