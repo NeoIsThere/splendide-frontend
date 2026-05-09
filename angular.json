@@ -85,6 +85,28 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "electron": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.electron.ts"
+                }
+              ],
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "30kB",
+                  "maximumError": "40kB"
+                }
+              ],
+              "outputHashing": "all",
+              "baseHref": "./"
             }
           },
           "defaultConfiguration": "production"

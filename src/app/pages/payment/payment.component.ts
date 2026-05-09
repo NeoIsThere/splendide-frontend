@@ -1,14 +1,19 @@
-import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { StorageService } from '../../services/storage.service';
 import { SyncService } from '../../services/sync.service';
+import { openExternalUrl } from '../../utils/external-link';
 
 interface PriceOption {
   currency: string;
   amount: number;
   symbol: string;
 }
+
+type BillingInterval = 'monthly' | 'yearly';
+type PriceMap = Record<string, Omit<PriceOption, 'currency'>>;
+type PriceCatalog = Partial<Record<BillingInterval, PriceMap>>;
 
 function guessCurrency(): string {
   // 1. Try Intl locale → currency mapping
@@ -86,7 +91,36 @@ function guessCurrency(): string {
       font-size: 0.9375rem;
       color: var(--text-secondary);
       line-height: 1.6;
-      margin: 0 0 32px;
+      margin: 0 0 24px;
+    }
+    .billing-toggle {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--border, #ddd);
+      border-radius: 8px;
+      margin: 0 0 24px;
+    }
+    .billing-option {
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 8px 12px;
+      transition: background 0.2s, color 0.2s;
+    }
+    .billing-option.active {
+      background: var(--accent);
+      color: var(--bg);
+    }
+    .billing-option:focus-visible {
+      outline: 2px solid var(--text);
+      outline-offset: 2px;
     }
     .price-row {
       display: flex;
@@ -145,6 +179,12 @@ function guessCurrency(): string {
       font-size: 0.8125rem;
       color: #e53935;
       margin: 0 0 16px;
+    }
+    .checkout-note {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin: 12px 0 0;
     }
     .back {
       display: block;
@@ -260,9 +300,24 @@ function guessCurrency(): string {
             Keep your tasks synced, and accessible across all your devices.
           </p>
 
+          @if (availableBillingIntervals().length > 1) {
+            <div class="billing-toggle" role="group" aria-label="Billing period">
+              @for (interval of availableBillingIntervals(); track interval) {
+                <button
+                  type="button"
+                  class="billing-option"
+                  [class.active]="selectedBillingInterval() === interval"
+                  (click)="onBillingIntervalChange(interval)"
+                >
+                  {{ billingIntervalLabel(interval) }}
+                </button>
+              }
+            </div>
+          }
+
           @if (currentPrice()) {
             <div class="price-row">
-              <p class="price">{{ currentPrice()!.symbol }}{{ formatAmount(currentPrice()!.amount, selectedCurrency()) }} <span class="price-label">/month</span></p>
+              <p class="price">{{ currentPrice()!.symbol }}{{ formatAmount(currentPrice()!.amount, selectedCurrency()) }} <span class="price-label">{{ billingPeriodLabel() }}</span></p>
               @if (availableCurrencies().length > 1) {
                 <select
                   class="currency-select"
@@ -288,6 +343,10 @@ function guessCurrency(): string {
             @if (loading()) { Redirecting to checkout… } @else { Subscribe with Stripe }
           </button>
 
+          @if (externalCheckoutPending()) {
+            <p class="checkout-note">Checkout is open in your browser. Keep Splendide open and it will update when payment is complete.</p>
+          }
+
           <a class="back" routerLink="/">Maybe later</a>
 
           @if (!showCodeInput()) {
@@ -311,7 +370,7 @@ function guessCurrency(): string {
     </div>
   `,
 })
-export class PaymentComponent implements OnInit {
+export class PaymentComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -321,8 +380,11 @@ export class PaymentComponent implements OnInit {
   protected readonly mode = signal<'upgrade' | 'success' | 'cancel'>('upgrade');
   protected readonly loading = signal(false);
   protected readonly error = signal('');
+  protected readonly externalCheckoutPending = signal(false);
 
-  protected readonly prices = signal<Record<string, { amount: number; symbol: string }>>({});
+  protected readonly prices = signal<PriceCatalog>({});
+  protected readonly selectedBillingInterval = signal<BillingInterval>('monthly');
+  protected readonly availableBillingIntervals = signal<BillingInterval[]>([]);
   protected readonly selectedCurrency = signal<string>('usd');
   protected readonly availableCurrencies = signal<string[]>([]);
   protected readonly currentPrice = signal<{ amount: number; symbol: string } | null>(null);
@@ -330,6 +392,8 @@ export class PaymentComponent implements OnInit {
   protected readonly showCodeInput = signal(false);
   protected readonly codeValue = signal('');
   protected readonly codeLoading = signal(false);
+  private paymentPollTimer: ReturnType<typeof setTimeout> | null = null;
+  private paymentPollCount = 0;
 
   async ngOnInit(): Promise<void> {
     const url = this.router.url;
@@ -344,6 +408,10 @@ export class PaymentComponent implements OnInit {
     } else {
       this.loadPrices();
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearPaymentPoll();
   }
 
   private ensureSignedInPartition(): void {
@@ -367,7 +435,20 @@ export class PaymentComponent implements OnInit {
   protected onCurrencyChange(event: Event): void {
     const currency = (event.target as HTMLSelectElement).value;
     this.selectedCurrency.set(currency);
-    this.currentPrice.set(this.prices()[currency] ?? null);
+    this.currentPrice.set(this.priceMapForSelectedInterval()[currency] ?? null);
+  }
+
+  protected onBillingIntervalChange(interval: BillingInterval): void {
+    this.selectedBillingInterval.set(interval);
+    this.refreshAvailableCurrencies();
+  }
+
+  protected billingIntervalLabel(interval: BillingInterval): string {
+    return interval === 'yearly' ? 'Yearly' : 'Monthly';
+  }
+
+  protected billingPeriodLabel(): string {
+    return this.selectedBillingInterval() === 'yearly' ? '/year' : '/month';
   }
 
   protected formatAmount(amount: number, currency: string): string {
@@ -377,13 +458,55 @@ export class PaymentComponent implements OnInit {
   protected async checkout(): Promise<void> {
     this.loading.set(true);
     this.error.set('');
+    this.externalCheckoutPending.set(false);
 
     try {
-      const url = await this.auth.createCheckout(this.selectedCurrency());
-      window.location.href = url;
+      const url = await this.auth.createCheckout(this.selectedCurrency(), this.selectedBillingInterval());
+      const openedExternally = await openExternalUrl(url);
+      if (openedExternally) {
+        this.loading.set(false);
+        this.externalCheckoutPending.set(true);
+        this.pollPremiumAfterExternalCheckout();
+      }
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'Could not start checkout. Please try again.');
       this.loading.set(false);
+    }
+  }
+
+  private pollPremiumAfterExternalCheckout(): void {
+    this.clearPaymentPoll();
+    this.paymentPollCount = 0;
+
+    const poll = async () => {
+      this.paymentPollCount += 1;
+      if (this.paymentPollCount > 80) {
+        this.externalCheckoutPending.set(false);
+        return;
+      }
+
+      try {
+        const isPremium = await this.auth.checkPremiumStatus();
+        if (isPremium) {
+          await this.syncSignedInPartition();
+          this.externalCheckoutPending.set(false);
+          this.mode.set('success');
+          return;
+        }
+      } catch {
+        // Keep polling while the external checkout may still be in progress.
+      }
+
+      this.paymentPollTimer = setTimeout(poll, 3000);
+    };
+
+    this.paymentPollTimer = setTimeout(poll, 3000);
+  }
+
+  private clearPaymentPoll(): void {
+    if (this.paymentPollTimer) {
+      clearTimeout(this.paymentPollTimer);
+      this.paymentPollTimer = null;
     }
   }
 
@@ -411,16 +534,31 @@ export class PaymentComponent implements OnInit {
       const prices = await this.auth.fetchPrices();
       this.prices.set(prices);
 
-      const currencies = Object.keys(prices);
-      this.availableCurrencies.set(currencies);
-
-      // Pick the best currency for this user
-      const guessed = guessCurrency();
-      const selected = prices[guessed] ? guessed : currencies[0] ?? 'usd';
-      this.selectedCurrency.set(selected);
-      this.currentPrice.set(prices[selected] ?? null);
+      const intervals = (['monthly', 'yearly'] as BillingInterval[]).filter(interval => {
+        const priceMap = prices[interval];
+        return priceMap && Object.keys(priceMap).length > 0;
+      });
+      this.availableBillingIntervals.set(intervals);
+      this.selectedBillingInterval.set(intervals.includes('monthly') ? 'monthly' : intervals[0] ?? 'monthly');
+      this.refreshAvailableCurrencies();
     } catch {
       this.error.set('Could not load pricing. Please refresh.');
     }
+  }
+
+  private priceMapForSelectedInterval(): PriceMap {
+    return this.prices()[this.selectedBillingInterval()] ?? {};
+  }
+
+  private refreshAvailableCurrencies(): void {
+    const priceMap = this.priceMapForSelectedInterval();
+    const currencies = Object.keys(priceMap);
+    this.availableCurrencies.set(currencies);
+
+    const guessed = guessCurrency();
+    const previous = this.selectedCurrency();
+    const selected = priceMap[previous] ? previous : priceMap[guessed] ? guessed : currencies[0] ?? 'usd';
+    this.selectedCurrency.set(selected);
+    this.currentPrice.set(priceMap[selected] ?? null);
   }
 }

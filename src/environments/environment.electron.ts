@@ -1,7 +1,7 @@
 export const environment = {
-  apiUrl: 'http://localhost:3001/api',
+  apiUrl: 'https://api.splendide.app/api',
   googleClientId: '718439408583-ipj7tj3s2genkl1c5uklhmbaq17nqtkk.apps.googleusercontent.com',
-  isElectron: false,
+  isElectron: true,
 };
 
-export const APP_VERSION = 'v1.0.2';
+export const APP_VERSION = 'v1.0.4';

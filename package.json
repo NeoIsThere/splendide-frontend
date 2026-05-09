@@ -1,31 +1,76 @@
 {
   "name": "splendide",
-  "version": "0.0.0",
+  "version": "1.0.4",
+  "description": "A focused Now/Later work pad.",
+  "author": "Splendide",
+  "main": "dist-electron/main.js",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "electron:compile": "tsc -p tsconfig.electron.json",
+    "electron:serve": "npm run electron:compile && electron .",
+    "electron:dev": "concurrently -k \"ng serve\" \"wait-on http://localhost:4201 && cross-env ELECTRON_START_URL=http://localhost:4201 npm run electron:serve\"",
+    "electron:build": "ng build --configuration electron && npm run electron:compile",
+    "electron:start": "npm run electron:build && electron .",
+    "electron:pack": "npm run electron:build && electron-builder --dir",
+    "electron:dist": "npm run electron:build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis"
   },
   "private": true,
   "packageManager": "npm@10.9.4",
   "dependencies": {
-    "@angular/cdk": "^21.2.3",
-    "@angular/common": "^21.2.0",
-    "@angular/compiler": "^21.2.0",
-    "@angular/core": "^21.2.0",
-    "@angular/forms": "^21.2.0",
-    "@angular/platform-browser": "^21.2.0",
-    "@angular/router": "^21.2.0",
+    "@angular/cdk": "^21.2.10",
+    "@angular/common": "^21.2.12",
+    "@angular/compiler": "^21.2.12",
+    "@angular/core": "^21.2.12",
+    "@angular/forms": "^21.2.12",
+    "@angular/platform-browser": "^21.2.12",
+    "@angular/router": "^21.2.12",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.3",
-    "@angular/cli": "^21.2.3",
-    "@angular/compiler-cli": "^21.2.0",
+    "@angular/build": "^21.2.10",
+    "@angular/cli": "^21.2.10",
+    "@angular/compiler-cli": "^21.2.12",
+    "@types/node": "^25.6.2",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1",
     "prettier": "^3.8.1",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "app.splendide.desktop",
+    "productName": "Splendide",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/splendide/browser/**/*",
+      "dist-electron/**/*",
+      "!node_modules/**/*"
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/main.js"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

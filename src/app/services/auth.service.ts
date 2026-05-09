@@ -132,13 +132,13 @@ export class AuthService {
 
   // ─── Payment ────────────────────────────────────────────
 
-  async fetchPrices(): Promise<Record<string, { amount: number; symbol: string }>> {
-    const res = await firstValueFrom(this.http.get<{ prices: Record<string, { amount: number; symbol: string }> }>(`${this.apiUrl}/payment/price`));
+  async fetchPrices(): Promise<Partial<Record<'monthly' | 'yearly', Record<string, { amount: number; symbol: string }>>>> {
+    const res = await firstValueFrom(this.http.get<{ prices: Partial<Record<'monthly' | 'yearly', Record<string, { amount: number; symbol: string }>>> }>(`${this.apiUrl}/payment/price`));
     return res.prices;
   }
 
-  async createCheckout(currency?: string): Promise<string> {
-    const res = await firstValueFrom(this.http.post<{ url: string }>(`${this.apiUrl}/payment/create-checkout`, { currency }));
+  async createCheckout(currency?: string, billingInterval: 'monthly' | 'yearly' = 'monthly'): Promise<string> {
+    const res = await firstValueFrom(this.http.post<{ url: string }>(`${this.apiUrl}/payment/create-checkout`, { currency, billingInterval }));
     return res.url;
   }
 

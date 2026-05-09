@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { ThemeService } from '../../services/theme.service';
 import { StorageService, StoredSection, StoredList, StoredItem } from '../../services/storage.service';
 import { SyncService } from '../../services/sync.service';
+import { openExternalUrl } from '../../utils/external-link';
 
 interface Subtask {
   id: string;
@@ -774,7 +775,7 @@ export class HomeComponent implements OnDestroy {
     this.menuOpen.set(false);
     try {
       const url = await this.auth.manageSubscription();
-      window.location.href = url;
+      await openExternalUrl(url);
     } catch {
       // silently fail — user can retry
     }

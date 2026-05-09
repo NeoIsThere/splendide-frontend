@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { openExternalUrl } from '../../utils/external-link';
 
 @Component({
   selector: 'app-settings',
@@ -324,7 +325,10 @@ export class SettingsComponent {
     this.deleteError.set('');
     try {
       const url = await this.auth.manageSubscription();
-      window.location.href = url;
+      const openedExternally = await openExternalUrl(url);
+      if (openedExternally) {
+        this.subscriptionLoading.set(false);
+      }
     } catch (e: any) {
       this.deleteError.set(e?.error?.error ?? 'Could not open subscription management.');
       this.subscriptionLoading.set(false);

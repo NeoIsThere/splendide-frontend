@@ -861,6 +861,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   &:focus-within {
     background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
+
+  @media (max-width: 768px) {
+    margin: 0;
+  }
 }
 
 .task-main {
@@ -1093,6 +1097,15 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .task-dots-menu-left {
   right: auto;
   left: 0;
+}
+
+@media (max-width: 768px) {
+  .task-dots-menu,
+  .task-dots-menu-left {
+    right: 0;
+    left: auto;
+    max-width: calc(100vw - 32px);
+  }
 }
 
 .task-dots-item {
@@ -1392,6 +1405,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   &:hover,
   &:focus-within {
     background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
+  }
+
+  @media (max-width: 768px) {
+    margin: 0;
   }
 }
 
