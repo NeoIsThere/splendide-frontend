@@ -50,18 +50,18 @@
                       points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
                     />
                   </svg>
-                  Premium
+                  premium
                 </p>
               } @else {
-                <p class="user-menu-badge">Free</p>
+                <p class="user-menu-badge">free</p>
               }
               @if (auth.isPremium()) {
                 <button class="user-menu-item" (click)="manageSubscription()">
-                  Manage subscription
+                  manage subscription
                 </button>
               }
-              <button class="user-menu-item" (click)="openSettings()">Settings</button>
-              <button class="user-menu-item" (click)="signOut()">Sign out</button>
+              <button class="user-menu-item" (click)="openSettings()">settings</button>
+              <button class="user-menu-item" (click)="signOut()">sign out</button>
             </div>
           }
         </div>
@@ -112,7 +112,7 @@
         <div class="my-upgrade-desktop">
           @if (auth.isLoggedIn() && !auth.isPremium()) {
             <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium"
-              >Upgrade</a
+              >upgrade ✦</a
             >
           }
         </div>
@@ -122,7 +122,7 @@
   <div class="my-below-top-bar">
     <div class="my-upgrade-mobile">
       @if (auth.isLoggedIn() && !auth.isPremium()) {
-        <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium">Upgrade</a>
+        <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium">upgrade</a>
       }
     </div>
   </div>
@@ -156,7 +156,7 @@
           (input)="onAddSectionInput($event)"
           (keydown)="handleAddSectionKeydown($event)"
           (blur)="confirmAddSection()"
-          placeholder="Page name"
+          placeholder="Tab name"
         />
       } @else if (editingSectionId() === activeSectionId()) {
         <input
@@ -178,7 +178,7 @@
           <button
             class="section-menu-trigger"
             (click)="toggleSectionMenu()"
-            aria-label="Page actions"
+            aria-label="Tab actions"
             [attr.aria-expanded]="sectionMenuOpen()"
           >
             <svg
@@ -205,11 +205,11 @@
                 (click)="startAddingSectionFromMenu()"
                 [disabled]="!canAddSection()"
               >
-                Add new page
+                add new tab
               </button>
               @if (sections().length > 1) {
                 <button class="section-menu-item danger" (click)="startDeletingActiveSectionFromMenu()">
-                  Delete page
+                  delete tab
                 </button>
               }
             </div>
@@ -279,8 +279,7 @@
           <div class="section-tab-actions" data-confirm-delete-section>
             @if (confirmingDeleteSectionId() === sec.id) {
               <div class="clear-confirm">
-                <span class="clear-confirm-label">Delete page:</span>
-                <button class="clear-yes" (click)="confirmDeleteSection()">yes</button>
+                <button class="clear-yes" (click)="confirmDeleteSection()">delete</button>
                 <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
               </div>
             } @else if (sections().length > 1) {
@@ -318,7 +317,7 @@
               (input)="onAddSectionInput($event)"
               (keydown)="handleAddSectionKeydown($event)"
               (blur)="confirmAddSection()"
-              placeholder="Page name"
+              placeholder="Tab name"
             />
           } @else {
             <button
@@ -389,6 +388,7 @@
                   class="check-btn"
                   [class.checked]="task.done"
                   (click)="toggleTask(task.id)"
+                  (mousedown)="$event.stopPropagation()"
                   [attr.aria-label]="
                     (task.done ? 'Mark incomplete: ' : 'Mark complete: ') + task.text
                   "
@@ -463,11 +463,11 @@
                       <button
                         class="task-dots-item"
                         (click)="moveToBacklog(task.id); taskMenuOpenId.set(null)"
-                      >Move to {{ secondaryTitle() }}</button>
+                      >move to {{ secondaryTitle() }}</button>
                       <button
                         class="task-dots-item task-dots-item-danger"
                         (click)="removeTask(task.id)"
-                      >Delete</button>
+                      >delete</button>
                     </div>
                   }
                 </div>
@@ -492,6 +492,7 @@
                       class="check-btn check-btn-sub"
                       [class.checked]="sub.done"
                       (click)="toggleSubtask(task.id, sub.id)"
+                      (mousedown)="$event.stopPropagation()"
                       [attr.aria-label]="
                         (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
                       "
@@ -691,7 +692,7 @@
             aria-label="Add a task"
           >
             <span class="add-placeholder-check"></span>
-            <span class="add-placeholder-text">Add a task</span>
+            <span class="add-placeholder-text">add a task</span>
           </div>
         }
         </div><!-- /.main-drop-zone -->
@@ -701,7 +702,7 @@
             <div class="clear-confirm" data-confirm-clear>
               <span class="clear-confirm-label">Delete:</span>
               @if (completedCount() > 0 && completedCount() < taskCount()) {
-                <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">Done only</button>
+                <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">done only</button>
               }
               <button class="clear-yes" (click)="confirmClear()">All</button>
               <button class="clear-no" (click)="cancelClear()">Cancel</button>
@@ -782,6 +783,7 @@
                   class="check-btn check-btn-sub"
                   [class.checked]="task.done"
                   (click)="toggleSecondaryTask(task.id)"
+                  (mousedown)="$event.stopPropagation()"
                   [attr.aria-label]="
                     (task.done ? 'Mark incomplete: ' : 'Mark complete: ') + task.text
                   "
@@ -856,11 +858,11 @@
                       <button
                         class="task-dots-item"
                         (click)="moveToMain(task.id); secTaskMenuOpenId.set(null)"
-                      >Move to {{ mainTitle() }}</button>
+                      >move to {{ mainTitle() }}</button>
                       <button
                         class="task-dots-item task-dots-item-danger"
                         (click)="removeSecondaryTask(task.id)"
-                      >Delete</button>
+                      >delete</button>
                     </div>
                   }
                 </div>
@@ -885,6 +887,7 @@
                       class="check-btn check-btn-sub"
                       [class.checked]="sub.done"
                       (click)="toggleSecSubtask(task.id, sub.id)"
+                      (mousedown)="$event.stopPropagation()"
                       [attr.aria-label]="
                         (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
                       "
@@ -1085,7 +1088,7 @@
               aria-label="Add a task"
             >
               <span class="add-placeholder-check add-placeholder-check-sec"></span>
-              <span class="add-placeholder-text add-placeholder-text-sec">Add a task</span>
+              <span class="add-placeholder-text add-placeholder-text-sec">add a task</span>
             </div>
           }
         }
@@ -1096,7 +1099,7 @@
             <div class="clear-confirm" data-confirm-secondary-clear>
               <span class="clear-confirm-label">Delete:</span>
               @if (secondaryCompletedCount() > 0 && secondaryCompletedCount() < secondaryCount()) {
-                <button class="clear-yes" (click)="clearDoneSecondary(); cancelSecondaryClear()">Done only</button>
+                <button class="clear-yes" (click)="clearDoneSecondary(); cancelSecondaryClear()">done only</button>
               }
               <button class="clear-yes" (click)="confirmSecondaryClear()">All</button>
               <button class="clear-no" (click)="cancelSecondaryClear()">Cancel</button>
@@ -1124,10 +1127,10 @@
   </div>
 
   <footer class="site-footer">
-    <a routerLink="/terms">Terms</a>
+    <a routerLink="/terms">terms</a>
     <span class="footer-sep">&middot;</span>
-    <a routerLink="/privacy">Privacy</a>
+    <a routerLink="/privacy">privacy</a>
     <span class="footer-sep">&middot;</span>
-    <a href="mailto:support&#64;email.splendide.app">Contact us</a>
+    <a href="mailto:support&#64;email.splendide.app">contact us</a>
   </footer>
 </div>

@@ -87,7 +87,12 @@ export class AuthService {
   }
 
   async deleteAccount(): Promise<void> {
+    const userId = this._user()?.id ?? this.storage.getActiveUserId();
     await firstValueFrom(this.http.delete(`${this.apiUrl}/user`, { withCredentials: true }));
+    if (userId) {
+      this.storage.removeUserPartition(userId);
+    }
+    this.storage.setActivePartition();
     this._user.set(null);
     this._token.set(null);
     localStorage.removeItem('splendide_token');

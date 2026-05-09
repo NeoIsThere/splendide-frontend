@@ -401,6 +401,17 @@ export class StorageService {
     this.setActivePartition();
   }
 
+  removeUserPartition(userId: string): void {
+    try {
+      localStorage.removeItem(this.buildKey(userId));
+      for (const key of this.legacyUserKeys(userId)) {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
   private readPartition(key: string): Partition | null {
     try {
       const raw = localStorage.getItem(key);

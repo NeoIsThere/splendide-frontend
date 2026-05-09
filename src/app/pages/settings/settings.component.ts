@@ -101,10 +101,18 @@ import { AuthService } from '../../services/auth.service';
               Delete my account
             </button>
           } @else {
-            <p class="settings-confirm-text">Are you sure? All your data will be permanently erased.</p>
+            <p class="settings-confirm-text">Type <strong>Delete</strong> to confirm account deletion.</p>
+            <input
+              class="settings-delete-input"
+              type="text"
+              placeholder="Delete"
+              autocomplete="off"
+              [value]="deleteConfirmText()"
+              (input)="deleteConfirmText.set($any($event.target).value)"
+            />
             <div class="settings-confirm-actions">
-              <button class="settings-btn settings-btn--ghost" (click)="confirmDelete.set(false)">Cancel</button>
-              <button class="settings-btn settings-btn--danger" [disabled]="deleteLoading()" (click)="deleteAccount()">
+              <button class="settings-btn settings-btn--ghost" (click)="confirmDelete.set(false); deleteConfirmText.set('')">Cancel</button>
+              <button class="settings-btn settings-btn--danger" [disabled]="deleteLoading() || deleteConfirmText() !== 'Delete'" (click)="deleteAccount()">
                 {{ deleteLoading() ? 'Deleting…' : 'Yes, delete everything' }}
               </button>
             </div>
@@ -226,6 +234,18 @@ import { AuthService } from '../../services/auth.service';
       margin: 0;
     }
 
+    .settings-delete-input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-family: inherit;
+      width: 100%;
+      max-width: 220px;
+    }
+
     .settings-confirm-actions {
       display: flex;
       gap: 10px;
@@ -294,6 +314,7 @@ export class SettingsComponent {
 
   // ── Delete account ───────────────────────────────────────
   protected readonly confirmDelete = signal(false);
+  protected readonly deleteConfirmText = signal('');
   protected readonly deleteLoading = signal(false);
   protected readonly deleteError = signal('');
   protected readonly subscriptionLoading = signal(false);

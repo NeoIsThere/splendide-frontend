@@ -50,7 +50,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   flex-direction: column;
   width: 100%;
   padding: 48px 20px 0;
-  overflow: hidden;
 
   @media (max-width: 768px) {
     width: 90%;
@@ -110,7 +109,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   width: 70px;
 }
 
-.section-nav-right-inner{
+.section-nav-right-inner {
   width: 30px;
   display: grid;
   place-items: center;
@@ -154,12 +153,14 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  transition: color 0.2s $ease, background 0.2s $ease;
+  transition:
+    color 0.2s $ease,
+    background 0.2s $ease;
   flex-shrink: 0;
 
   &:hover {
     color: var(--text);
-    background: var(--hover-bg, rgba(128,128,128,0.1));
+    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
   }
 }
 
@@ -220,7 +221,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--card);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
   z-index: 21;
 }
 
@@ -237,10 +238,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.82rem;
   text-align: left;
   white-space: nowrap;
-  transition: background 0.2s $ease, color 0.2s $ease;
+  transition:
+    background 0.2s $ease,
+    color 0.2s $ease;
 
   &:hover:not(:disabled) {
-    background: var(--hover-bg, rgba(128,128,128,0.1));
+    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
   }
 
   &:disabled {
@@ -285,10 +288,13 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   flex-direction: column;
   align-items: center;
   width: 95px;
+  position: relative;
 
   .remove-btn-section {
     opacity: 0 !important;
-    transition: opacity 0.2s $ease, color 0.2s $ease !important;
+    transition:
+      opacity 0.2s $ease,
+      color 0.2s $ease !important;
   }
 
   &:hover .remove-btn-section {
@@ -303,7 +309,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   .clear-confirm {
     opacity: 1;
   }
-
 }
 
 .section-tab-surface {
@@ -316,17 +321,21 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     height: 32px;
     padding: 0;
     border-radius: 8px 8px 0 0;
-    background: var(--active-tab-bg, rgba(128,128,128,0.12));
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    background: var(--active-tab-bg, rgba(128, 128, 128, 0.12));
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 }
 
 .section-tab-actions {
-  min-height: 26px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 
   .clear-confirm {
+    margin-top: 0;
     width: max-content;
-    min-width: 190px;
+    justify-content: center;
   }
 }
 
@@ -350,7 +359,9 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 8px 8px 0 0;
   font-size: 0.85rem;
   color: var(--text-secondary, #888);
-  transition: background $ease 0.15s, color $ease 0.15s;
+  transition:
+    background $ease 0.15s,
+    color $ease 0.15s;
   white-space: nowrap;
   width: 100%;
   height: 32px;
@@ -358,12 +369,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   text-overflow: ellipsis;
 
   &:hover {
-    background: var(--hover-bg, rgba(128,128,128,0.1));
+    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
   }
 
   .section-tab.active & {
     color: var(--text-primary, #222);
-    background: var(--active-tab-bg, rgba(128,128,128,0.12));
+    background: var(--active-tab-bg, rgba(128, 128, 128, 0.12));
     border-color: var(--border);
     outline: none;
   }
@@ -435,7 +446,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   transition: background $ease 0.15s;
 
   &:hover {
-    background: var(--hover-bg, rgba(128,128,128,0.1));
+    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
   }
 }
 
@@ -464,7 +475,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   &.cdk-drag-preview {
     background: var(--card, #fff);
     border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
   &.cdk-drag-placeholder {
@@ -537,7 +548,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
-.my-last-list-col{
+.my-last-list-col {
   @media (max-width: 768px) {
     display: none !important;
   }
@@ -562,7 +573,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .secondary-section {
-
   @media (min-width: 768px) {
     display: flex;
     justify-content: flex-start;
@@ -766,7 +776,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
-  margin: 10px 0;
+  margin: 10px 0 5px 0;
 }
 
 .counter-sec {
@@ -782,7 +792,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.08em;
-  margin: 0 0 6px;
+  margin: 0;
 
   .sec-header & {
     font-size: 0.88rem;
@@ -827,7 +837,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .task-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 
   @media (max-width: 768px) {
     min-height: 0;
@@ -839,7 +848,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   padding: 14px 10px;
   margin: 0 -10px;
   border-radius: 6px;
-  transition: opacity 0.4s $ease, background 0.15s $ease, box-shadow 0.15s $ease;
+  transition:
+    opacity 0.4s $ease,
+    background 0.15s $ease,
+    box-shadow 0.15s $ease;
 
   &.done {
     opacity: 0.5;
@@ -869,6 +881,14 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: grid;
   place-items: center;
   padding: 0;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+
   transition:
     border-color 0.2s $ease,
     background 0.2s $ease;
@@ -906,9 +926,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
-
-
-.my-second-list-buttons{
+.my-second-list-buttons {
   //border: 2px solid orange;
   display: flex;
 }
@@ -1100,7 +1118,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   color: #c44;
 }
 
-
 .add-placeholder {
   display: flex;
   align-items: center;
@@ -1109,18 +1126,18 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   margin: 0 -10px;
   border-radius: 6px;
   cursor: pointer;
-  opacity: 0.65;
-  transition: opacity 0.15s $ease;
+  transition: background 0.15s $ease;
 
   &:hover {
-    opacity: 0.9;
+    background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
 
   &:focus-visible {
     outline: 2px solid var(--text);
     outline-offset: 2px;
-    opacity: 0.9;
   }
+
+  margin-bottom: 40px;
 }
 
 .add-placeholder-check {
@@ -1128,7 +1145,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   width: 16px;
   height: 16px;
   border-radius: 3px;
-  border: 1.5px solid var(--text-muted);
+  border: 1.5px solid var(--border);
   display: block;
 }
 
@@ -1141,6 +1158,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 .add-placeholder-sec {
   padding: 8px;
   margin: 0 -8px;
+  margin-bottom: 40px;
 }
 
 .add-placeholder-check-sec {
@@ -1362,7 +1380,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   padding: 10px 8px;
   margin: 0 -8px;
   border-radius: 6px;
-  transition: opacity 0.4s $ease, background 0.15s $ease, box-shadow 0.15s $ease;
+  transition:
+    opacity 0.4s $ease,
+    background 0.15s $ease,
+    box-shadow 0.15s $ease;
 
   &.done {
     opacity: 0.5;
@@ -1649,5 +1670,4 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   .add-form button {
     pointer-events: auto;
   }
-
 }
