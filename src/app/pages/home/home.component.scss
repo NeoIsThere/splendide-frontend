@@ -260,8 +260,19 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   gap: 10px;
   padding: 0 0 8px 32px;
   overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+
+  &::-webkit-scrollbar {
+    height: 2px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 1px;
+  }
 
   @media (max-width: 768px) {
     display: none;
@@ -353,7 +364,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   .section-tab.active & {
     color: var(--text-primary, #222);
     background: var(--active-tab-bg, rgba(128,128,128,0.12));
-    border-color: var(--text-secondary, #888);
+    border-color: var(--border);
+    outline: none;
   }
 }
 
@@ -506,14 +518,14 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 
   &::-webkit-scrollbar {
-    width: 3px;
+    width: 1px;
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
     background: rgba(128, 128, 128, 0.2);
-    border-radius: 2px;
+    border-radius: 1px;
   }
 }
 
@@ -556,20 +568,42 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     justify-content: flex-start;
     overflow-y: auto;
     overflow-x: hidden;
+    padding: 0 8px;
+    margin: 0 -8px;
+  }
+
+  .icon-btn-sm {
+    color: var(--text-sec-list);
+  }
+
+  .add-btn {
+    color: var(--text-sec-list);
+  }
+
+  .add-subtask-btn {
+    color: var(--text-sec-list);
+  }
+
+  .clear-btn {
+    color: var(--text-sec-list);
+  }
+
+  .check-btn {
+    border-color: var(--text-sec-list);
   }
 
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 
   &::-webkit-scrollbar {
-    width: 3px;
+    width: 1px;
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
     background: rgba(128, 128, 128, 0.2);
-    border-radius: 2px;
+    border-radius: 1px;
   }
 }
 
@@ -756,7 +790,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: calc(100% - 32px);
-  
+    color: var(--text-sec-list);
   }
 
   @media (max-width: 768px) {
@@ -782,10 +816,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 // ─── Secondary drop zone ─────────────────────────────────
 .sec-drop-zone {
   min-height: 200px;
-  margin-bottom: 24px;
 
   @media (max-width: 768px) {
     min-height: 80px;
+    margin-bottom: 32px;
   }
 }
 
@@ -803,11 +837,18 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Main task item ────────────────────────────────────────
 .task-item {
-  padding: 14px 0;
-  transition: opacity 0.4s $ease;
+  padding: 14px 10px;
+  margin: 0 -10px;
+  border-radius: 6px;
+  transition: opacity 0.4s $ease, background 0.15s $ease, box-shadow 0.15s $ease;
 
   &.done {
     opacity: 0.5;
+  }
+
+  &:hover,
+  &:focus-within {
+    background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
 }
 
@@ -998,11 +1039,11 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px 0;
-  font-size: 1.8rem;
   line-height: 1;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  text-align: center;
   transition: color 0.2s $ease;
 
   &:hover {
@@ -1015,8 +1056,37 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+.add-btn-plus {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.add-btn-hover-label {
+  font-size: 1.1rem;
+  font-weight: 400;
+  opacity: 0;
+  transition: opacity 0.15s $ease;
+  white-space: nowrap;
+
+  .add-btn:hover & {
+    opacity: 1;
+  }
+}
+
 .add-btn-sec {
   font-size: 1.4rem;
+
+  .add-btn-plus {
+    font-size: 1.4rem;
+  }
+
+  .add-btn-hover-label {
+    font-size: 0.85rem;
+  }
+}
+
+.add-btn-empty.add-btn-sec {
+  font-size: 0.85rem;
 }
 
 // ─── Clear list button ─────────────────────────────────────
@@ -1096,7 +1166,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   width: 100%;
   text-align: center;
 }
@@ -1169,11 +1239,18 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Secondary task item ──────────────────────────────────
 .sec-task-item {
-  padding: 10px 0;
-  transition: opacity 0.4s $ease;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  transition: opacity 0.4s $ease, background 0.15s $ease, box-shadow 0.15s $ease;
 
   &.done {
     opacity: 0.5;
+  }
+
+  &:hover,
+  &:focus-within {
+    background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
 }
 
@@ -1188,6 +1265,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
   font-size: 0.88rem;
   font-weight: 400;
+  color: var(--text-sec-list);
   cursor: text;
   overflow-wrap: break-word;
   transition: color 0.2s $ease;
@@ -1308,6 +1386,15 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   margin: 0 0 6px;
 }
 
+// Main list non-item text is more prominent than secondary
+.main-list-title {
+  color: var(--text-secondary);
+}
+
+.main-section .counter {
+  color: var(--text-secondary);
+}
+
 .sec-title-input {
   flex: 1;
 }
@@ -1356,20 +1443,22 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   @media (min-width: 768px) {
     overflow-y: auto;
     overflow-x: hidden;
+    padding: 0 10px;
+    margin: 0 -10px;
   }
 
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 
   &::-webkit-scrollbar {
-    width: 3px;
+    width: 1px;
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
     background: rgba(128, 128, 128, 0.2);
-    border-radius: 2px;
+    border-radius: 1px;
   }
 }
 
