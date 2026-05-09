@@ -100,6 +100,10 @@ export class HomeComponent implements OnDestroy {
   protected readonly editingSecondaryTitle = signal(false);
   protected readonly secondaryVisible = signal(true);
 
+  // ─── Task dot menus (mobile) ────────────────────────────
+  protected readonly taskMenuOpenId = signal<string | null>(null);
+  protected readonly secTaskMenuOpenId = signal<string | null>(null);
+
   // ─── User menu ──────────────────────────────────────────
   protected readonly menuOpen = signal(false);
 
@@ -144,6 +148,27 @@ export class HomeComponent implements OnDestroy {
 
     event.preventDefault();
     this.startAdding();
+  }
+
+  @HostListener('document:click', ['$event'])
+  protected handleDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+
+    if (this.confirmingClear() && !target.closest('[data-confirm-clear]')) {
+      this.cancelClear();
+    }
+    if (this.confirmingSecondaryClear() && !target.closest('[data-confirm-secondary-clear]')) {
+      this.cancelSecondaryClear();
+    }
+    if (this.confirmingDeleteSectionId() !== null && !target.closest('[data-confirm-delete-section]')) {
+      this.cancelDeleteSection();
+    }
+    if (this.taskMenuOpenId() !== null && !target.closest('[data-task-menu]')) {
+      this.taskMenuOpenId.set(null);
+    }
+    if (this.secTaskMenuOpenId() !== null && !target.closest('[data-sec-task-menu]')) {
+      this.secTaskMenuOpenId.set(null);
+    }
   }
 
   ngOnDestroy(): void {
@@ -1213,6 +1238,19 @@ export class HomeComponent implements OnDestroy {
   // ─── Toggle secondary visibility ────────────────────────
   protected toggleSecondaryVisibility(): void {
     this.secondaryVisible.update(v => !v);
+  }
+
+  // ─── Task dot menu (mobile) ─────────────────────────────
+  protected toggleTaskMenu(taskId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.taskMenuOpenId.update(id => id === taskId ? null : taskId);
+    this.secTaskMenuOpenId.set(null);
+  }
+
+  protected toggleSecTaskMenu(taskId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.secTaskMenuOpenId.update(id => id === taskId ? null : taskId);
+    this.taskMenuOpenId.set(null);
   }
 
   // ─── Move between lists (mobile buttons) ──────────────

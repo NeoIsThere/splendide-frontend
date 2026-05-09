@@ -2,7 +2,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .my-top-bar {
   display: grid;
-  grid-template-columns: auto 1dr 1fr;
+  grid-template-columns: auto 1fr 1fr;
   align-items: center;
 }
 
@@ -828,7 +828,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 40px;
 
   @media (max-width: 768px) {
     min-height: 0;
@@ -1032,6 +1031,127 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+.task-main > .remove-btn,
+.sec-task-main > .remove-btn {
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+// ─── Mobile 3-dot task menu ────────────────────────────────
+.mobile-only {
+  @media (min-width: 769px) {
+    display: none !important;
+  }
+}
+
+.task-dots-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.task-dots-btn {
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  line-height: 1;
+  padding: 4px 6px;
+  color: var(--text-muted);
+  opacity: 1 !important;
+}
+
+.task-dots-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 140px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  z-index: 50;
+}
+
+.task-dots-menu-left {
+  right: auto;
+  left: 0;
+}
+
+.task-dots-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.15s $ease;
+
+  &:hover {
+    background: var(--hover);
+  }
+}
+
+.task-dots-item-danger {
+  color: #c44;
+}
+
+
+.add-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 10px;
+  margin: 0 -10px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.15s $ease;
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+    opacity: 0.9;
+  }
+}
+
+.add-placeholder-check {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1.5px solid var(--text-muted);
+  display: block;
+}
+
+.add-placeholder-text {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.add-placeholder-sec {
+  padding: 8px;
+  margin: 0 -8px;
+}
+
+.add-placeholder-check-sec {
+  width: 13px;
+  height: 13px;
+}
+
+.add-placeholder-text-sec {
+  font-size: 0.88rem;
+}
+
 // ─── Add button ───────────────────────────────────────────
 .add-btn {
   background: none;
@@ -1173,11 +1293,11 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ─── Add form ──────────────────────────────────────────────
 .add-form {
-  padding: 14px 0;
+  padding: 0;
 }
 
 .add-form-sec {
-  padding: 10px 0;
+  padding: 0;
 }
 
 .input-minimal {
@@ -1471,23 +1591,6 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   margin-top: 4px;
   line-height: 1;
   margin-top: 10px;
-}
-
-// ─── Mobile-only move button ─────────────────────────────
-.mobile-only {
-  display: none;
-  @media (max-width: 768px) {
-    display: grid;
-  }
-}
-
-.move-btn {
-  opacity: 0.5;
-  transition: opacity 0.2s $ease, color 0.2s $ease !important;
-  &:hover {
-    opacity: 1;
-    color: var(--text);
-  }
 }
 
 // ─── Footer ────────────────────────────────────────────────

@@ -276,7 +276,7 @@
               </button>
             }
           </div>
-          <div class="section-tab-actions">
+          <div class="section-tab-actions" data-confirm-delete-section>
             @if (confirmingDeleteSectionId() === sec.id) {
               <div class="clear-confirm">
                 <span class="clear-confirm-label">Delete page:</span>
@@ -431,25 +431,6 @@
                 }
 
                 <button
-                  class="icon-btn-sm move-btn mobile-only"
-                  (click)="moveToBacklog(task.id)"
-                  [attr.aria-label]="'Move to backlog: ' + task.text"
-                >
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-                <button
                   class="icon-btn-sm remove-btn"
                   (click)="removeTask(task.id)"
                   [attr.aria-label]="'Remove: ' + task.text"
@@ -469,6 +450,27 @@
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
+
+                <!-- Mobile 3-dot menu -->
+                <div class="task-dots-wrapper mobile-only" data-task-menu>
+                  <button
+                    class="icon-btn-sm task-dots-btn"
+                    (click)="toggleTaskMenu(task.id, $event)"
+                    [attr.aria-label]="'Options for: ' + task.text"
+                  >&#8226;&#8226;&#8226;</button>
+                  @if (taskMenuOpenId() === task.id) {
+                    <div class="task-dots-menu">
+                      <button
+                        class="task-dots-item"
+                        (click)="moveToBacklog(task.id); taskMenuOpenId.set(null)"
+                      >Move to {{ secondaryTitle() }}</button>
+                      <button
+                        class="task-dots-item task-dots-item-danger"
+                        (click)="removeTask(task.id)"
+                      >Delete</button>
+                    </div>
+                  }
+                </div>
               </div>
 
               <!-- Subtasks -->
@@ -680,40 +682,23 @@
             </div>
           </div>
         } @else if (canAdd()) {
-          @if (taskCount() === 0) {
-            <button
-              class="add-btn add-btn-empty"
-              (click)="startAdding()"
-              aria-label="Add a new task"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Add a task
-            </button>
-          } @else {
-            <button class="add-btn" (click)="startAdding()" aria-label="Add a new task">
-              <span class="add-btn-plus">+</span>
-              <span class="add-btn-hover-label">Add a task</span>
-            </button>
-          }
+          <div
+            class="add-placeholder"
+            (click)="startAdding()"
+            (keydown.enter)="startAdding()"
+            role="button"
+            tabindex="0"
+            aria-label="Add a task"
+          >
+            <span class="add-placeholder-check"></span>
+            <span class="add-placeholder-text">Add a task</span>
+          </div>
         }
         </div><!-- /.main-drop-zone -->
 
         @if (taskCount() > 0) {
           @if (confirmingClear()) {
-            <div class="clear-confirm">
+            <div class="clear-confirm" data-confirm-clear>
               <span class="clear-confirm-label">Delete:</span>
               @if (completedCount() > 0 && completedCount() < taskCount()) {
                 <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">Done only</button>
@@ -722,7 +707,7 @@
               <button class="clear-no" (click)="cancelClear()">Cancel</button>
             </div>
           } @else {
-            <div class="clear-actions">
+            <div class="clear-actions" data-confirm-clear>
               <button class="clear-btn" (click)="startClear()" aria-label="Clear the list">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="3 6 5 6 21 6" />
@@ -839,25 +824,6 @@
                 }
 
                 <button
-                  class="icon-btn-sm move-btn mobile-only"
-                  (click)="moveToMain(task.id)"
-                  [attr.aria-label]="'Move to main: ' + task.text"
-                >
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="18 15 12 9 6 15" />
-                  </svg>
-                </button>
-                <button
                   class="icon-btn-sm remove-btn"
                   (click)="removeSecondaryTask(task.id)"
                   [attr.aria-label]="'Remove: ' + task.text"
@@ -877,6 +843,27 @@
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
+
+                <!-- Mobile 3-dot menu -->
+                <div class="task-dots-wrapper mobile-only" data-sec-task-menu>
+                  <button
+                    class="icon-btn-sm task-dots-btn"
+                    (click)="toggleSecTaskMenu(task.id, $event)"
+                    [attr.aria-label]="'Options for: ' + task.text"
+                  >&#8226;&#8226;&#8226;</button>
+                  @if (secTaskMenuOpenId() === task.id) {
+                    <div class="task-dots-menu task-dots-menu-left">
+                      <button
+                        class="task-dots-item"
+                        (click)="moveToMain(task.id); secTaskMenuOpenId.set(null)"
+                      >Move to {{ mainTitle() }}</button>
+                      <button
+                        class="task-dots-item task-dots-item-danger"
+                        (click)="removeSecondaryTask(task.id)"
+                      >Delete</button>
+                    </div>
+                  }
+                </div>
               </div>
 
               <!-- Subtasks -->
@@ -1089,45 +1076,24 @@
               </div>
             </div>
           } @else if (canAddSecondary()) {
-            @if (secondaryCount() === 0) {
-              <button
-                class="add-btn add-btn-empty add-btn-sec"
-                (click)="startAddingSecondary()"
-                aria-label="Add a secondary task"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Add a task
-              </button>
-            } @else {
-              <button
-                class="add-btn add-btn-sec"
-                (click)="startAddingSecondary()"
-                aria-label="Add a secondary task"
-              >
-                <span class="add-btn-plus">+</span>
-                <span class="add-btn-hover-label">Add a task</span>
-              </button>
-            }
+            <div
+              class="add-placeholder add-placeholder-sec"
+              (click)="startAddingSecondary()"
+              (keydown.enter)="startAddingSecondary()"
+              role="button"
+              tabindex="0"
+              aria-label="Add a task"
+            >
+              <span class="add-placeholder-check add-placeholder-check-sec"></span>
+              <span class="add-placeholder-text add-placeholder-text-sec">Add a task</span>
+            </div>
           }
         }
         </div><!-- /.sec-drop-zone -->
 
         @if (secondaryVisible() && secondaryCount() > 0) {
           @if (confirmingSecondaryClear()) {
-            <div class="clear-confirm">
+            <div class="clear-confirm" data-confirm-secondary-clear>
               <span class="clear-confirm-label">Delete:</span>
               @if (secondaryCompletedCount() > 0 && secondaryCompletedCount() < secondaryCount()) {
                 <button class="clear-yes" (click)="clearDoneSecondary(); cancelSecondaryClear()">Done only</button>
@@ -1136,7 +1102,7 @@
               <button class="clear-no" (click)="cancelSecondaryClear()">Cancel</button>
             </div>
           } @else {
-            <div class="clear-actions">
+            <div class="clear-actions" data-confirm-secondary-clear>
               <button class="clear-btn" (click)="startSecondaryClear()" aria-label="Clear the list">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="3 6 5 6 21 6" />
