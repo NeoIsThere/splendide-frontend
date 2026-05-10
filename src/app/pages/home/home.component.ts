@@ -658,9 +658,8 @@ export class HomeComponent implements OnDestroy {
       : this.sync.syncSectionLists(sectionId);
 
     listSync
-      .then(async lists => {
-        const ids = [...listIds, ...lists.map(list => list.id)];
-        for (const listId of [...new Set(ids)]) {
+      .then(async () => {
+        for (const listId of listIds) {
           await this.sync.syncListItems(sectionId, listId);
         }
       })
