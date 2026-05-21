@@ -72,6 +72,21 @@ export class AuthService {
     return { isNewUser: res.isNewUser ?? false };
   }
 
+  async googleDesktopAuth(): Promise<{ isNewUser: boolean }> {
+    const desktop = window.splendideDesktop;
+    if (!desktop?.isDesktop) {
+      throw new Error('Desktop Google sign-in is only available in the Electron app.');
+    }
+
+    const oauth = await desktop.startGoogleOAuth(environment.googleClientId);
+    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google/oauth`, oauth, { withCredentials: true }));
+    this.setSession(res);
+    if (res.isNewUser) {
+      this.storage.copyAnonymousToUser(res.user.id);
+    }
+    return { isNewUser: res.isNewUser ?? false };
+  }
+
   // ─── Forgot / Reset Password ────────────────────────────
 
   async forgotPassword(email: string): Promise<void> {

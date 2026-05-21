@@ -1,9 +1,9 @@
 import { HttpInterceptorFn, HttpRequest, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { catchError, switchMap, throwError, from } from 'rxjs';
+import { catchError, finalize, from, Observable, of, shareReplay, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 
-let isRefreshing = false;
+let refreshToken$: Observable<string | null> | null = null;
 
 export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, next: HttpHandlerFn) => {
   const auth = inject(AuthService);
@@ -32,21 +32,16 @@ function send(
         originalReq.url.includes('/auth/login') ||
         originalReq.url.includes('/auth/register') ||
         originalReq.url.includes('/auth/google') ||
+        originalReq.url.includes('/auth/google/oauth') ||
         originalReq.url.includes('/auth/forgot-password') ||
         originalReq.url.includes('/auth/reset-password') ||
         originalReq.url.includes('/auth/verify-email') ||
         originalReq.url.includes('/auth/resend-verification');
 
-      if (error.status === 401 && !isPublicAuthRoute && !isRefreshing) {
-        isRefreshing = true;
-        return from(auth.refreshToken()).pipe(
-          catchError(() => {
-            isRefreshing = false;
-            auth.logout();
-            return throwError(() => error);
-          }),
+      if (error.status === 401 && !isPublicAuthRoute) {
+        return refreshAccessToken(auth).pipe(
+          catchError(() => of(null)),
           switchMap((newToken) => {
-            isRefreshing = false;
             if (newToken) {
               const retryReq = originalReq.clone({
                 setHeaders: { Authorization: `Bearer ${newToken}` },
@@ -61,4 +56,15 @@ function send(
       return throwError(() => error);
     }),
   );
+}
+
+function refreshAccessToken(auth: AuthService): Observable<string | null> {
+  refreshToken$ ??= from(auth.refreshToken()).pipe(
+    finalize(() => {
+      refreshToken$ = null;
+    }),
+    shareReplay({ bufferSize: 1, refCount: false }),
+  );
+
+  return refreshToken$;
 }

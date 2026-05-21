@@ -74,7 +74,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
 
           <div class="auth-divider"><span>or</span></div>
 
-          <app-google-button (credentialResponse)="onGoogleSignIn($event)" />
+          <app-google-button (credentialResponse)="onGoogleSignIn($event)" (desktopSignIn)="onGoogleDesktopSignIn()" />
           }
 
           <p class="auth-switch">
@@ -202,6 +202,21 @@ export class SignInComponent {
       this.router.navigate(['/']);
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'Google sign in failed.');
+    } finally {
+      this.loading.set(false);
+      this.googleLoading.set(false);
+    }
+  }
+
+  protected async onGoogleDesktopSignIn(): Promise<void> {
+    this.googleLoading.set(true);
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      await this.auth.googleDesktopAuth();
+      this.router.navigate(['/']);
+    } catch (e: any) {
+      this.error.set(e?.error?.error ?? e?.message ?? 'Google sign in failed.');
     } finally {
       this.loading.set(false);
       this.googleLoading.set(false);

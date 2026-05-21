@@ -18,14 +18,31 @@ interface Task {
   text: string;
   subtasks: Subtask[];
   done: boolean;
+  doneAt?: string;
   lastModifiedAt?: string;
+  serverRevision?: number;
 }
+
+interface DoneTask extends Task {
+  sourceList: TaskListKind;
+  doneAt: string;
+}
+
+interface TextSegment {
+  text: string;
+  href: string | null;
+}
+
+type TaskListKind = 'main' | 'secondary';
+type KeyboardZone = 'tabs' | TaskListKind;
+type SectionDeleteOption = 'delete' | 'cancel';
 
 const DEFAULT_BACKLOG_TITLE = 'Later';
 const DEFAULT_MAIN_TITLE = 'Now';
 const MAX_SECTIONS = 10;
-const MAX_MAIN_TASKS = 7;
 const MAX_BACKLOG_TASKS = 200;
+const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
+const MAX_DONE_TASKS = 10;
 
 @Component({
   selector: 'app-home',
@@ -35,6 +52,7 @@ const MAX_BACKLOG_TASKS = 200;
   imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, RouterLink],
 })
 export class HomeComponent implements OnDestroy {
+  private readonly urlPattern = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
   private readonly injector = inject(Injector);
   protected readonly auth = inject(AuthService);
   private readonly theme = inject(ThemeService);
@@ -69,6 +87,13 @@ export class HomeComponent implements OnDestroy {
   // ─── Tasks from active lists ────────────────────────────
   protected readonly tasks = computed<Task[]>(() => this.visibleTasks(this.mainList()));
   protected readonly secondaryTasks = computed<Task[]>(() => this.visibleTasks(this.backlogList()));
+  protected readonly doneTasks = computed<DoneTask[]>(() => [
+    ...this.doneTasksForList('main', this.mainList()),
+    ...this.doneTasksForList('secondary', this.backlogList()),
+  ]
+    .sort((left, right) => this.compareDoneTasksNewestFirst(left, right))
+    .slice(0, MAX_DONE_TASKS));
+  protected readonly doneTaskCount = computed(() => this.doneTasks().length);
   protected readonly mainTitle = computed(() => this.mainList()?.title || DEFAULT_MAIN_TITLE);
   protected readonly secondaryTitle = computed(() => this.backlogList()?.title || DEFAULT_BACKLOG_TITLE);
 
@@ -108,6 +133,11 @@ export class HomeComponent implements OnDestroy {
   // ─── User menu ──────────────────────────────────────────
   protected readonly menuOpen = signal(false);
 
+  protected readonly keyboardZone = signal<KeyboardZone | null>(null);
+  protected readonly currentList = signal<TaskListKind>('main');
+  protected readonly activeKeyboardTask = signal<{ list: TaskListKind; id: string } | null>(null);
+  protected readonly sectionDeleteConfirmFocus = signal<SectionDeleteOption>('delete');
+
   // ─── Global editing guard ──────────────────────────────
   protected readonly isEditing = computed(() =>
     this.adding() ||
@@ -144,11 +174,54 @@ export class HomeComponent implements OnDestroy {
   @HostListener('document:keydown', ['$event'])
   protected handleDocumentKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || event.repeat || event.isComposing) return;
-    if (event.key === 'Tab' && !event.shiftKey && this.startSubtaskFromActiveTaskEdit(event)) return;
-    if (event.key !== 'Enter' || this.isEditing() || this.isInteractiveTarget(event.target)) return;
+    if (this.isTextEntryTarget(event.target)) {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        if (!event.shiftKey) this.startSubtaskFromActiveTaskEdit(event);
+      }
+      return;
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      if (!event.shiftKey && !this.isEditing()) this.addSubtaskForActiveTask();
+      return;
+    }
+    if (this.isInteractiveTarget(event.target)) {
+      const arrowKey = event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
+        event.key === 'ArrowLeft' || event.key === 'ArrowRight';
+      if (!arrowKey || !this.isKeyboardManagedTarget(event.target)) return;
+      this.syncKeyboardFocusFromManagedTarget(event.target);
+    }
+    if (this.isEditing()) return;
+    if (this.handleSectionDeleteConfirmationKeydown(event)) return;
 
-    event.preventDefault();
-    this.startAdding();
+    switch (event.key) {
+      case 'ArrowUp':
+        event.preventDefault();
+        this.moveKeyboardVertically(-1);
+        break;
+      case 'ArrowDown':
+        event.preventDefault();
+        this.moveKeyboardVertically(1);
+        break;
+      case 'ArrowLeft':
+        event.preventDefault();
+        this.moveKeyboardHorizontally(-1);
+        break;
+      case 'ArrowRight':
+        event.preventDefault();
+        this.moveKeyboardHorizontally(1);
+        break;
+      case 'Enter':
+        event.preventDefault();
+        this.openFocusedTaskOrCreate();
+        break;
+      case 'Delete':
+        if (this.deleteActiveTabOrTask()) {
+          event.preventDefault();
+        }
+        break;
+    }
   }
 
   @HostListener('document:click', ['$event'])
@@ -239,8 +312,14 @@ export class HomeComponent implements OnDestroy {
       if (this.shouldSkipPeriodicSync()) return;
       this.sections.set(synced);
       const activeId = this.activeSectionId();
-      if (activeId) {
-        await this.doSyncSection(activeId);
+      const syncedActiveId = activeId && synced.some(section => section.id === activeId)
+        ? activeId
+        : synced[0]?.id ?? null;
+      if (syncedActiveId !== activeId) {
+        this.activeSectionId.set(syncedActiveId);
+      }
+      if (syncedActiveId) {
+        await this.doSyncSection(syncedActiveId);
       }
     } catch { /* silently fail */ }
   }
@@ -252,11 +331,29 @@ export class HomeComponent implements OnDestroy {
   private async doSyncSection(sectionId: string): Promise<void> {
     try {
       const lists = await this.sync.syncSectionLists(sectionId);
-      for (const list of lists) {
+      for (const list of this.prioritizeMovedIntoLists(sectionId, lists)) {
         await this.sync.syncListItems(sectionId, list.id);
+      }
+      const overflowListIds = this.enforceDoneTaskLimit(sectionId);
+      for (const listId of overflowListIds) {
+        await this.sync.syncListItems(sectionId, listId);
       }
       this.refreshSectionsFromStorage();
     } catch { /* silently fail */ }
+  }
+
+  private prioritizeMovedIntoLists(sectionId: string, lists: StoredList[]): StoredList[] {
+    return [...lists].sort((left, right) =>
+      Number(this.hasMovedIntoItem(sectionId, right.id)) - Number(this.hasMovedIntoItem(sectionId, left.id)),
+    );
+  }
+
+  private hasMovedIntoItem(sectionId: string, listId: string): boolean {
+    return this.storage.getItemsForList(sectionId, listId).some(item =>
+      item.created === true &&
+      item.deleted !== true &&
+      item.serverRevision > 0,
+    );
   }
 
   private refreshSectionsFromStorage(): void {
@@ -267,12 +364,314 @@ export class HomeComponent implements OnDestroy {
     this.dragging.set(value);
   }
 
+  protected isTabsFocused(): boolean {
+    return this.keyboardZone() === 'tabs';
+  }
+
+  protected isSectionKeyboardFocused(sectionId: string): boolean {
+    return this.isTabsFocused() && this.activeSectionId() === sectionId;
+  }
+
+  protected isTaskFocused(list: TaskListKind, id: string): boolean {
+    const active = this.activeKeyboardTask();
+    return active?.list === list && active.id === id;
+  }
+
+  protected isAddPlaceholderFocused(list: TaskListKind): boolean {
+    return this.keyboardZone() === list && this.currentList() === list && this.activeKeyboardTask() === null;
+  }
+
+  protected clearTaskFocusOnMouseLeave(list: TaskListKind, id: string): void {
+    const active = this.activeKeyboardTask();
+    if (this.keyboardZone() === list && active?.list === list && active.id === id) {
+      this.clearKeyboardFocus(list);
+    }
+  }
+
+  protected isSectionDeleteOptionFocused(option: SectionDeleteOption): boolean {
+    return this.keyboardZone() === 'tabs' &&
+      this.confirmingDeleteSectionId() === this.activeSectionId() &&
+      this.sectionDeleteConfirmFocus() === option;
+  }
+
+  protected focusTabsForKeyboard(): void {
+    this.keyboardZone.set('tabs');
+    this.activeKeyboardTask.set(null);
+    this.scrollActiveSectionIntoView();
+  }
+
+  private moveKeyboardVertically(direction: -1 | 1): void {
+    if (this.keyboardZone() === null) {
+      if (direction > 0) {
+        this.focusListWithoutTask(this.currentList());
+      } else {
+        this.focusTabsForKeyboard();
+      }
+      return;
+    }
+
+    if (this.keyboardZone() === 'tabs') {
+      if (direction > 0) {
+        this.focusListWithoutTask(this.currentList());
+      } else {
+        this.scrollActiveSectionIntoView();
+      }
+      return;
+    }
+
+    const list = this.currentList();
+    const items = this.tasksForList(list);
+    const active = this.validActiveKeyboardTask();
+    const activeIndex = active?.list === list
+      ? items.findIndex(task => task.id === active.id)
+      : -1;
+
+    if (direction < 0) {
+      if (!active || active.list !== list) {
+        this.focusTabsForKeyboard();
+        return;
+      }
+      if (activeIndex <= 0) {
+        this.focusListWithoutTask(list);
+        return;
+      }
+      this.setActiveKeyboardTask(list, items[activeIndex - 1].id);
+      return;
+    }
+
+    if (!active || active.list !== list) {
+      if (items.length > 0) {
+        this.setActiveKeyboardTask(list, items[0].id);
+      }
+      return;
+    }
+
+    const nextIndex = Math.min(activeIndex + 1, items.length - 1);
+    this.setActiveKeyboardTask(list, items[nextIndex].id);
+  }
+
+  private moveKeyboardHorizontally(direction: -1 | 1): void {
+    if (this.keyboardZone() === 'tabs') {
+      this.moveSectionKeyboardFocus(direction);
+      return;
+    }
+
+    const sourceList = this.currentList();
+    const targetList: TaskListKind = direction > 0 ? 'secondary' : 'main';
+    if (sourceList === targetList) return;
+
+    const sourceItems = this.tasksForList(sourceList);
+    const targetItems = this.tasksForList(targetList);
+    const active = this.validActiveKeyboardTask();
+    if (!active || active.list !== sourceList) {
+      this.focusListWithoutTask(targetList);
+      return;
+    }
+
+    const activeIndex = active?.list === sourceList
+      ? sourceItems.findIndex(task => task.id === active.id)
+      : 0;
+    const targetIndex = Math.min(Math.max(activeIndex, 0), targetItems.length - 1);
+
+    if (targetItems.length === 0) {
+      this.focusListWithoutTask(targetList);
+      return;
+    }
+
+    this.setActiveKeyboardTask(targetList, targetItems[targetIndex].id);
+  }
+
+  private moveSectionKeyboardFocus(direction: -1 | 1): void {
+    const sections = this.sections();
+    if (sections.length === 0) return;
+
+    const currentIndex = Math.max(this.activeSectionIndex(), 0);
+    if (direction > 0 && currentIndex >= sections.length - 1) {
+      if (this.canAddSection()) {
+        this.focusTabsForKeyboard();
+        this.startAddingSection();
+      }
+      return;
+    }
+
+    const nextIndex = Math.min(Math.max(currentIndex + direction, 0), sections.length - 1);
+    this.selectSection(sections[nextIndex].id);
+    this.focusTabsForKeyboard();
+  }
+
+  private focusFirstTaskInCurrentList(): void {
+    const list = this.currentList();
+    const items = this.tasksForList(list);
+    if (items.length === 0) {
+      this.focusListWithoutTask(list);
+      return;
+    }
+
+    this.setActiveKeyboardTask(list, items[0].id);
+  }
+
+  private setActiveKeyboardTask(list: TaskListKind, id: string): void {
+    this.currentList.set(list);
+    this.keyboardZone.set(list);
+    this.activeKeyboardTask.set({ list, id });
+    this.scrollKeyboardTaskIntoView(list, id);
+  }
+
+  private focusListWithoutTask(list: TaskListKind): void {
+    this.currentList.set(list);
+    this.keyboardZone.set(list);
+    this.activeKeyboardTask.set(null);
+  }
+
+  private clearKeyboardFocus(list: TaskListKind = this.currentList()): void {
+    this.currentList.set(list);
+    this.keyboardZone.set(null);
+    this.activeKeyboardTask.set(null);
+  }
+
+  private validActiveKeyboardTask(): { list: TaskListKind; id: string } | null {
+    const active = this.activeKeyboardTask();
+    if (!active) return null;
+    if (this.tasksForList(active.list).some(task => task.id === active.id)) return active;
+
+    this.activeKeyboardTask.set(null);
+    return null;
+  }
+
+  private openFocusedTaskOrCreate(): void {
+    const active = this.validActiveKeyboardTask();
+    if (!active) {
+      if (this.currentList() === 'secondary' && !this.isAddPlaceholderFocused('secondary')) return;
+      this.startAddingInCurrentList();
+      return;
+    }
+
+    if (active.list === 'main') {
+      this.startEditingTask(active.id);
+    } else {
+      this.startEditingSecondary(active.id);
+    }
+  }
+
+  private deleteActiveTabOrTask(): boolean {
+    if (this.keyboardZone() === 'tabs') {
+      const sectionId = this.activeSectionId();
+      if (!sectionId || this.sections().length < 2) return false;
+      this.startDeleteSection(sectionId);
+      return true;
+    }
+
+    return this.deleteActiveKeyboardTask();
+  }
+
+  private handleSectionDeleteConfirmationKeydown(event: KeyboardEvent): boolean {
+    const sectionId = this.activeSectionId();
+    if (this.keyboardZone() !== 'tabs' || !sectionId || this.confirmingDeleteSectionId() !== sectionId) {
+      return false;
+    }
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      this.sectionDeleteConfirmFocus.set(event.key === 'ArrowLeft' ? 'delete' : 'cancel');
+      return true;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (this.sectionDeleteConfirmFocus() === 'delete') {
+        this.confirmDeleteSection();
+      } else {
+        this.cancelDeleteSection();
+      }
+      return true;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cancelDeleteSection();
+      return true;
+    }
+
+    return false;
+  }
+
+  private startAddingInCurrentList(): void {
+    if (this.currentList() === 'secondary') {
+      this.startAddingSecondary();
+    } else {
+      this.startAdding();
+    }
+  }
+
+  private addSubtaskForActiveTask(): boolean {
+    const active = this.validActiveKeyboardTask();
+    if (!active) return false;
+
+    if (active.list === 'main') {
+      this.startAddingSubtask(active.id);
+    } else {
+      this.startAddingSecSubtask(active.id);
+    }
+    return true;
+  }
+
+  private deleteActiveKeyboardTask(): boolean {
+    const active = this.validActiveKeyboardTask();
+    if (!active) return false;
+
+    const items = this.tasksForList(active.list);
+    const index = items.findIndex(task => task.id === active.id);
+    const nextTask = items[index + 1] ?? items[index - 1] ?? null;
+
+    if (active.list === 'main') {
+      this.removeTask(active.id);
+    } else {
+      this.removeSecondaryTask(active.id);
+    }
+
+    if (nextTask) {
+      this.setActiveKeyboardTask(active.list, nextTask.id);
+    } else {
+      this.focusListWithoutTask(active.list);
+    }
+
+    return true;
+  }
+
+  private tasksForList(list: TaskListKind): Task[] {
+    return list === 'main' ? this.tasks() : this.secondaryTasks();
+  }
+
+  private scrollKeyboardTaskIntoView(list: TaskListKind, id: string): void {
+    requestAnimationFrame(() => {
+      const items = Array.from(document.querySelectorAll<HTMLElement>('[data-keyboard-task]')).filter(item =>
+        item.dataset['keyboardList'] === list && item.dataset['keyboardTask'] === id
+      );
+      const el = items.find(item => item.offsetParent !== null) ?? items[0];
+      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }
+
+  private scrollActiveSectionIntoView(): void {
+    const sectionId = this.activeSectionId();
+    if (!sectionId) return;
+
+    requestAnimationFrame(() => {
+      const items = Array.from(document.querySelectorAll<HTMLElement>('[data-keyboard-section]')).filter(item =>
+        item.dataset['keyboardSection'] === sectionId
+      );
+      const el = items.find(item => item.offsetParent !== null) ?? items[0];
+      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }
+
   // ─── Section tab switching ─────────────────────────────
 
   protected selectSection(sectionId: string): void {
     if (this.activeSectionId() === sectionId) return;
     this.sectionMenuOpen.set(false);
     this.activeSectionId.set(sectionId);
+    this.activeKeyboardTask.set(null);
 
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
       this.sync.syncSections().then(synced => {
@@ -297,20 +696,16 @@ export class HomeComponent implements OnDestroy {
     const items = [...this.sections()];
     moveItemInArray(items, event.previousIndex, event.currentIndex);
     items.forEach((s, i) => s.position = i);
-    this.storage.saveSections(items);
+    this.storage.saveSections(items, { markOrderDirty: true });
     this.sections.set(items);
 
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
+      const localOrderRevision = this.storage.getSectionOrderLocalRevision();
       this.sync.reorderSections(items.map(section => ({ id: section.id, position: section.position })))
-        .then(positions => {
-          const current = [...this.sections()];
-          for (const p of positions) {
-            const sec = current.find(s => s.id === p.id);
-            if (sec) sec.position = p.position;
-          }
-          current.sort((a, b) => a.position - b.position);
-          this.storage.saveSections(current);
-          this.sections.set(current);
+        .then(result => {
+          if (localOrderRevision !== this.storage.getSectionOrderLocalRevision()) return;
+          this.storage.applySectionPositions(result.positions, result.orderRevision);
+          this.refreshSectionsFromStorage();
         }).catch(() => {});
     }
   }
@@ -366,10 +761,12 @@ export class HomeComponent implements OnDestroy {
       title,
       position: this.sections().length,
       metadataLastModifiedAt: now,
+      serverRevision: 0,
       created: true,
+      dirty: true,
       lists: [
-        { id: mainListId, title: DEFAULT_MAIN_TITLE, metadataLastModifiedAt: now, items: [], isBacklog: false },
-        { id: backlogListId, title: DEFAULT_BACKLOG_TITLE, metadataLastModifiedAt: now, items: [], isBacklog: true },
+        { id: mainListId, title: DEFAULT_MAIN_TITLE, metadataLastModifiedAt: now, serverRevision: 0, itemsOrderRevision: 0, itemsBaseOrderRevision: 0, dirty: true, items: [], isBacklog: false },
+        { id: backlogListId, title: DEFAULT_BACKLOG_TITLE, metadataLastModifiedAt: now, serverRevision: 0, itemsOrderRevision: 0, itemsBaseOrderRevision: 0, dirty: true, items: [], isBacklog: true },
       ],
     };
 
@@ -398,8 +795,18 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected handleAddSectionKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') this.confirmAddSection();
-    else if (event.key === 'Escape') this.cancelAddingSection();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.confirmAddSection();
+      this.focusTabsForKeyboard();
+    } else if (event.key === 'ArrowLeft' && !(event.target as HTMLInputElement).value.trim()) {
+      event.preventDefault();
+      this.cancelAddingSection();
+      this.focusTabsForKeyboard();
+    } else if (event.key === 'Escape') {
+      this.cancelAddingSection();
+      this.focusTabsForKeyboard();
+    }
   }
 
   protected onAddSectionInput(event: Event): void {
@@ -422,6 +829,7 @@ export class HomeComponent implements OnDestroy {
       if (sec) {
         sec.title = value;
         sec.metadataLastModifiedAt = new Date().toISOString();
+        sec.dirty = true;
         this.storage.save(p);
         this.refreshSectionsFromStorage();
 
@@ -443,10 +851,13 @@ export class HomeComponent implements OnDestroy {
   protected startDeleteSection(sectionId: string): void {
     this.sectionMenuOpen.set(false);
     this.confirmingDeleteSectionId.set(sectionId);
+    this.sectionDeleteConfirmFocus.set('delete');
+    this.focusTabsForKeyboard();
   }
 
   protected cancelDeleteSection(): void {
     this.confirmingDeleteSectionId.set(null);
+    this.sectionDeleteConfirmFocus.set('delete');
   }
 
   protected confirmDeleteSection(): void {
@@ -455,6 +866,8 @@ export class HomeComponent implements OnDestroy {
 
     this.deleteSection(id);
     this.confirmingDeleteSectionId.set(null);
+    this.sectionDeleteConfirmFocus.set('delete');
+    this.focusTabsForKeyboard();
   }
 
   protected toggleSectionMenu(): void {
@@ -480,6 +893,7 @@ export class HomeComponent implements OnDestroy {
   private deleteSection(sectionId: string): void {
     this.storage.removeSection(sectionId);
     this.refreshSectionsFromStorage();
+    this.activeKeyboardTask.set(null);
 
     const remaining = this.sections();
     if (this.activeSectionId() === sectionId) {
@@ -493,24 +907,34 @@ export class HomeComponent implements OnDestroy {
 
   // ─── List mutation helper ──────────────────────────────
 
-  private updateMainList(updater: (tasks: Task[]) => Task[]): void {
+  private updateMainList(updater: (tasks: Task[]) => Task[], options?: { markOrderDirty?: boolean }): void {
     const sec = this.activeSection();
     const ml = this.mainList();
     if (!sec || !ml) return;
 
     const syncSectionsFirst = sec.created === true;
-    this.storage.setItemsForList(sec.id, ml.id, this.buildItemsFromTasks(ml.items, updater(this.visibleTasks(ml))));
+    this.storage.setItemsForList(
+      sec.id,
+      ml.id,
+      this.buildItemsFromTasks(ml.items, updater(this.visibleTasks(ml))),
+      options,
+    );
     this.refreshSectionsFromStorage();
     this.syncItemsForList(sec.id, ml.id, syncSectionsFirst);
   }
 
-  private updateBacklogList(updater: (tasks: Task[]) => Task[]): void {
+  private updateBacklogList(updater: (tasks: Task[]) => Task[], options?: { markOrderDirty?: boolean }): void {
     const sec = this.activeSection();
     const bl = this.backlogList();
     if (!sec || !bl) return;
 
     const syncSectionsFirst = sec.created === true;
-    this.storage.setItemsForList(sec.id, bl.id, this.buildItemsFromTasks(bl.items, updater(this.visibleTasks(bl))));
+    this.storage.setItemsForList(
+      sec.id,
+      bl.id,
+      this.buildItemsFromTasks(bl.items, updater(this.visibleTasks(bl))),
+      options,
+    );
     this.refreshSectionsFromStorage();
     this.syncItemsForList(sec.id, bl.id, syncSectionsFirst);
   }
@@ -526,8 +950,8 @@ export class HomeComponent implements OnDestroy {
     if (!sec || !ml || !bl) return;
 
     const syncSectionsFirst = sec.created === true;
-    this.storage.setItemsForList(sec.id, ml.id, this.buildItemsFromTasks(ml.items, mainUpdater(this.visibleTasks(ml))));
-    this.storage.setItemsForList(sec.id, bl.id, this.buildItemsFromTasks(bl.items, backlogUpdater(this.visibleTasks(bl))));
+    this.storage.setItemsForList(sec.id, ml.id, this.buildItemsFromTasks(ml.items, mainUpdater(this.visibleTasks(ml))), { markOrderDirty: true });
+    this.storage.setItemsForList(sec.id, bl.id, this.buildItemsFromTasks(bl.items, backlogUpdater(this.visibleTasks(bl))), { markOrderDirty: true });
     this.refreshSectionsFromStorage();
     this.syncItemsForLists(sec.id, syncOrder ?? [ml.id, bl.id], syncSectionsFirst);
   }
@@ -542,9 +966,46 @@ export class HomeComponent implements OnDestroy {
 
   private visibleTasks(list: StoredList | null): Task[] {
     return (list?.items ?? [])
-      .filter(item => !item.deleted)
+      .filter(item => !item.deleted && !this.normalizeTask(item.content, item.id).done)
       .sort((a, b) => a.position - b.position)
-      .map(item => ({ ...this.normalizeTask(item.content, item.id), lastModifiedAt: item.lastModifiedAt }));
+      .map(item => ({
+        ...this.normalizeTask(item.content, item.id),
+        lastModifiedAt: item.lastModifiedAt,
+        serverRevision: item.serverRevision,
+      }));
+  }
+
+  private doneTasksForList(sourceList: TaskListKind, list: StoredList | null): DoneTask[] {
+    const tasks: DoneTask[] = [];
+    for (const item of list?.items ?? []) {
+      if (item.deleted) continue;
+      const task = this.normalizeTask(item.content, item.id);
+      if (!task.done) continue;
+      const doneAt = task.doneAt ?? item.lastModifiedAt;
+      tasks.push({
+        ...task,
+        doneAt,
+        lastModifiedAt: item.lastModifiedAt,
+        serverRevision: item.serverRevision,
+        sourceList,
+      });
+    }
+    return tasks;
+  }
+
+  private compareDoneTasksNewestFirst(left: Pick<DoneTask, 'doneAt' | 'lastModifiedAt' | 'id'>, right: Pick<DoneTask, 'doneAt' | 'lastModifiedAt' | 'id'>): number {
+    const timeDiff = this.doneTime(right.doneAt, right.lastModifiedAt) - this.doneTime(left.doneAt, left.lastModifiedAt);
+    if (timeDiff !== 0) return timeDiff;
+    const modifiedDiff = String(right.lastModifiedAt ?? '').localeCompare(String(left.lastModifiedAt ?? ''));
+    if (modifiedDiff !== 0) return modifiedDiff;
+    return right.id.localeCompare(left.id);
+  }
+
+  private doneTime(doneAt: string | undefined, fallback?: string): number {
+    const doneTime = doneAt ? new Date(doneAt).getTime() : Number.NaN;
+    if (!Number.isNaN(doneTime)) return doneTime;
+    const fallbackTime = fallback ? new Date(fallback).getTime() : Number.NaN;
+    return Number.isNaN(fallbackTime) ? 0 : fallbackTime;
   }
 
   private normalizeTask(value: unknown, fallbackId: string = crypto.randomUUID()): Task {
@@ -561,6 +1022,7 @@ export class HomeComponent implements OnDestroy {
       text: String(record['text'] ?? ''),
       subtasks,
       done: Boolean(record['done']),
+      ...(typeof record['doneAt'] === 'string' && record['doneAt'] ? { doneAt: record['doneAt'] } : {}),
     };
   }
 
@@ -582,6 +1044,7 @@ export class HomeComponent implements OnDestroy {
     return normalizedLeft.id === right.id &&
       normalizedLeft.text === right.text &&
       normalizedLeft.done === right.done &&
+      normalizedLeft.doneAt === right.doneAt &&
       normalizedLeft.subtasks.length === right.subtasks.length &&
       right.subtasks.every(subtask => {
         const other = leftSubtasks.get(subtask.id);
@@ -605,6 +1068,7 @@ export class HomeComponent implements OnDestroy {
           content: normalizedTask,
           position,
           lastModifiedAt: contentChanged ? now : existing.lastModifiedAt,
+          ...(contentChanged ? { dirty: true } : {}),
         };
       }
 
@@ -613,16 +1077,29 @@ export class HomeComponent implements OnDestroy {
         content: normalizedTask,
         position,
         lastModifiedAt: task.lastModifiedAt ?? now,
+        serverRevision: task.serverRevision ?? 0,
         created: true,
+        dirty: true,
       };
     });
 
+    const preservedDoneItems = existingItems
+      .filter(item => {
+        if (item.deleted || nextIds.has(item.id)) return false;
+        return this.normalizeTask(item.content, item.id).done;
+      })
+      .sort((a, b) => a.position - b.position)
+      .map((item, index) => ({ ...item, position: nextItems.length + index }));
+
     const deletedItems = existingItems
-      .filter(item => !item.deleted && !nextIds.has(item.id))
-      .map(item => ({ ...item, deleted: true, lastModifiedAt: now }));
+      .filter(item => {
+        if (item.deleted || nextIds.has(item.id)) return false;
+        return !this.normalizeTask(item.content, item.id).done;
+      })
+      .map(item => ({ ...item, deleted: true, dirty: true, lastModifiedAt: now }));
     const alreadyDeleted = existingItems.filter(item => item.deleted && !nextIds.has(item.id));
 
-    return [...nextItems, ...deletedItems, ...alreadyDeleted];
+    return [...nextItems, ...preservedDoneItems, ...deletedItems, ...alreadyDeleted];
   }
 
   private updateListMeta(sectionId: string, list: StoredList, title?: string): void {
@@ -630,6 +1107,7 @@ export class HomeComponent implements OnDestroy {
       ...list,
       ...(title !== undefined ? { title } : {}),
       metadataLastModifiedAt: new Date().toISOString(),
+      dirty: true,
     };
     this.storage.upsertList(sectionId, updatedList);
     this.refreshSectionsFromStorage();
@@ -662,6 +1140,10 @@ export class HomeComponent implements OnDestroy {
         for (const listId of listIds) {
           await this.sync.syncListItems(sectionId, listId);
         }
+        const overflowListIds = this.enforceDoneTaskLimit(sectionId);
+        for (const listId of overflowListIds) {
+          await this.sync.syncListItems(sectionId, listId);
+        }
       })
       .then(() => this.refreshSectionsFromStorage())
       .catch(() => {});
@@ -680,14 +1162,16 @@ export class HomeComponent implements OnDestroy {
       ...item,
       position: order.get(item.id) ?? item.position,
     }));
-    this.storage.setItemsForList(sectionId, list.id, items);
+    this.storage.setItemsForList(sectionId, list.id, items, { markOrderDirty: true });
     this.refreshSectionsFromStorage();
 
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
       const payload = tasks.map((task, position) => ({ id: task.id, position }));
+      const localItemsRevision = this.storage.getItemsRevision(sectionId, list.id);
       this.sync.reorderItems(sectionId, list.id, payload)
-        .then(positions => {
-          this.storage.applyItemPositions(sectionId, list.id, positions);
+        .then(result => {
+          if (localItemsRevision !== this.storage.getItemsRevision(sectionId, list.id)) return;
+          this.storage.applyItemPositions(sectionId, list.id, result.positions, result.orderRevision);
           this.refreshSectionsFromStorage();
         })
         .catch(() => {});
@@ -699,6 +1183,7 @@ export class HomeComponent implements OnDestroy {
     const sec = this.activeSection();
     if (!sec || !list) return;
 
+    const now = new Date().toISOString();
     const items = list.items.map(item => {
       if (item.id !== taskId || item.deleted) return item;
 
@@ -708,6 +1193,8 @@ export class HomeComponent implements OnDestroy {
       return {
         ...item,
         content: { ...task, subtasks },
+        lastModifiedAt: now,
+        dirty: true,
       };
     });
 
@@ -725,7 +1212,7 @@ export class HomeComponent implements OnDestroy {
     this.confirmingClear.set(false);
   }
   protected clearDoneTasks(): void {
-    this.updateMainList(tasks => tasks.filter(t => !t.done));
+    this.deleteDoneTasksFromList('main');
   }
 
   protected startSecondaryClear(): void { this.confirmingSecondaryClear.set(true); }
@@ -735,7 +1222,217 @@ export class HomeComponent implements OnDestroy {
     this.confirmingSecondaryClear.set(false);
   }
   protected clearDoneSecondary(): void {
-    this.updateBacklogList(tasks => tasks.filter(t => !t.done));
+    this.deleteDoneTasksFromList('secondary');
+  }
+
+  protected restoreDoneTask(task: DoneTask): void {
+    const sec = this.activeSection();
+    const mainList = this.mainList();
+    const sourceList = this.listForKind(task.sourceList);
+    if (!sec || !mainList || !sourceList) return;
+
+    const sourceItem = sourceList.items.find(item => item.id === task.id);
+    if (!sourceItem) return;
+
+    const now = new Date().toISOString();
+    const restoredTask = this.withoutDoneDate({ ...task, done: false });
+    const restoredItem: StoredItem = {
+      ...sourceItem,
+      content: restoredTask,
+      position: 0,
+      lastModifiedAt: now,
+      dirty: true,
+      ...(task.sourceList === 'secondary' ? { created: true } : {}),
+    };
+    delete restoredItem.deleted;
+
+    if (task.sourceList === 'main') {
+      this.storage.setItemsForList(
+        sec.id,
+        mainList.id,
+        this.prependVisibleItem(mainList.items, restoredItem),
+        { markOrderDirty: true },
+      );
+      this.refreshSectionsFromStorage();
+      this.syncItemsForList(sec.id, mainList.id, sec.created === true);
+      return;
+    }
+
+    const sourceItems = sourceList.items.map(item =>
+      item.id === task.id
+        ? {
+            ...item,
+            content: restoredTask,
+            deleted: true,
+            dirty: true,
+            lastModifiedAt: now,
+          }
+        : item
+    );
+    this.storage.setItemsForList(sec.id, sourceList.id, sourceItems);
+    this.storage.setItemsForList(
+      sec.id,
+      mainList.id,
+      this.prependVisibleItem(mainList.items, restoredItem),
+      { markOrderDirty: true },
+    );
+    this.refreshSectionsFromStorage();
+    this.syncItemsForLists(sec.id, [mainList.id, sourceList.id], sec.created === true);
+  }
+
+  private completeTask(listKind: TaskListKind, id: string): void {
+    const sec = this.activeSection();
+    const list = this.listForKind(listKind);
+    if (!sec || !list) return;
+
+    const now = new Date().toISOString();
+    let found = false;
+    const items = this.normalizeStoredItemPositions(list.items.map(item => {
+      const task = this.normalizeTask(item.content, item.id);
+      if (item.id === id && !item.deleted && !task.done) {
+        found = true;
+        return {
+          ...item,
+          content: {
+            ...task,
+            done: true,
+            doneAt: now,
+            subtasks: task.subtasks.map(subtask => ({ ...subtask, done: true })),
+          },
+          dirty: true,
+          lastModifiedAt: now,
+        };
+      }
+
+      return item;
+    }));
+
+    if (!found) return;
+
+    this.storage.setItemsForList(sec.id, list.id, items);
+    const overflowListIds = this.enforceDoneTaskLimit(sec.id, now);
+    this.refreshSectionsFromStorage();
+    this.syncItemsForLists(sec.id, [...new Set([list.id, ...overflowListIds])], sec.created === true);
+  }
+
+  private normalizeStoredItemPositions(items: StoredItem[]): StoredItem[] {
+    let activePosition = 0;
+    let donePosition = items.filter(item => !item.deleted && !this.normalizeTask(item.content, item.id).done).length;
+    return items.map(item => {
+      if (item.deleted) return item;
+      const task = this.normalizeTask(item.content, item.id);
+      return {
+        ...item,
+        position: task.done ? donePosition++ : activePosition++,
+      };
+    });
+  }
+
+  private deleteDoneTasksFromList(listKind: TaskListKind): void {
+    const sec = this.activeSection();
+    const list = this.listForKind(listKind);
+    if (!sec || !list) return;
+
+    const now = new Date().toISOString();
+    let changed = false;
+    const items = list.items.map(item => {
+      if (item.deleted || !this.normalizeTask(item.content, item.id).done) return item;
+      changed = true;
+      return {
+        ...item,
+        deleted: true,
+        dirty: true,
+        lastModifiedAt: now,
+      };
+    });
+
+    if (!changed) return;
+    this.storage.setItemsForList(sec.id, list.id, items);
+    this.refreshSectionsFromStorage();
+    this.syncItemsForList(sec.id, list.id, sec.created === true);
+  }
+
+  private enforceDoneTaskLimit(sectionId: string, timestamp = new Date().toISOString()): string[] {
+    const section = this.storage.getSection(sectionId);
+    if (!section) return [];
+
+    const doneItems: Array<{ list: StoredList; item: StoredItem; task: Task }> = [];
+    for (const list of section.lists) {
+      for (const item of list.items) {
+        if (item.deleted) continue;
+        const task = this.normalizeTask(item.content, item.id);
+        if (!task.done) continue;
+        doneItems.push({ list, item, task });
+      }
+    }
+
+    if (doneItems.length <= MAX_DONE_TASKS) return [];
+
+    const overflow = doneItems
+      .sort((left, right) => this.compareDoneTasksNewestFirst(
+        {
+          id: left.item.id,
+          doneAt: left.task.doneAt ?? left.item.lastModifiedAt,
+          lastModifiedAt: left.item.lastModifiedAt,
+        },
+        {
+          id: right.item.id,
+          doneAt: right.task.doneAt ?? right.item.lastModifiedAt,
+          lastModifiedAt: right.item.lastModifiedAt,
+        },
+      ))
+      .slice(MAX_DONE_TASKS);
+
+    const overflowByList = new Map<string, Set<string>>();
+    for (const { list, item } of overflow) {
+      const ids = overflowByList.get(list.id) ?? new Set<string>();
+      ids.add(item.id);
+      overflowByList.set(list.id, ids);
+    }
+
+    for (const list of section.lists) {
+      const overflowIds = overflowByList.get(list.id);
+      if (!overflowIds) continue;
+      this.storage.setItemsForList(
+        sectionId,
+        list.id,
+        list.items.map(item => overflowIds.has(item.id)
+          ? {
+              ...item,
+              deleted: true,
+              dirty: true,
+              lastModifiedAt: timestamp,
+            }
+          : item),
+      );
+    }
+
+    return [...overflowByList.keys()];
+  }
+
+  private prependVisibleItem(items: StoredItem[], restoredItem: StoredItem): StoredItem[] {
+    let nextPosition = 1;
+    return [
+      restoredItem,
+      ...items
+        .filter(item => item.id !== restoredItem.id)
+        .map(item => {
+          const task = this.normalizeTask(item.content, item.id);
+          if (!item.deleted && !task.done) {
+            return { ...item, position: nextPosition++ };
+          }
+          return item;
+        }),
+    ];
+  }
+
+  private withoutDoneDate(task: Task): Task {
+    const { doneAt: _doneAt, sourceList: _sourceList, ...rest } = task as Task & Partial<DoneTask>;
+    return rest;
+  }
+
+  private listForKind(list: TaskListKind): StoredList | null {
+    return list === 'main' ? this.mainList() : this.backlogList();
   }
 
   // ─── Scroll ─────────────────────────────────────────────
@@ -763,6 +1460,7 @@ export class HomeComponent implements OnDestroy {
     const loaded = this.storage.loadSections();
     this.sections.set(loaded);
     this.activeSectionId.set(loaded[0]?.id ?? null);
+    this.clearKeyboardFocus('main');
   }
 
   protected openSettings(): void {
@@ -782,6 +1480,7 @@ export class HomeComponent implements OnDestroy {
 
   // ─── Main task: add ─────────────────────────────────────
   protected startAdding(): void {
+    this.focusListWithoutTask('main');
     if (!this.canAdd() || this.isEditing()) return;
     this.adding.set(true);
     this.newTaskText.set('');
@@ -804,9 +1503,9 @@ export class HomeComponent implements OnDestroy {
       .filter(s => s.length > 0)
       .map(s => ({ id: crypto.randomUUID(), text: s, done: false }));
     this.updateMainList(tasks => [
-      ...tasks,
       { id: crypto.randomUUID(), text, subtasks, done: false },
-    ]);
+      ...tasks,
+    ], { markOrderDirty: true });
     this.cancelAdding();
   }
 
@@ -847,6 +1546,10 @@ export class HomeComponent implements OnDestroy {
 
   protected handleAddKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') this.confirmAdd();
+    else if (this.isVerticalArrowKey(event)) {
+      event.preventDefault();
+      this.confirmAdd();
+    }
     else if (event.key === 'Tab' && !event.shiftKey) {
       event.preventDefault();
       this.addSubtaskField(true);
@@ -876,17 +1579,7 @@ export class HomeComponent implements OnDestroy {
 
   // ─── Main task: toggle / remove ─────────────────────────
   protected toggleTask(id: string): void {
-    this.updateMainList(tasks =>
-      tasks.map(t => {
-        if (t.id !== id) return t;
-        const done = !t.done;
-        return {
-          ...t,
-          done,
-          subtasks: done ? t.subtasks.map(s => ({ ...s, done: true })) : t.subtasks,
-        };
-      })
-    );
+    this.completeTask('main', id);
   }
 
   protected removeTask(id: string): void {
@@ -896,21 +1589,26 @@ export class HomeComponent implements OnDestroy {
   // ─── Main task: inline edit ─────────────────────────────
   protected startEditingTask(id: string): void {
     if (this.isEditing()) return;
+    this.setActiveKeyboardTask('main', id);
     this.editingTaskId.set(id);
     this.focusEditInput('task-' + id);
   }
 
   protected saveTaskEdit(id: string, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
-    if (!value) return;
-    this.updateMainList(tasks =>
-      tasks.map(t => (t.id === id ? { ...t, text: value } : t))
-    );
+    if (value) {
+      this.updateMainList(tasks =>
+        tasks.map(t => (t.id === id ? { ...t, text: value } : t))
+      );
+    }
     this.editingTaskId.set(null);
   }
 
   protected handleTaskEditKeydown(id: string, event: KeyboardEvent): void {
     if (event.key === 'Enter') {
+      event.preventDefault();
+      this.saveTaskEdit(id, event);
+    } else if (this.isVerticalArrowKey(event)) {
       event.preventDefault();
       this.saveTaskEdit(id, event);
     } else if (event.key === 'Tab') {
@@ -965,6 +1663,16 @@ export class HomeComponent implements OnDestroy {
 
   protected handleSubtaskEditKeydown(taskId: string, subtaskId: string, event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveSubtaskEdit(taskId, subtaskId, event);
+    else if (this.isVerticalArrowKey(event)) {
+      event.preventDefault();
+      this.saveSubtaskEdit(taskId, subtaskId, event);
+    }
+    else if (event.key === 'Tab') {
+      event.preventDefault();
+      const value = (event.target as HTMLInputElement).value.trim();
+      this.saveSubtaskEdit(taskId, subtaskId, event);
+      if (value) queueMicrotask(() => this.startAddingSubtask(taskId, true));
+    }
     else if (event.key === 'Escape') this.editingSubtask.set(null);
   }
 
@@ -1003,6 +1711,18 @@ export class HomeComponent implements OnDestroy {
     if (event.key === 'Enter') {
       event.preventDefault();
       this.confirmAddSubtask(taskId);
+    } else if (this.isVerticalArrowKey(event)) {
+      event.preventDefault();
+      this.confirmAddSubtask(taskId);
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      const value = this.newInlineSubtaskText().trim();
+      if (!value) {
+        this.cancelAddingSubtask();
+        return;
+      }
+      this.confirmAddSubtask(taskId);
+      queueMicrotask(() => this.startAddingSubtask(taskId, true));
     } else if (event.key === 'Escape') {
       this.cancelAddingSubtask();
     }
@@ -1014,6 +1734,7 @@ export class HomeComponent implements OnDestroy {
 
   // ─── Secondary tasks ───────────────────────────────────
   protected startAddingSecondary(): void {
+    this.focusListWithoutTask('secondary');
     if (!this.canAddSecondary() || this.isEditing()) return;
     this.addingSecondary.set(true);
     this.newSecondaryText.set('');
@@ -1036,9 +1757,9 @@ export class HomeComponent implements OnDestroy {
       .filter(s => s.length > 0)
       .map(s => ({ id: crypto.randomUUID(), text: s, done: false }));
     this.updateBacklogList(tasks => [
-      ...tasks,
       { id: crypto.randomUUID(), text, subtasks, done: false },
-    ]);
+      ...tasks,
+    ], { markOrderDirty: true });
     this.cancelAddingSecondary();
   }
 
@@ -1056,6 +1777,10 @@ export class HomeComponent implements OnDestroy {
 
   protected handleSecondaryKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') this.confirmAddSecondary();
+    else if (this.isVerticalArrowKey(event)) {
+      event.preventDefault();
+      this.confirmAddSecondary();
+    }
     else if (event.key === 'Tab' && !event.shiftKey) {
       event.preventDefault();
       this.addSecSubtaskField(true);
@@ -1064,17 +1789,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected toggleSecondaryTask(id: string): void {
-    this.updateBacklogList(tasks =>
-      tasks.map(t => {
-        if (t.id !== id) return t;
-        const done = !t.done;
-        return {
-          ...t,
-          done,
-          subtasks: done ? t.subtasks.map(s => ({ ...s, done: true })) : t.subtasks,
-        };
-      })
-    );
+    this.completeTask('secondary', id);
   }
 
   protected removeSecondaryTask(id: string): void {
@@ -1083,21 +1798,26 @@ export class HomeComponent implements OnDestroy {
 
   protected startEditingSecondary(id: string): void {
     if (this.isEditing()) return;
+    this.setActiveKeyboardTask('secondary', id);
     this.editingSecondaryId.set(id);
     this.focusEditInput('sec-' + id);
   }
 
   protected saveSecondaryEdit(id: string, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
-    if (!value) return;
-    this.updateBacklogList(tasks =>
-      tasks.map(t => (t.id === id ? { ...t, text: value } : t))
-    );
+    if (value) {
+      this.updateBacklogList(tasks =>
+        tasks.map(t => (t.id === id ? { ...t, text: value } : t))
+      );
+    }
     this.editingSecondaryId.set(null);
   }
 
   protected handleSecondaryEditKeydown(id: string, event: KeyboardEvent): void {
     if (event.key === 'Enter') {
+      event.preventDefault();
+      this.saveSecondaryEdit(id, event);
+    } else if (this.isVerticalArrowKey(event)) {
       event.preventDefault();
       this.saveSecondaryEdit(id, event);
     } else if (event.key === 'Tab') {
@@ -1189,6 +1909,16 @@ export class HomeComponent implements OnDestroy {
 
   protected handleSecSubtaskEditKeydown(taskId: string, subtaskId: string, event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveSecSubtaskEdit(taskId, subtaskId, event);
+    else if (this.isVerticalArrowKey(event)) {
+      event.preventDefault();
+      this.saveSecSubtaskEdit(taskId, subtaskId, event);
+    }
+    else if (event.key === 'Tab') {
+      event.preventDefault();
+      const value = (event.target as HTMLInputElement).value.trim();
+      this.saveSecSubtaskEdit(taskId, subtaskId, event);
+      if (value) queueMicrotask(() => this.startAddingSecSubtask(taskId, true));
+    }
     else if (event.key === 'Escape') this.editingSecSubtask.set(null);
   }
 
@@ -1226,6 +1956,18 @@ export class HomeComponent implements OnDestroy {
     if (event.key === 'Enter') {
       event.preventDefault();
       this.confirmAddSecSubtask(taskId);
+    } else if (this.isVerticalArrowKey(event)) {
+      event.preventDefault();
+      this.confirmAddSecSubtask(taskId);
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      const value = this.newInlineSecSubtaskText().trim();
+      if (!value) {
+        this.cancelAddingSecSubtask();
+        return;
+      }
+      this.confirmAddSecSubtask(taskId);
+      queueMicrotask(() => this.startAddingSecSubtask(taskId, true));
     } else if (event.key === 'Escape') {
       this.cancelAddingSecSubtask();
     }
@@ -1406,6 +2148,91 @@ export class HomeComponent implements OnDestroy {
     if (activeInput?.dataset['editId'] === editId) return activeInput;
 
     return null;
+  }
+
+  protected linkSegments(text: string): TextSegment[] {
+    const segments: TextSegment[] = [];
+    this.urlPattern.lastIndex = 0;
+
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    while ((match = this.urlPattern.exec(text)) !== null) {
+      const rawUrl = match[0];
+      const index = match.index;
+      if (index > cursor) {
+        segments.push({ text: text.slice(cursor, index), href: null });
+      }
+
+      const { url, trailing } = this.splitTrailingLinkPunctuation(rawUrl);
+      segments.push({
+        text: url,
+        href: url.startsWith('www.') ? `https://${url}` : url,
+      });
+
+      if (trailing) {
+        segments.push({ text: trailing, href: null });
+      }
+
+      cursor = index + rawUrl.length;
+    }
+
+    if (cursor < text.length) {
+      segments.push({ text: text.slice(cursor), href: null });
+    }
+
+    return segments.length > 0 ? segments : [{ text, href: null }];
+  }
+
+  protected openTaskLink(event: MouseEvent, href: string): void {
+    event.stopPropagation();
+    if (!window.splendideDesktop?.isDesktop) return;
+
+    event.preventDefault();
+    void openExternalUrl(href);
+  }
+
+  private splitTrailingLinkPunctuation(value: string): { url: string; trailing: string } {
+    const match = value.match(/[.,!?;:]+$/);
+    if (!match) return { url: value, trailing: '' };
+
+    return {
+      url: value.slice(0, -match[0].length),
+      trailing: match[0],
+    };
+  }
+
+  private isTextEntryTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && Boolean(
+      target.closest('input, textarea, select, [contenteditable="true"]')
+    );
+  }
+
+  private isVerticalArrowKey(event: KeyboardEvent): boolean {
+    return event.key === 'ArrowUp' || event.key === 'ArrowDown';
+  }
+
+  private isKeyboardManagedTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && Boolean(
+      target.closest('[data-keyboard-section], [data-keyboard-list]')
+    );
+  }
+
+  private syncKeyboardFocusFromManagedTarget(target: EventTarget | null): void {
+    if (!(target instanceof HTMLElement)) return;
+
+    const listTarget = target.closest<HTMLElement>('[data-keyboard-list]');
+    const list = listTarget?.dataset['keyboardList'];
+    if (list === 'main' || list === 'secondary') {
+      this.currentList.set(list);
+      this.keyboardZone.set(list);
+      const taskId = listTarget?.dataset['keyboardTask'];
+      this.activeKeyboardTask.set(taskId ? { list, id: taskId } : null);
+      return;
+    }
+
+    if (target.closest('[data-keyboard-section]')) {
+      this.focusTabsForKeyboard();
+    }
   }
 
   private isInteractiveTarget(target: EventTarget | null): boolean {

@@ -2,7 +2,15 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { StorageService, StoredSection, StoredList, StoredItem } from './storage.service';
+import {
+  StorageService,
+  StoredSection,
+  StoredList,
+  StoredItem,
+  SectionsSyncResponse,
+  ItemsSyncResponse,
+  OrderSyncResponse,
+} from './storage.service';
 
 @Injectable({ providedIn: 'root' })
 export class SyncService {
@@ -25,19 +33,30 @@ export class SyncService {
 
   async syncSections(): Promise<StoredSection[]> {
     const generation = ++this.sectionsSyncGeneration;
-    const payload = this.storage.loadAllSectionsForSync().map(section => ({
+    const localOrderRevision = this.storage.getSectionOrderLocalRevision();
+    const sections = this.storage.loadAllSectionsForSync().map(section => ({
       id: section.id,
       title: section.title,
       metadataLastModifiedAt: section.metadataLastModifiedAt,
+      serverRevision: section.serverRevision,
       ...(section.deleted ? { deleted: true } : {}),
       ...(section.created ? { created: true } : {}),
+      ...(section.dirty ? { dirty: true } : {}),
     }));
+    const order = this.storage.getSectionOrderSync();
+    const payload = {
+      sections,
+      ...(order ? { order } : {}),
+    };
 
     const synced = await firstValueFrom(
-      this.http.post<StoredSection[]>(`${this.apiUrl}/sections/sync`, payload),
+      this.http.post<SectionsSyncResponse>(`${this.apiUrl}/sections/sync`, payload),
     );
 
-    if (generation === this.sectionsSyncGeneration) {
+    if (
+      generation === this.sectionsSyncGeneration &&
+      localOrderRevision === this.storage.getSectionOrderLocalRevision()
+    ) {
       this.storage.applySyncedSections(synced);
     }
     return this.storage.loadSections();
@@ -50,6 +69,8 @@ export class SyncService {
       title: list.title,
       isBacklog: list.isBacklog,
       metadataLastModifiedAt: list.metadataLastModifiedAt,
+      serverRevision: list.serverRevision,
+      ...(list.dirty ? { dirty: true } : {}),
     }));
 
     const synced = await firstValueFrom(
@@ -66,16 +87,27 @@ export class SyncService {
     const key = `${sectionId}:${listId}`;
     const generation = this.nextGeneration(this.itemsSyncGeneration, key);
     const revision = this.storage.getItemsRevision(sectionId, listId);
-    const payload = this.storage.getItemsForList(sectionId, listId).map(item => ({
-      id: item.id,
-      content: item.content,
-      lastModifiedAt: item.lastModifiedAt,
-      ...(item.deleted ? { deleted: true } : {}),
-      ...(item.created ? { created: true } : {}),
-    }));
+    const items = this.storage.getItemsForList(sectionId, listId)
+      .filter(item => !(item.created && item.deleted))
+      .map(item => {
+        return {
+          id: item.id,
+          content: this.taskContentForSync(item),
+          lastModifiedAt: item.lastModifiedAt,
+          serverRevision: item.serverRevision,
+          ...(item.deleted ? { deleted: true } : {}),
+          ...(item.created && !item.deleted ? { created: true } : {}),
+          ...(item.dirty ? { dirty: true } : {}),
+        };
+      });
+    const order = this.storage.getListOrderSync(sectionId, listId);
+    const payload = {
+      items,
+      ...(order ? { order } : {}),
+    };
 
     const synced = await firstValueFrom(
-      this.http.post<StoredItem[]>(`${this.apiUrl}/sections/${sectionId}/lists/${listId}/sync`, payload),
+      this.http.post<ItemsSyncResponse>(`${this.apiUrl}/sections/${sectionId}/lists/${listId}/sync`, payload),
     );
 
     if (generation === this.itemsSyncGeneration.get(key)) {
@@ -84,15 +116,49 @@ export class SyncService {
     return this.storage.getItemsForList(sectionId, listId);
   }
 
-  async reorderSections(sections: { id: string; position: number }[]): Promise<{ id: string; position: number }[]> {
+  private taskContentForSync(item: StoredItem): { id: string; text: string; done: boolean; doneAt?: string; subtasks: { id: string; text: string; done: boolean }[] } {
+    const record = this.asRecord(item.content);
+    const subtasks = Array.isArray(record['subtasks'])
+      ? record['subtasks'].map(subtask => {
+          const subtaskRecord = this.asRecord(subtask);
+          return {
+            id: String(subtaskRecord['id'] ?? crypto.randomUUID()),
+            text: String(subtaskRecord['text'] ?? ''),
+            done: Boolean(subtaskRecord['done']),
+          };
+        })
+      : [];
+
+    return {
+      id: String(record['id'] ?? item.id),
+      text: String(record['text'] ?? ''),
+      done: Boolean(record['done']),
+      ...(typeof record['doneAt'] === 'string' && record['doneAt'].length > 0 ? { doneAt: record['doneAt'] } : {}),
+      subtasks,
+    };
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  }
+
+  async reorderSections(sections: { id: string; position: number }[]): Promise<OrderSyncResponse> {
     return firstValueFrom(
-      this.http.patch<{ id: string; position: number }[]>(`${this.apiUrl}/sections/reorder`, sections),
+      this.http.patch<OrderSyncResponse>(`${this.apiUrl}/sections/reorder`, {
+        baseOrderRevision: this.storage.getSectionBaseOrderRevision(),
+        items: sections,
+      }),
     );
   }
 
-  async reorderItems(sectionId: string, listId: string, items: { id: string; position: number }[]): Promise<{ id: string; position: number }[]> {
+  async reorderItems(sectionId: string, listId: string, items: { id: string; position: number }[]): Promise<OrderSyncResponse> {
     return firstValueFrom(
-      this.http.patch<{ id: string; position: number }[]>(`${this.apiUrl}/sections/${sectionId}/lists/${listId}/reorder`, items),
+      this.http.patch<OrderSyncResponse>(`${this.apiUrl}/sections/${sectionId}/lists/${listId}/reorder`, {
+        baseOrderRevision: this.storage.getListBaseOrderRevision(sectionId, listId),
+        items,
+      }),
     );
   }
 }

@@ -15,8 +15,14 @@
     "electron:dev": "concurrently -k \"ng serve\" \"wait-on http://localhost:4201 && cross-env ELECTRON_START_URL=http://localhost:4201 npm run electron:serve\"",
     "electron:build": "ng build --configuration electron && npm run electron:compile",
     "electron:start": "npm run electron:build && electron .",
-    "electron:pack": "npm run electron:build && electron-builder --dir",
-    "electron:dist": "npm run electron:build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis"
+    "electron:pack": "npm run electron:pack:unsigned",
+    "electron:pack:unsigned": "npm run electron:build && electron-builder --dir --config.win.signAndEditExecutable=false",
+    "electron:pack:signed": "npm run electron:build && electron-builder --dir",
+    "electron:dist": "npm run electron:dist:win",
+    "electron:dist:win": "npm run electron:build && electron-builder --win nsis",
+    "electron:dist:win:unsigned": "npm run electron:build && electron-builder --win nsis --config.win.signAndEditExecutable=false",
+    "electron:dist:mac": "npm run electron:build && electron-builder --mac dmg zip",
+    "electron:dist:mac:unsigned": "npm run electron:build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip"
   },
   "private": true,
   "packageManager": "npm@10.9.4",
@@ -47,7 +53,7 @@
   "build": {
     "appId": "app.splendide.desktop",
     "productName": "Splendide",
-    "asar": false,
+    "asar": true,
     "directories": {
       "output": "release"
     },
@@ -59,12 +65,28 @@
     "extraMetadata": {
       "main": "dist-electron/main.js"
     },
+    "protocols": [
+      {
+        "name": "Splendide",
+        "schemes": [
+          "splendide"
+        ]
+      }
+    ],
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.png",
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true
     },
     "nsis": {
       "oneClick": false,

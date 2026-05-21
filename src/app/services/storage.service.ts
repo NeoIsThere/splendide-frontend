@@ -5,14 +5,21 @@ export interface StoredItem {
   content: unknown;
   position: number;
   lastModifiedAt: string;
+  serverRevision: number;
   deleted?: boolean;
   created?: boolean;
+  dirty?: boolean;
 }
 
 export interface StoredList {
   id: string;
   title: string;
   metadataLastModifiedAt: string;
+  serverRevision: number;
+  itemsOrderRevision: number;
+  itemsBaseOrderRevision: number;
+  dirty?: boolean;
+  itemsOrderDirty?: boolean;
   isBacklog: boolean;
   items: StoredItem[];
 }
@@ -22,13 +29,38 @@ export interface StoredSection {
   title: string;
   position: number;
   metadataLastModifiedAt: string;
+  serverRevision: number;
   deleted?: boolean;
   created?: boolean;
+  dirty?: boolean;
   lists: StoredList[];
 }
 
 export interface Partition {
+  sectionOrderRevision: number;
+  sectionBaseOrderRevision: number;
+  sectionOrderDirty?: boolean;
   sections: StoredSection[];
+}
+
+export interface OrderSyncPayload {
+  baseOrderRevision: number;
+  orderedIds: string[];
+}
+
+export interface SectionsSyncResponse {
+  sectionOrderRevision: number;
+  sections: StoredSection[];
+}
+
+export interface ItemsSyncResponse {
+  itemsOrderRevision: number;
+  items: StoredItem[];
+}
+
+export interface OrderSyncResponse {
+  orderRevision: number;
+  positions: { id: string; position: number }[];
 }
 
 type LegacySection = Partial<StoredSection> & {
@@ -52,6 +84,21 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function revision(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function shouldAcceptRemote(
+  remote: { serverRevision: number },
+  local?: { serverRevision: number; dirty?: boolean },
+): boolean {
+  if (!local) return true;
+  if (remote.serverRevision > local.serverRevision) return true;
+  if (remote.serverRevision < local.serverRevision) return false;
+  return local.dirty !== true;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -59,7 +106,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeSubtasks(value: unknown): unknown[] {
   if (!Array.isArray(value)) return [];
 
-  return value.map(subtask => {
+  return value.map((subtask) => {
     if (!isRecord(subtask)) return subtask;
     return { ...subtask, id: String(subtask['id'] ?? generateId()) };
   });
@@ -83,8 +130,10 @@ function normalizeItem(value: unknown, position: number, fallbackTimestamp: stri
       content: normalizeTaskContent(value['content'], id),
       position: Number(value['position'] ?? position),
       lastModifiedAt: String(value['lastModifiedAt'] ?? fallbackTimestamp),
+      serverRevision: revision(value['serverRevision']),
       ...(value['deleted'] === true ? { deleted: true } : {}),
       ...(value['created'] === true ? { created: true } : {}),
+      ...(value['dirty'] === true ? { dirty: true } : {}),
     };
   }
 
@@ -94,17 +143,30 @@ function normalizeItem(value: unknown, position: number, fallbackTimestamp: stri
     content: normalizeTaskContent(value, id),
     position,
     lastModifiedAt: fallbackTimestamp,
+    serverRevision: 0,
+    dirty: true,
   };
 }
 
 function normalizeList(value: LegacyList, index: number, fallbackTimestamp: string): StoredList {
-  const timestamp = String(value.metadataLastModifiedAt ?? value.lastModifiedAt ?? fallbackTimestamp);
-  const rawItems = Array.isArray(value.items) ? value.items : (Array.isArray(value.content) ? value.content : []);
+  const timestamp = String(
+    value.metadataLastModifiedAt ?? value.lastModifiedAt ?? fallbackTimestamp,
+  );
+  const rawItems = Array.isArray(value.items)
+    ? value.items
+    : Array.isArray(value.content)
+      ? value.content
+      : [];
 
   return {
     id: String(value.id ?? generateId()),
     title: String(value.title ?? (value.isBacklog ? 'Later' : 'Now')),
     metadataLastModifiedAt: timestamp,
+    serverRevision: revision(value.serverRevision),
+    itemsOrderRevision: revision(value.itemsOrderRevision),
+    itemsBaseOrderRevision: revision(value.itemsBaseOrderRevision ?? value.itemsOrderRevision),
+    ...(value.dirty === true ? { dirty: true } : {}),
+    ...(value.itemsOrderDirty === true ? { itemsOrderDirty: true } : {}),
     isBacklog: Boolean(value.isBacklog ?? index === 1),
     items: rawItems
       .map((item, itemIndex) => normalizeItem(item, itemIndex, timestamp))
@@ -112,7 +174,11 @@ function normalizeList(value: LegacyList, index: number, fallbackTimestamp: stri
   };
 }
 
-function normalizeSection(value: LegacySection, index: number, fallbackTimestamp: string): StoredSection {
+function normalizeSection(
+  value: LegacySection,
+  index: number,
+  fallbackTimestamp: string,
+): StoredSection {
   const timestamp = String(value.metadataLastModifiedAt ?? fallbackTimestamp);
   const lists = Array.isArray(value.lists) ? value.lists : [];
 
@@ -121,17 +187,25 @@ function normalizeSection(value: LegacySection, index: number, fallbackTimestamp
     title: String(value.title ?? 'My Tasks'),
     position: Number(value.position ?? index),
     metadataLastModifiedAt: timestamp,
+    serverRevision: revision(value.serverRevision),
     ...(value.deleted === true ? { deleted: true } : {}),
     ...(value.created === true || value.isNew === true ? { created: true } : {}),
+    ...(value.dirty === true ? { dirty: true } : {}),
     lists: lists.map((list, listIndex) => normalizeList(list, listIndex, timestamp)),
   };
 }
 
 function normalizePartition(value: unknown): Partition {
   const timestamp = nowIso();
-  if (!isRecord(value) || !Array.isArray(value['sections'])) return { sections: [] };
+  if (!isRecord(value) || !Array.isArray(value['sections'])) {
+    return { sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
+  }
+  const sectionOrderRevision = revision(value['sectionOrderRevision']);
 
   return {
+    sectionOrderRevision,
+    sectionBaseOrderRevision: revision(value['sectionBaseOrderRevision'] ?? sectionOrderRevision),
+    ...(value['sectionOrderDirty'] === true ? { sectionOrderDirty: true } : {}),
     sections: value['sections']
       .map((section, index) => normalizeSection(section as LegacySection, index, timestamp))
       .sort((a, b) => a.position - b.position),
@@ -140,17 +214,132 @@ function normalizePartition(value: unknown): Partition {
 
 function createDefaultPartition(): Partition {
   const timestamp = nowIso();
+  const workMainTaskId = generateId();
+  const workLaterTaskId = generateId();
 
   return {
+    sectionOrderRevision: 0,
+    sectionBaseOrderRevision: 0,
     sections: [
       {
         id: generateId(),
-        title: 'My Tasks',
+        title: 'Work',
         position: 0,
         metadataLastModifiedAt: timestamp,
+        serverRevision: 0,
+        dirty: true,
         lists: [
-          { id: generateId(), title: 'Now', metadataLastModifiedAt: timestamp, isBacklog: false, items: [] },
-          { id: generateId(), title: 'Later', metadataLastModifiedAt: timestamp, isBacklog: true, items: [] },
+          {
+            id: generateId(),
+            title: 'Now',
+            metadataLastModifiedAt: timestamp,
+            serverRevision: 0,
+            itemsOrderRevision: 0,
+            itemsBaseOrderRevision: 0,
+            dirty: true,
+            isBacklog: false,
+            items: [
+              {
+                id: workMainTaskId,
+                content: { id: workMainTaskId, text: 'Review report', done: false, subtasks: [] },
+                position: 0,
+                lastModifiedAt: timestamp,
+                serverRevision: 0,
+                dirty: true,
+              },
+              {
+                id: workMainTaskId,
+                content: {
+                  id: workMainTaskId,
+                  text: 'Add missing documentation',
+                  done: false,
+                  subtasks: [],
+                },
+                position: 1,
+                lastModifiedAt: timestamp,
+                serverRevision: 0,
+                dirty: true,
+              },
+            ],
+          },
+          {
+            id: generateId(),
+            title: 'Later',
+            metadataLastModifiedAt: timestamp,
+            serverRevision: 0,
+            itemsOrderRevision: 0,
+            itemsBaseOrderRevision: 0,
+            dirty: true,
+            isBacklog: true,
+            items: [
+              {
+                id: workLaterTaskId,
+                content: {
+                  id: workLaterTaskId,
+                  text: 'Prepare presentation',
+                  done: false,
+                  subtasks: [],
+                },
+                position: 0,
+                lastModifiedAt: timestamp,
+                serverRevision: 0,
+                dirty: true,
+              },
+              {
+                id: workLaterTaskId,
+                content: { id: workLaterTaskId, text: 'Call John', done: false, subtasks: [] },
+                position: 1,
+                lastModifiedAt: timestamp,
+                serverRevision: 0,
+                dirty: true,
+              },
+              {
+                id: workMainTaskId,
+                content: {
+                  id: workMainTaskId,
+                  text: 'Submit the review before the meeting',
+                  done: false,
+                  subtasks: [],
+                },
+                position: 2,
+                lastModifiedAt: timestamp,
+                serverRevision: 0,
+                dirty: true,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: generateId(),
+        title: 'Travel',
+        position: 1,
+        metadataLastModifiedAt: timestamp,
+        serverRevision: 0,
+        dirty: true,
+        lists: [
+          {
+            id: generateId(),
+            title: 'Now',
+            metadataLastModifiedAt: timestamp,
+            serverRevision: 0,
+            itemsOrderRevision: 0,
+            itemsBaseOrderRevision: 0,
+            dirty: true,
+            isBacklog: false,
+            items: [],
+          },
+          {
+            id: generateId(),
+            title: 'Later',
+            metadataLastModifiedAt: timestamp,
+            serverRevision: 0,
+            itemsOrderRevision: 0,
+            itemsBaseOrderRevision: 0,
+            dirty: true,
+            isBacklog: true,
+            items: [],
+          },
         ],
       },
     ],
@@ -164,7 +353,9 @@ function cloneItemForUser(item: StoredItem, position: number): StoredItem {
     content: normalizeTaskContent(item.content, id),
     position: item.position ?? position,
     lastModifiedAt: item.lastModifiedAt,
+    serverRevision: 0,
     created: true,
+    dirty: true,
   };
 }
 
@@ -173,9 +364,13 @@ function cloneListForUser(list: StoredList): StoredList {
     id: generateId(),
     title: list.title,
     metadataLastModifiedAt: list.metadataLastModifiedAt,
+    serverRevision: 0,
+    itemsOrderRevision: 0,
+    itemsBaseOrderRevision: 0,
+    dirty: true,
     isBacklog: list.isBacklog,
     items: list.items
-      .filter(item => !item.deleted)
+      .filter((item) => !item.deleted)
       .map((item, index) => cloneItemForUser(item, index)),
   };
 }
@@ -186,14 +381,17 @@ function cloneSectionForUser(section: StoredSection): StoredSection {
     title: section.title,
     position: section.position,
     metadataLastModifiedAt: section.metadataLastModifiedAt,
+    serverRevision: 0,
     created: true,
-    lists: section.lists.map(list => cloneListForUser(list)),
+    dirty: true,
+    lists: section.lists.map((list) => cloneListForUser(list)),
   };
 }
 
 @Injectable({ providedIn: 'root' })
 export class StorageService {
   private activeKey = ANONYMOUS_KEY;
+  private sectionOrderLocalRevision = 0;
   private readonly itemRevisions = new Map<string, number>();
 
   private buildKey(userId?: string): string {
@@ -217,6 +415,24 @@ export class StorageService {
     return this.itemRevisions.get(this.itemRevisionKey(sectionId, listId)) ?? 0;
   }
 
+  getSectionOrderLocalRevision(): number {
+    return this.sectionOrderLocalRevision;
+  }
+
+  private markSectionOrderDirty(partition: Partition): void {
+    if (!partition.sectionOrderDirty) {
+      partition.sectionOrderDirty = true;
+      partition.sectionBaseOrderRevision = partition.sectionOrderRevision;
+    }
+    this.sectionOrderLocalRevision += 1;
+  }
+
+  private markListOrderDirty(list: StoredList): void {
+    if (list.itemsOrderDirty) return;
+    list.itemsOrderDirty = true;
+    list.itemsBaseOrderRevision = list.itemsOrderRevision;
+  }
+
   setActivePartition(userId?: string): void {
     this.activeKey = this.buildKey(userId);
     if (userId) this.migrateLegacyUserPartition(userId);
@@ -224,7 +440,7 @@ export class StorageService {
 
   isPartitionEmpty(userId?: string): boolean {
     const partition = this.readPartition(this.buildKey(userId));
-    return !partition || partition.sections.filter(section => !section.deleted).length === 0;
+    return !partition || partition.sections.filter((section) => !section.deleted).length === 0;
   }
 
   getActiveUserId(): string | undefined {
@@ -234,15 +450,17 @@ export class StorageService {
 
   load(): Partition {
     const partition = this.readPartition(this.activeKey);
-    if (partition) return partition;
-
     if (!this.getActiveUserId()) {
-      const created = createDefaultPartition();
-      this.save(created);
-      return created;
+      if (!partition || partition.sections.filter((section) => !section.deleted).length === 0) {
+        const created = createDefaultPartition();
+        this.save(created);
+        return created;
+      }
     }
 
-    return { sections: [] };
+    if (partition) return partition;
+
+    return { sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
   }
 
   save(partition: Partition): void {
@@ -254,24 +472,35 @@ export class StorageService {
   }
 
   loadSections(): StoredSection[] {
-    return this.load().sections.filter(section => !section.deleted).sort((a, b) => a.position - b.position);
+    return this.load()
+      .sections.filter((section) => !section.deleted)
+      .sort((a, b) => a.position - b.position);
   }
 
   loadAllSectionsForSync(): StoredSection[] {
     return this.load().sections;
   }
 
-  saveSections(sections: StoredSection[]): void {
-    this.save({ sections });
+  saveSections(sections: StoredSection[], options?: { markOrderDirty?: boolean }): void {
+    const partition = this.load();
+    const incomingIds = new Set(sections.map((section) => section.id));
+    const pendingDeleted = partition.sections.filter(
+      (section) => section.deleted && !incomingIds.has(section.id),
+    );
+    partition.sections = [...sections, ...pendingDeleted];
+    if (options?.markOrderDirty) {
+      this.markSectionOrderDirty(partition);
+    }
+    this.save(partition);
   }
 
   getSection(sectionId: string): StoredSection | undefined {
-    return this.load().sections.find(section => section.id === sectionId);
+    return this.load().sections.find((section) => section.id === sectionId);
   }
 
   upsertSection(section: StoredSection): void {
     const partition = this.load();
-    const index = partition.sections.findIndex(existing => existing.id === section.id);
+    const index = partition.sections.findIndex((existing) => existing.id === section.id);
     if (index >= 0) {
       partition.sections[index] = { ...section, lists: partition.sections[index].lists };
     } else {
@@ -282,30 +511,85 @@ export class StorageService {
 
   removeSection(sectionId: string): void {
     const partition = this.load();
-    const section = partition.sections.find(existing => existing.id === sectionId);
+    const section = partition.sections.find((existing) => existing.id === sectionId);
     if (section) {
       section.deleted = true;
+      section.dirty = true;
       section.metadataLastModifiedAt = nowIso();
     }
     this.save(partition);
   }
 
-  applySyncedSections(synced: StoredSection[]): void {
+  getSectionOrderSync(): OrderSyncPayload | undefined {
     const partition = this.load();
-    const existingMap = new Map(partition.sections.map(section => [section.id, section]));
+    if (!partition.sectionOrderDirty) return undefined;
+
+    return {
+      baseOrderRevision: partition.sectionBaseOrderRevision,
+      orderedIds: partition.sections
+        .filter((section) => !section.deleted)
+        .sort((a, b) => a.position - b.position)
+        .map((section) => section.id),
+    };
+  }
+
+  getSectionBaseOrderRevision(): number {
+    const partition = this.load();
+    return partition.sectionOrderDirty
+      ? partition.sectionBaseOrderRevision
+      : partition.sectionOrderRevision;
+  }
+
+  applySyncedSections(response: SectionsSyncResponse): void {
+    const synced = response.sections;
+    const partition = this.load();
+    const existingMap = new Map(partition.sections.map((section) => [section.id, section]));
+
+    const remoteIds = new Set(synced.map((section) => section.id));
+    const merged = synced.map((section) => {
+      const existing = existingMap.get(section.id);
+      if (existing && !shouldAcceptRemote(section, existing)) {
+        return { ...existing, position: section.position };
+      }
+
+      return {
+        id: section.id,
+        title: section.title,
+        position: section.position,
+        metadataLastModifiedAt: section.metadataLastModifiedAt,
+        serverRevision: section.serverRevision,
+        ...(section.deleted ? { deleted: true } : {}),
+        lists: existing?.lists ?? section.lists ?? [],
+      };
+    });
+
+    for (const section of partition.sections) {
+      if (!remoteIds.has(section.id) && section.dirty && !section.deleted) {
+        merged.push(section);
+      }
+    }
 
     this.save({
-      sections: synced.map(section => {
-        const existing = existingMap.get(section.id);
-        return {
-          id: section.id,
-          title: section.title,
-          position: section.position,
-          metadataLastModifiedAt: section.metadataLastModifiedAt,
-          lists: existing?.lists ?? section.lists ?? [],
-        };
-      }),
+      sectionOrderRevision: response.sectionOrderRevision,
+      sectionBaseOrderRevision: response.sectionOrderRevision,
+      sections: merged,
     });
+  }
+
+  applySectionPositions(
+    positions: { id: string; position: number }[],
+    orderRevision: number,
+  ): void {
+    const positionMap = new Map(positions.map((section) => [section.id, section.position]));
+    const partition = this.load();
+    partition.sections = partition.sections.map((section) => ({
+      ...section,
+      position: positionMap.get(section.id) ?? section.position,
+    }));
+    partition.sectionOrderRevision = orderRevision;
+    partition.sectionBaseOrderRevision = orderRevision;
+    delete partition.sectionOrderDirty;
+    this.save(partition);
   }
 
   getListsForSection(sectionId: string): StoredList[] {
@@ -314,10 +598,10 @@ export class StorageService {
 
   upsertList(sectionId: string, list: StoredList): void {
     const partition = this.load();
-    const section = partition.sections.find(existing => existing.id === sectionId);
+    const section = partition.sections.find((existing) => existing.id === sectionId);
     if (!section) return;
 
-    const index = section.lists.findIndex(existing => existing.id === list.id);
+    const index = section.lists.findIndex((existing) => existing.id === list.id);
     if (index >= 0) {
       section.lists[index] = { ...list, items: section.lists[index].items };
     } else {
@@ -328,66 +612,169 @@ export class StorageService {
 
   setListsForSection(sectionId: string, lists: StoredList[]): void {
     const partition = this.load();
-    const section = partition.sections.find(existing => existing.id === sectionId);
+    const section = partition.sections.find((existing) => existing.id === sectionId);
     if (!section) return;
 
-    const existingMap = new Map(section.lists.map(list => [list.id, list]));
-    section.lists = lists.map(list => ({
-      id: list.id,
-      title: list.title,
-      metadataLastModifiedAt: list.metadataLastModifiedAt,
-      isBacklog: list.isBacklog,
-      items: existingMap.get(list.id)?.items ?? list.items ?? [],
-    }));
+    const existingMap = new Map(section.lists.map((list) => [list.id, list]));
+    const remoteIds = new Set(lists.map((list) => list.id));
+    section.lists = lists.map((list) => {
+      const existing = existingMap.get(list.id);
+      if (existing && !shouldAcceptRemote(list, existing)) {
+        return {
+          ...existing,
+          itemsOrderRevision: list.itemsOrderRevision,
+        };
+      }
+
+      return {
+        id: list.id,
+        title: list.title,
+        metadataLastModifiedAt: list.metadataLastModifiedAt,
+        serverRevision: list.serverRevision,
+        itemsOrderRevision: list.itemsOrderRevision,
+        itemsBaseOrderRevision: existing?.itemsBaseOrderRevision ?? list.itemsOrderRevision,
+        ...(existing?.itemsOrderDirty ? { itemsOrderDirty: true } : {}),
+        isBacklog: list.isBacklog,
+        items: existing?.items ?? list.items ?? [],
+      };
+    });
+
+    for (const list of existingMap.values()) {
+      if (!remoteIds.has(list.id) && list.dirty) {
+        section.lists.push(list);
+      }
+    }
     this.save(partition);
   }
 
   getItemsForList(sectionId: string, listId: string): StoredItem[] {
-    return this.getListsForSection(sectionId).find(list => list.id === listId)?.items ?? [];
+    return this.getListsForSection(sectionId).find((list) => list.id === listId)?.items ?? [];
   }
 
-  setItemsForList(sectionId: string, listId: string, items: StoredItem[], options?: { touchRevision?: boolean }): void {
+  getListOrderSync(sectionId: string, listId: string): OrderSyncPayload | undefined {
+    const list = this.getListsForSection(sectionId).find((existing) => existing.id === listId);
+    if (!list?.itemsOrderDirty) return undefined;
+
+    return {
+      baseOrderRevision: list.itemsBaseOrderRevision,
+      orderedIds: list.items
+        .filter((item) => !item.deleted)
+        .sort((a, b) => a.position - b.position)
+        .map((item) => item.id),
+    };
+  }
+
+  getListBaseOrderRevision(sectionId: string, listId: string): number {
+    const list = this.getListsForSection(sectionId).find((existing) => existing.id === listId);
+    if (!list) return 0;
+    return list.itemsOrderDirty ? list.itemsBaseOrderRevision : list.itemsOrderRevision;
+  }
+
+  setItemsForList(
+    sectionId: string,
+    listId: string,
+    items: StoredItem[],
+    options?: { touchRevision?: boolean; markOrderDirty?: boolean },
+  ): void {
     const partition = this.load();
-    const section = partition.sections.find(existing => existing.id === sectionId);
-    const list = section?.lists.find(existing => existing.id === listId);
+    const section = partition.sections.find((existing) => existing.id === sectionId);
+    const list = section?.lists.find((existing) => existing.id === listId);
     if (!list) return;
 
     list.items = items.sort((a, b) => a.position - b.position);
+    if (options?.markOrderDirty) {
+      this.markListOrderDirty(list);
+    }
     this.save(partition);
     if (options?.touchRevision !== false) {
       this.bumpItemsRevision(sectionId, listId);
     }
   }
 
-  applySyncedItems(sectionId: string, listId: string, items: StoredItem[], expectedRevision?: number): boolean {
-    if (expectedRevision !== undefined && this.getItemsRevision(sectionId, listId) !== expectedRevision) {
+  applySyncedItems(
+    sectionId: string,
+    listId: string,
+    response: ItemsSyncResponse,
+    expectedRevision?: number,
+  ): boolean {
+    if (
+      expectedRevision !== undefined &&
+      this.getItemsRevision(sectionId, listId) !== expectedRevision
+    ) {
       return false;
     }
 
-    this.setItemsForList(sectionId, listId, items.map(item => ({
-      id: item.id,
-      content: item.content,
-      position: item.position,
-      lastModifiedAt: item.lastModifiedAt,
-    })), { touchRevision: false });
+    const items = response.items;
+    const localItems = this.getItemsForList(sectionId, listId);
+    const localById = new Map(localItems.map((item) => [item.id, item]));
+    const remoteIds = new Set(items.map((item) => item.id));
+    const merged = items.map((item) => {
+      const local = localById.get(item.id);
+      if (local && !shouldAcceptRemote(item, local)) {
+        return { ...local, position: item.position };
+      }
+
+      return {
+        id: item.id,
+        content: item.content,
+        position: item.position,
+        lastModifiedAt: item.lastModifiedAt,
+        serverRevision: item.serverRevision,
+        ...(item.deleted ? { deleted: true } : {}),
+      };
+    });
+
+    for (const item of localItems) {
+      if (!remoteIds.has(item.id) && item.dirty && !item.deleted) {
+        merged.push(item);
+      }
+    }
+
+    this.setItemsForList(sectionId, listId, merged, { touchRevision: false });
+    this.applyListOrderRevision(sectionId, listId, response.itemsOrderRevision);
     return true;
   }
 
-  applyItemPositions(sectionId: string, listId: string, positions: { id: string; position: number }[]): void {
-    const positionMap = new Map(positions.map(item => [item.id, item.position]));
-    const items = this.getItemsForList(sectionId, listId).map(item => ({
+  applyListOrderRevision(sectionId: string, listId: string, orderRevision: number): void {
+    const partition = this.load();
+    const list = partition.sections
+      .find((section) => section.id === sectionId)
+      ?.lists.find((existing) => existing.id === listId);
+    if (!list) return;
+
+    list.itemsOrderRevision = orderRevision;
+    list.itemsBaseOrderRevision = orderRevision;
+    delete list.itemsOrderDirty;
+    this.save(partition);
+  }
+
+  applyItemPositions(
+    sectionId: string,
+    listId: string,
+    positions: { id: string; position: number }[],
+    orderRevision: number,
+  ): void {
+    const positionMap = new Map(positions.map((item) => [item.id, item.position]));
+    const items = this.getItemsForList(sectionId, listId).map((item) => ({
       ...item,
       position: positionMap.get(item.id) ?? item.position,
     }));
     this.setItemsForList(sectionId, listId, items, { touchRevision: false });
+    this.applyListOrderRevision(sectionId, listId, orderRevision);
   }
 
   copyAnonymousToUser(userId: string): void {
-    const source = this.readPartition(ANONYMOUS_KEY) ?? { sections: [] };
+    const source = this.readPartition(ANONYMOUS_KEY) ?? {
+      sectionOrderRevision: 0,
+      sectionBaseOrderRevision: 0,
+      sections: [],
+    };
     const partition: Partition = {
+      sectionOrderRevision: 0,
+      sectionBaseOrderRevision: 0,
       sections: source.sections
-        .filter(section => !section.deleted)
-        .map(section => cloneSectionForUser(section)),
+        .filter((section) => !section.deleted)
+        .map((section) => cloneSectionForUser(section)),
     };
 
     try {

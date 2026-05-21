@@ -176,6 +176,12 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   text-overflow: ellipsis;
   width: 100%;
   text-align: center;
+
+  &.keyboard-focused {
+    color: var(--text);
+    background: var(--active-tab-bg, rgba(128, 128, 128, 0.12));
+    border-radius: 4px;
+  }
 }
 
 .section-menu-wrapper {
@@ -378,6 +384,11 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     border-color: var(--border);
     outline: none;
   }
+
+  .section-tab.keyboard-focused & {
+    color: var(--text-primary, #222);
+    background: var(--active-tab-bg, rgba(128, 128, 128, 0.12));
+  }
 }
 
 .section-tab-input,
@@ -550,7 +561,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .my-last-list-col {
   @media (max-width: 768px) {
-    display: none !important;
+    display: flex;
+    flex: 0 0 auto;
   }
 }
 
@@ -858,7 +870,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &:hover,
-  &:focus-within {
+  &:focus-within,
+  &.keyboard-focused {
     background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
 
@@ -898,9 +911,13 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     background 0.2s $ease;
 
   &.checked {
-    border-color: var(--accent);
-    background: var(--accent);
-    color: var(--bg);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+
+  &.checked svg {
+    stroke-width: 4;
   }
 
   &-sub {
@@ -957,7 +974,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .edit-input-sub {
   font-size: 0.85rem;
-  font-weight: 400;
+  font-weight: 500;
 }
 .edit-input-sec {
   font-size: 0.88rem;
@@ -978,13 +995,38 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
   font-size: 0.85rem;
   color: var(--text);
-  opacity: 0.7;
+  font-weight: 500;
   cursor: text;
   overflow-wrap: break-word;
+  touch-action: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  transition: color 0.2s $ease;
 
   &.struck {
     text-decoration: line-through;
-    opacity: 0.4;
+    color: var(--text-muted);
+  }
+
+  * {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+.task-link {
+  color: var(--link);
+  font-weight: inherit;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 2px;
   }
 }
 
@@ -1008,8 +1050,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   .task-item:hover &,
   .task-item:focus-within &,
+  .task-item.keyboard-focused &,
   .sec-task-item:hover &,
-  .sec-task-item:focus-within & {
+  .sec-task-item:focus-within &,
+  .sec-task-item.keyboard-focused & {
     opacity: 0.6;
   }
 
@@ -1040,8 +1084,10 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   .task-item:hover &,
   .task-item:focus-within &,
+  .task-item.keyboard-focused &,
   .sec-task-item:hover &,
-  .sec-task-item:focus-within & {
+  .sec-task-item:focus-within &,
+  .sec-task-item.keyboard-focused & {
     opacity: 1;
   }
 
@@ -1133,15 +1179,18 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .add-placeholder {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  column-gap: 4px;
+  row-gap: 0;
   padding: 14px 10px;
   margin: 0 -10px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s $ease;
 
-  &:hover {
+  &:hover,
+  &.keyboard-focused {
     background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
 
@@ -1150,37 +1199,43 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
     outline-offset: 2px;
   }
 
-  margin-bottom: 40px;
+  margin-bottom: 0;
+
+  &::after {
+    content: 'subtask';
+    visibility: hidden;
+    flex: 0 0 100%;
+    margin-top: 6px;
+    margin-left: 32px;
+    padding: 2px 0;
+    font-size: 0.75rem;
+    line-height: normal;
+  }
 }
 
-.add-placeholder-check {
+.add-placeholder-icon {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  border-radius: 3px;
-  border: 1.5px solid var(--border);
-  display: block;
+  color: var(--text-muted);
 }
 
 .add-placeholder-text {
   font-size: 1.05rem;
-  font-weight: 500;
+  font-weight: 400;
+  line-height: 1.05rem;
   color: var(--text-muted);
 }
 
 .add-placeholder-sec {
-  padding: 8px;
+  padding: 10px 8px;
   margin: 0 -8px;
-  margin-bottom: 40px;
-}
-
-.add-placeholder-check-sec {
-  width: 13px;
-  height: 13px;
+  margin-bottom: 0;
 }
 
 .add-placeholder-text-sec {
-  font-size: 0.88rem;
+  font-size: 0.98rem;
+  line-height: 0.98rem;
 }
 
 // ─── Add button ───────────────────────────────────────────
@@ -1312,6 +1367,13 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+.clear-yes.keyboard-focused,
+.clear-no.keyboard-focused {
+  background: rgba(128, 128, 128, 0.14);
+  color: var(--text);
+  opacity: 1;
+}
+
 .add-btn-empty {
   display: inline-flex;
   align-items: center;
@@ -1356,7 +1418,7 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
 
 .input-sub {
   font-size: 0.88rem;
-  font-weight: 400;
+  font-weight: 500;
   padding: 10px 0;
 }
 .input-sec {
@@ -1403,7 +1465,8 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &:hover,
-  &:focus-within {
+  &:focus-within,
+  &.keyboard-focused {
     background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
 
@@ -1431,6 +1494,18 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   &.struck {
     text-decoration: line-through;
     color: var(--text-muted);
+  }
+}
+
+.sec-task-item {
+  .subtask-text {
+    color: var(--text-sec-list);
+    font-weight: 400;
+  }
+
+  .edit-input-sub {
+    color: var(--text-sec-list);
+    font-weight: 400;
   }
 }
 
@@ -1672,19 +1747,48 @@ $ease: cubic-bezier(0.4, 0, 0.2, 1);
   margin: 0 6px;
 }
 
-// ─── Editing active: block all interaction ─────────────────
-.editing-active {
-  button,
-  a,
-  .task-text,
-  .subtask-text,
-  .sec-task-text {
-    pointer-events: none;
+.done-list-title {
+  color: var(--text-muted);
+}
+
+.done-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.done-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  transition: background 0.15s $ease;
+
+  &:hover,
+  &:focus-within {
+    background: var(--task-hover-bg, rgba(128, 128, 128, 0.05));
   }
 
-  // Re-enable inputs & their form buttons so they stay interactive
-  input,
-  .add-form button {
-    pointer-events: auto;
+  .check-btn.checked {
+    border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
   }
 }
+
+.done-task-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.done-task-text {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 400;
+  text-decoration: line-through;
+  overflow-wrap: break-word;
+}
+
+// ─── Editing active: block all interaction ─────────────────

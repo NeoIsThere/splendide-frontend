@@ -30,6 +30,7 @@ body {
   --border: #e0e0e0;
   --hover: rgba(0, 0, 0, 0.05);
   --accent: #1a1a1a;
+  --link: #6d28d9;
   --active-tab-bg: rgba(0, 0, 0, 0.09);
   --task-hover-bg: rgba(0, 0, 0, 0.035);
 }
@@ -48,6 +49,7 @@ body.dark {
   --border: #2a2a2a;
   --hover: rgba(255, 255, 255, 0.06);
   --accent: #e0e0e0;
+  --link: #c084fc;
   --active-tab-bg: rgba(255, 255, 255, 0.1);
   --task-hover-bg: rgba(255, 255, 255, 0.05);
 }

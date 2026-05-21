@@ -1,4 +1,4 @@
-<div class="layout" [class.editing-active]="isEditing()">
+<div class="layout">
   <!-- ═══ Top bar ═══ -->
 
   <div class="my-top-bar">
@@ -167,7 +167,12 @@
           (keydown)="handleSectionEditKeydown(activeSectionId()!, $event)"
         />
       } @else {
-        <button class="section-nav-title" (click)="startEditingSection(activeSectionId()!)">
+        <button
+          class="section-nav-title"
+          [class.keyboard-focused]="isTabsFocused()"
+          [attr.data-keyboard-section]="activeSectionId()"
+          (click)="startEditingSection(activeSectionId()!)"
+        >
           {{ activeSection()?.title }}
         </button>
       }
@@ -248,6 +253,8 @@
         <div
           class="section-tab"
           [class.active]="activeSectionId() === sec.id"
+          [class.keyboard-focused]="isSectionKeyboardFocused(sec.id)"
+          [attr.data-keyboard-section]="sec.id"
         >
           <div
             class="section-tab-surface"
@@ -269,7 +276,7 @@
             } @else {
               <button
                 class="section-tab-btn"
-                (click)="selectSection(sec.id)"
+                (click)="selectSection(sec.id); focusTabsForKeyboard()"
                 (dblclick)="startEditingSection(sec.id)"
               >
                 {{ sec.title }}
@@ -279,8 +286,16 @@
           <div class="section-tab-actions" data-confirm-delete-section>
             @if (confirmingDeleteSectionId() === sec.id) {
               <div class="clear-confirm">
-                <button class="clear-yes" (click)="confirmDeleteSection()">delete</button>
-                <button class="clear-no" (click)="cancelDeleteSection()">cancel</button>
+                <button
+                  class="clear-yes"
+                  [class.keyboard-focused]="isSectionDeleteOptionFocused('delete')"
+                  (click)="confirmDeleteSection()"
+                >delete</button>
+                <button
+                  class="clear-no"
+                  [class.keyboard-focused]="isSectionDeleteOptionFocused('cancel')"
+                  (click)="cancelDeleteSection()"
+                >cancel</button>
               </div>
             } @else if (sections().length > 1) {
               <button
@@ -366,6 +381,109 @@
           [cdkDropListConnectedTo]="[secList]"
           (cdkDropListDropped)="dropMainTask($any($event))"
         >
+        <!-- Add task form -->
+        @if (adding()) {
+          <div class="add-form" (focusout)="onAddFormFocusOut($event)">
+            <input
+              class="input-minimal"
+              type="text"
+              placeholder="Task..."
+              [value]="newTaskText()"
+              (input)="onNewTaskInput($event)"
+              (keydown)="handleAddKeydown($event)"
+              autofocus
+              aria-label="New task"
+              maxlength="120"
+            />
+            @for (sub of newSubtasks(); track $index) {
+              <div class="subtask-input-row">
+                <input
+                  class="input-minimal input-sub"
+                  type="text"
+                  placeholder="Subtask..."
+                  [value]="sub"
+                  (input)="updateNewSubtask($index, $event)"
+                  (keydown)="handleAddKeydown($event)"
+                  aria-label="Subtask"
+                  maxlength="120"
+                />
+                <button
+                  class="icon-btn-sm"
+                  (click)="removeSubtaskField($index)"
+                  aria-label="Remove subtask field"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            }
+            <div class="form-actions">
+              @if (newSubtasks().length < 10) {
+                <button
+                  class="add-subtask-btn add-subtask-btn-form"
+                  (click)="addSubtaskField()"
+                  aria-label="Add subtask field"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  subtask
+                </button>
+              }
+            </div>
+          </div>
+        } @else if (canAdd()) {
+          <div
+            class="add-placeholder"
+            [class.keyboard-focused]="isAddPlaceholderFocused('main')"
+            data-keyboard-list="main"
+            (click)="startAdding()"
+            (keydown.enter)="startAdding()"
+            role="button"
+            tabindex="0"
+            aria-label="Add a task"
+          >
+            <svg
+              class="add-placeholder-icon"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span class="add-placeholder-text">task</span>
+          </div>
+        }
         <!-- Task list -->
         <div
           class="task-list"
@@ -376,11 +494,15 @@
             <div
               class="task-item"
               [class.done]="task.done"
+              [class.keyboard-focused]="isTaskFocused('main', task.id)"
+              data-keyboard-list="main"
+              [attr.data-keyboard-task]="task.id"
               cdkDrag
               [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
               (cdkDragStarted)="setDragging(true)"
               (cdkDragEnded)="setDragging(false)"
+              (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
               role="listitem"
             >
               <div class="task-main">
@@ -426,8 +548,23 @@
                     class="task-text"
                     [class.struck]="task.done"
                     (click)="startEditingTask(task.id)"
-                    >{{ task.text }}</span
                   >
+                    @for (segment of linkSegments(task.text); track $index) {
+                      @if (segment.href; as href) {
+                        <a
+                          class="task-link"
+                          [href]="href"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          (pointerdown)="$event.stopPropagation()"
+                          (click)="openTaskLink($event, href)"
+                          [textContent]="segment.text"
+                        ></a>
+                      } @else {
+                        <span [textContent]="segment.text"></span>
+                      }
+                    }
+                  </span>
                 }
 
                 <button
@@ -531,9 +668,25 @@
                       <span
                         class="subtask-text"
                         [class.struck]="sub.done"
+                        (pointerdown)="$event.stopPropagation()"
                         (click)="startEditingSubtask(task.id, sub.id)"
-                        >{{ sub.text }}</span
                       >
+                        @for (segment of linkSegments(sub.text); track $index) {
+                          @if (segment.href; as href) {
+                            <a
+                              class="task-link"
+                              [href]="href"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              (pointerdown)="$event.stopPropagation()"
+                              (click)="openTaskLink($event, href)"
+                              [textContent]="segment.text"
+                            ></a>
+                          } @else {
+                            <span [textContent]="segment.text"></span>
+                          }
+                        }
+                      </span>
                     }
 
                     <button
@@ -607,94 +760,6 @@
             <!-- empty -->
           }
         </div>
-
-        <!-- Add task form -->
-        @if (adding()) {
-          <div class="add-form" (focusout)="onAddFormFocusOut($event)">
-            <input
-              class="input-minimal"
-              type="text"
-              placeholder="Task..."
-              [value]="newTaskText()"
-              (input)="onNewTaskInput($event)"
-              (keydown)="handleAddKeydown($event)"
-              autofocus
-              aria-label="New task"
-              maxlength="120"
-            />
-            @for (sub of newSubtasks(); track $index) {
-              <div class="subtask-input-row">
-                <input
-                  class="input-minimal input-sub"
-                  type="text"
-                  placeholder="Subtask..."
-                  [value]="sub"
-                  (input)="updateNewSubtask($index, $event)"
-                  (keydown)="handleAddKeydown($event)"
-                  aria-label="Subtask"
-                  maxlength="120"
-                />
-                <button
-                  class="icon-btn-sm"
-                  (click)="removeSubtaskField($index)"
-                  aria-label="Remove subtask field"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-            }
-            <div class="form-actions">
-              @if (newSubtasks().length < 10) {
-                <button
-                  class="add-subtask-btn add-subtask-btn-form"
-                  (click)="addSubtaskField()"
-                  aria-label="Add subtask field"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  subtask
-                </button>
-              }
-            </div>
-          </div>
-        } @else if (canAdd()) {
-          <div
-            class="add-placeholder"
-            (click)="startAdding()"
-            (keydown.enter)="startAdding()"
-            role="button"
-            tabindex="0"
-            aria-label="Add a task"
-          >
-            <span class="add-placeholder-check"></span>
-            <span class="add-placeholder-text">add a task</span>
-          </div>
-        }
         </div><!-- /.main-drop-zone -->
 
         @if (taskCount() > 0) {
@@ -762,6 +827,110 @@
           [cdkDropListConnectedTo]="[mainList]"
           (cdkDropListDropped)="dropSecondaryTask($any($event))"
         >
+        @if (secondaryVisible()) {
+          @if (addingSecondary()) {
+            <div class="add-form add-form-sec" (focusout)="onSecAddFormFocusOut($event)">
+              <input
+                class="input-minimal input-sec"
+                type="text"
+                placeholder="Task..."
+                [value]="newSecondaryText()"
+                (input)="onNewSecondaryInput($event)"
+                (keydown)="handleSecondaryKeydown($event)"
+                autofocus
+                aria-label="New secondary task"
+                maxlength="120"
+              />
+              @for (sub of newSecondarySubtasks(); track $index) {
+                <div class="subtask-input-row">
+                  <input
+                    class="input-minimal input-sub"
+                    type="text"
+                    placeholder="Subtask..."
+                    [value]="sub"
+                    (input)="updateNewSecSubtask($index, $event)"
+                    (keydown)="handleSecondaryKeydown($event)"
+                    aria-label="Subtask"
+                    maxlength="120"
+                  />
+                  <button
+                    class="icon-btn-sm"
+                    (click)="removeSecSubtaskField($index)"
+                    aria-label="Remove subtask field"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              }
+              <div class="form-actions">
+                @if (newSecondarySubtasks().length < 10) {
+                  <button
+                    class="add-subtask-btn add-subtask-btn-form"
+                    (click)="addSecSubtaskField()"
+                    aria-label="Add subtask field"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    subtask
+                  </button>
+                }
+              </div>
+            </div>
+          } @else if (canAddSecondary()) {
+            <div
+              class="add-placeholder add-placeholder-sec"
+              [class.keyboard-focused]="isAddPlaceholderFocused('secondary')"
+              data-keyboard-list="secondary"
+              (click)="startAddingSecondary()"
+              (keydown.enter)="startAddingSecondary()"
+              role="button"
+              tabindex="0"
+              aria-label="Add a task"
+            >
+              <svg
+                class="add-placeholder-icon add-placeholder-icon-sec"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span class="add-placeholder-text add-placeholder-text-sec">task</span>
+            </div>
+          }
+        }
         <div
           class="task-list"
           role="list"
@@ -771,11 +940,15 @@
             <div
               class="sec-task-item"
               [class.done]="task.done"
+              [class.keyboard-focused]="isTaskFocused('secondary', task.id)"
+              data-keyboard-list="secondary"
+              [attr.data-keyboard-task]="task.id"
               cdkDrag
               [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
               (cdkDragStarted)="setDragging(true)"
               (cdkDragEnded)="setDragging(false)"
+              (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
               role="listitem"
             >
               <div class="sec-task-main">
@@ -821,8 +994,23 @@
                     class="sec-task-text"
                     [class.struck]="task.done"
                     (click)="startEditingSecondary(task.id)"
-                    >{{ task.text }}</span
                   >
+                    @for (segment of linkSegments(task.text); track $index) {
+                      @if (segment.href; as href) {
+                        <a
+                          class="task-link"
+                          [href]="href"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          (pointerdown)="$event.stopPropagation()"
+                          (click)="openTaskLink($event, href)"
+                          [textContent]="segment.text"
+                        ></a>
+                      } @else {
+                        <span [textContent]="segment.text"></span>
+                      }
+                    }
+                  </span>
                 }
 
                 <button
@@ -927,9 +1115,25 @@
                       <span
                         class="subtask-text"
                         [class.struck]="sub.done"
+                        (pointerdown)="$event.stopPropagation()"
                         (click)="startEditingSecSubtask(task.id, sub.id)"
-                        >{{ sub.text }}</span
                       >
+                        @for (segment of linkSegments(sub.text); track $index) {
+                          @if (segment.href; as href) {
+                            <a
+                              class="task-link"
+                              [href]="href"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              (pointerdown)="$event.stopPropagation()"
+                              (click)="openTaskLink($event, href)"
+                              [textContent]="segment.text"
+                            ></a>
+                          } @else {
+                            <span [textContent]="segment.text"></span>
+                          }
+                        }
+                      </span>
                     }
 
                     <button
@@ -1003,95 +1207,6 @@
             <!-- empty -->
           }
         </div>
-
-        @if (secondaryVisible()) {
-          @if (addingSecondary()) {
-            <div class="add-form add-form-sec" (focusout)="onSecAddFormFocusOut($event)">
-              <input
-                class="input-minimal input-sec"
-                type="text"
-                placeholder="Task..."
-                [value]="newSecondaryText()"
-                (input)="onNewSecondaryInput($event)"
-                (keydown)="handleSecondaryKeydown($event)"
-                autofocus
-                aria-label="New secondary task"
-                maxlength="120"
-              />
-              @for (sub of newSecondarySubtasks(); track $index) {
-                <div class="subtask-input-row">
-                  <input
-                    class="input-minimal input-sub"
-                    type="text"
-                    placeholder="Subtask..."
-                    [value]="sub"
-                    (input)="updateNewSecSubtask($index, $event)"
-                    (keydown)="handleSecondaryKeydown($event)"
-                    aria-label="Subtask"
-                    maxlength="120"
-                  />
-                  <button
-                    class="icon-btn-sm"
-                    (click)="removeSecSubtaskField($index)"
-                    aria-label="Remove subtask field"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              }
-              <div class="form-actions">
-                @if (newSecondarySubtasks().length < 10) {
-                  <button
-                    class="add-subtask-btn add-subtask-btn-form"
-                    (click)="addSecSubtaskField()"
-                    aria-label="Add subtask field"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    subtask
-                  </button>
-                }
-              </div>
-            </div>
-          } @else if (canAddSecondary()) {
-            <div
-              class="add-placeholder add-placeholder-sec"
-              (click)="startAddingSecondary()"
-              (keydown.enter)="startAddingSecondary()"
-              role="button"
-              tabindex="0"
-              aria-label="Add a task"
-            >
-              <span class="add-placeholder-check add-placeholder-check-sec"></span>
-              <span class="add-placeholder-text add-placeholder-text-sec">add a task</span>
-            </div>
-          }
-        }
         </div><!-- /.sec-drop-zone -->
 
         @if (secondaryVisible() && secondaryCount() > 0) {
@@ -1121,9 +1236,57 @@
       </div>
     </div>
 
-    <div class="my-list-col my-last-list-col" >
-        <div class="my-tertiary-list-container"></div>
-    </div>
+    @if (doneTaskCount() > 0) {
+      <div class="my-list-col my-last-list-col">
+        <div class="my-tertiary-list-container">
+          <h2 class="section-title done-list-title">Done</h2>
+          <div class="done-list" role="list" aria-label="Done tasks">
+            @for (task of doneTasks(); track task.id) {
+              <div class="done-task-item" role="listitem">
+                <button
+                  class="check-btn checked"
+                  (click)="restoreDoneTask(task)"
+                  [attr.aria-label]="'Mark incomplete: ' + task.text"
+                >
+                  <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </button>
+                <div class="done-task-body">
+                  <span class="done-task-text">
+                    @for (segment of linkSegments(task.text); track $index) {
+                      @if (segment.href; as href) {
+                        <a
+                          class="task-link"
+                          [href]="href"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          (pointerdown)="$event.stopPropagation()"
+                          (click)="openTaskLink($event, href)"
+                          [textContent]="segment.text"
+                        ></a>
+                      } @else {
+                        <span [textContent]="segment.text"></span>
+                      }
+                    }
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
   </div>
 
   <footer class="site-footer">
