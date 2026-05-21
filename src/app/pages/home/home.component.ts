@@ -1289,7 +1289,7 @@ export class HomeComponent implements OnDestroy {
     let found = false;
     const items = this.normalizeStoredItemPositions(list.items.map(item => {
       const task = this.normalizeTask(item.content, item.id);
-      if (item.id === id && !item.deleted && !task.done) {
+      if (!found && item.id === id && !item.deleted && !task.done) {
         found = true;
         return {
           ...item,

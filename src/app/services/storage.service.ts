@@ -148,6 +148,27 @@ function normalizeItem(value: unknown, position: number, fallbackTimestamp: stri
   };
 }
 
+function normalizeUniqueItems(items: StoredItem[]): StoredItem[] {
+  const usedIds = new Set<string>();
+  return items.map((item) => {
+    if (!usedIds.has(item.id)) {
+      usedIds.add(item.id);
+      return item;
+    }
+
+    const id = generateId();
+    usedIds.add(id);
+    return {
+      ...item,
+      id,
+      content: normalizeTaskContent(item.content, id),
+      serverRevision: 0,
+      created: true,
+      dirty: true,
+    };
+  });
+}
+
 function normalizeList(value: LegacyList, index: number, fallbackTimestamp: string): StoredList {
   const timestamp = String(
     value.metadataLastModifiedAt ?? value.lastModifiedAt ?? fallbackTimestamp,
@@ -168,8 +189,7 @@ function normalizeList(value: LegacyList, index: number, fallbackTimestamp: stri
     ...(value.dirty === true ? { dirty: true } : {}),
     ...(value.itemsOrderDirty === true ? { itemsOrderDirty: true } : {}),
     isBacklog: Boolean(value.isBacklog ?? index === 1),
-    items: rawItems
-      .map((item, itemIndex) => normalizeItem(item, itemIndex, timestamp))
+    items: normalizeUniqueItems(rawItems.map((item, itemIndex) => normalizeItem(item, itemIndex, timestamp)))
       .sort((a, b) => a.position - b.position),
   };
 }
@@ -214,8 +234,8 @@ function normalizePartition(value: unknown): Partition {
 
 function createDefaultPartition(): Partition {
   const timestamp = nowIso();
-  const workMainTaskId = generateId();
-  const workLaterTaskId = generateId();
+  const workMainTaskIds = [generateId(), generateId()];
+  const workLaterTaskIds = [generateId(), generateId(), generateId()];
 
   return {
     sectionOrderRevision: 0,
@@ -240,21 +260,16 @@ function createDefaultPartition(): Partition {
             isBacklog: false,
             items: [
               {
-                id: workMainTaskId,
-                content: { id: workMainTaskId, text: 'Review report', done: false, subtasks: [] },
+                id: workMainTaskIds[0],
+                content: { id: workMainTaskIds[0], text: 'Review slides', done: false, subtasks: [] },
                 position: 0,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
                 dirty: true,
               },
               {
-                id: workMainTaskId,
-                content: {
-                  id: workMainTaskId,
-                  text: 'Add missing documentation',
-                  done: false,
-                  subtasks: [],
-                },
+                id: workMainTaskIds[1],
+                content: { id: workMainTaskIds[1], text: 'Call John', done: false, subtasks: [] },
                 position: 1,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
@@ -273,34 +288,29 @@ function createDefaultPartition(): Partition {
             isBacklog: true,
             items: [
               {
-                id: workLaterTaskId,
-                content: {
-                  id: workLaterTaskId,
-                  text: 'Prepare presentation',
-                  done: false,
-                  subtasks: [],
-                },
+                id: workLaterTaskIds[0],
+                content: { id: workLaterTaskIds[0], text: 'Generate report', done: false, subtasks: [] },
                 position: 0,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
                 dirty: true,
               },
               {
-                id: workLaterTaskId,
-                content: { id: workLaterTaskId, text: 'Call John', done: false, subtasks: [] },
+                id: workLaterTaskIds[1],
+                content: {
+                  id: workLaterTaskIds[1],
+                  text: 'Submit review to the team',
+                  done: false,
+                  subtasks: [],
+                },
                 position: 1,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
                 dirty: true,
               },
               {
-                id: workMainTaskId,
-                content: {
-                  id: workMainTaskId,
-                  text: 'Submit the review before the meeting',
-                  done: false,
-                  subtasks: [],
-                },
+                id: workLaterTaskIds[2],
+                content: { id: workLaterTaskIds[2], text: 'Add missing section', done: false, subtasks: [] },
                 position: 2,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
