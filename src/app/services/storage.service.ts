@@ -75,6 +75,7 @@ type LegacyList = Partial<StoredList> & {
 
 const LS_PREFIX = 'splendide_v2_';
 const ANONYMOUS_KEY = `${LS_PREFIX}anonymous`;
+const PUBLIC_KEY_PREFIX = `${LS_PREFIX}public_`;
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -408,6 +409,10 @@ export class StorageService {
     return userId ? `${LS_PREFIX}nominal_${userId}` : ANONYMOUS_KEY;
   }
 
+  private buildPublicKey(publicId: string): string {
+    return `${PUBLIC_KEY_PREFIX}${publicId}`;
+  }
+
   private legacyUserKeys(userId: string): string[] {
     return [`${LS_PREFIX}${userId}`, `${LS_PREFIX}premium_${userId}`];
   }
@@ -448,6 +453,10 @@ export class StorageService {
     if (userId) this.migrateLegacyUserPartition(userId);
   }
 
+  setActivePublicPartition(publicId: string): void {
+    this.activeKey = this.buildPublicKey(publicId);
+  }
+
   isPartitionEmpty(userId?: string): boolean {
     const partition = this.readPartition(this.buildKey(userId));
     return !partition || partition.sections.filter((section) => !section.deleted).length === 0;
@@ -458,9 +467,15 @@ export class StorageService {
     return suffix.startsWith('nominal_') ? suffix.slice('nominal_'.length) : undefined;
   }
 
+  getActivePublicId(): string | undefined {
+    if (!this.activeKey.startsWith(PUBLIC_KEY_PREFIX)) return undefined;
+    const publicId = this.activeKey.slice(PUBLIC_KEY_PREFIX.length);
+    return publicId.length > 0 ? publicId : undefined;
+  }
+
   load(): Partition {
     const partition = this.readPartition(this.activeKey);
-    if (!this.getActiveUserId()) {
+    if (!this.getActiveUserId() && !this.getActivePublicId()) {
       if (!partition || partition.sections.filter((section) => !section.deleted).length === 0) {
         const created = createDefaultPartition();
         this.save(created);

@@ -2,10 +2,17 @@
   <!-- ═══ Top bar ═══ -->
 
   <div class="my-top-bar">
-    <div class="my-left logo">splendide. </div>
+    @if (isPublicPage()) {
+      <a class="my-left logo logo-link logo-shared" routerLink="/" aria-label="Go to Splendide">
+        splendide.<sup>shared</sup>
+      </a>
+    } @else {
+      <div class="my-left logo">splendide. </div>
+    }
     <div class="my-title"></div>
     <div>
       <div class="my-buttons">
+        @if (!isPublicPage()) {
         <div class="user-menu-wrapper">
           <button
             class="icon-btn"
@@ -65,6 +72,7 @@
             </div>
           }
         </div>
+        }
 
         <button
           class="icon-btn"
@@ -110,7 +118,7 @@
           }
         </button>
         <div class="my-upgrade-desktop">
-          @if (auth.isLoggedIn() && !auth.isPremium()) {
+          @if (!isPublicPage() && auth.isLoggedIn() && !auth.isPremium()) {
             <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium"
               >upgrade ✦</a
             >
@@ -121,13 +129,83 @@
   </div>
   <div class="my-below-top-bar">
     <div class="my-upgrade-mobile">
-      @if (auth.isLoggedIn() && !auth.isPremium()) {
+      @if (!isPublicPage() && auth.isLoggedIn() && !auth.isPremium()) {
         <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium">upgrade</a>
       }
     </div>
   </div>
 
   <!-- ═══ Section Nav (mobile) ═══ -->
+  @if (publicLoadFailed()) {
+    <main class="public-expired" aria-live="polite">
+      <h1>This public page has expired</h1>
+      <p>Public pages are removed after six months without activity.</p>
+    </main>
+  } @else {
+
+  @if (isPublicPage()) {
+    <div class="public-toolbar">
+      <a class="private-space-btn" routerLink="/">
+        <svg
+          class="public-action-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        private spaces
+      </a>
+      <div class="public-share-wrapper" data-public-share>
+        <button
+          class="public-share-btn"
+          (click)="toggleShareMenu()"
+          aria-label="Share public section"
+          [attr.aria-expanded]="shareMenuOpen()"
+        >
+          <svg
+            class="public-action-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+            <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+          </svg>
+          share
+        </button>
+        @if (shareMenuOpen()) {
+          <div class="public-share-popover">
+            <p class="public-share-title">Share this space</p>
+            <p class="public-share-copy">Anyone with the link can collaborate.</p>
+            <div class="public-share-link-row">
+              <input class="public-share-link" type="text" [value]="publicShareUrl()" readonly aria-label="Public section link" />
+              <button class="public-copy-btn" (click)="copyPublicLink()">copy</button>
+            </div>
+            @if (shareToastVisible()) {
+              <span class="public-share-toast" aria-live="polite">link copied</span>
+            }
+          </div>
+        }
+      </div>
+     </div>
+  } @else {
+
   <div class="section-nav-mobile">
     <div class="section-nav-left">
       @if (showPrevArrow()) {
@@ -212,6 +290,10 @@
               >
                 add new tab
               </button>
+              <button class="section-menu-item section-menu-item-icon" (click)="createPublicSection()">
+                <span class="section-menu-plus" aria-hidden="true">+</span>
+                <span>shareable section</span>
+              </button>
               @if (sections().length > 1) {
                 <button class="section-menu-item danger" (click)="startDeletingActiveSectionFromMenu()">
                   delete tab
@@ -243,12 +325,13 @@
     </div>
   </div>
   <!-- ═══ Section Tabs (desktop) ═══ -->
-  <div
-    class="section-tabs"
-    cdkDropList
-    cdkDropListOrientation="horizontal"
-    (cdkDropListDropped)="dropSection($any($event))"
-  >
+  <div class="section-tabs-row">
+    <div
+      class="section-tabs"
+      cdkDropList
+      cdkDropListOrientation="horizontal"
+      (cdkDropListDropped)="dropSection($any($event))"
+    >
     @for (sec of sections(); track sec.id) {
         <div
           class="section-tab"
@@ -323,6 +406,9 @@
         </div>
       }
 
+    </div>
+
+    <div class="section-tabs-actions">
       @if (canAddSection()) {
         <div>
           @if (addingSectionTitle() !== null) {
@@ -345,9 +431,45 @@
           }
         </div>
       }
+      <div class="section-menu-wrapper section-public-menu">
+        <button
+          class="section-menu-trigger"
+          (click)="toggleSectionMenu()"
+          aria-label="Section actions"
+          [attr.aria-expanded]="sectionMenuOpen()"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="5" r="1" />
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="12" cy="19" r="1" />
+          </svg>
+        </button>
+        @if (sectionMenuOpen()) {
+          <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
+          <div class="section-menu">
+            <button class="section-menu-item section-menu-item-icon" (click)="createPublicSection()">
+              <span class="section-menu-plus" aria-hidden="true">+</span>
+              <span>shareable section</span>
+            </button>
+          </div>
+        }
+      </div>
+    </div>
   </div>
 
   <!-- ═══ Lists ═══ -->
+  }
+
   <div class="lists">
 
     <!-- ═══ Main Section ═══ -->
@@ -1288,6 +1410,7 @@
       </div>
     }
   </div>
+  }
 
   <footer class="site-footer">
     <a routerLink="/terms">terms</a>

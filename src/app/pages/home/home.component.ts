@@ -1,10 +1,12 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy, HostListener } from '@angular/core';
 import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { driver } from 'driver.js';
 import { AuthService } from '../../services/auth.service';
 import { ThemeService } from '../../services/theme.service';
 import { StorageService, StoredSection, StoredList, StoredItem } from '../../services/storage.service';
 import { SyncService } from '../../services/sync.service';
+import { PublicSyncService } from '../../services/public-sync.service';
 import { openExternalUrl } from '../../utils/external-link';
 
 interface Subtask {
@@ -57,10 +59,17 @@ export class HomeComponent implements OnDestroy {
   protected readonly auth = inject(AuthService);
   private readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly storage = inject(StorageService);
   private readonly sync = inject(SyncService);
+  private readonly publicSync = inject(PublicSyncService);
 
   protected readonly dark = this.theme.dark;
+  protected readonly publicPageId = signal<string | null>(null);
+  protected readonly publicLoadFailed = signal(false);
+  protected readonly shareMenuOpen = signal(false);
+  protected readonly shareToastVisible = signal(false);
+  protected readonly isPublicPage = computed(() => this.publicPageId() !== null);
 
   // ─── Sections ───────────────────────────────────────────
   protected readonly sections = signal<StoredSection[]>([]);
@@ -166,6 +175,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly showNextArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() < this.sections().length - 1);
 
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
+  private shareToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     void this.initFromStorage();
@@ -243,6 +253,9 @@ export class HomeComponent implements OnDestroy {
     if (this.secTaskMenuOpenId() !== null && !target.closest('[data-sec-task-menu]')) {
       this.secTaskMenuOpenId.set(null);
     }
+    if (this.shareMenuOpen() && !target.closest('[data-public-share]')) {
+      this.shareMenuOpen.set(false);
+    }
   }
 
   ngOnDestroy(): void {
@@ -250,18 +263,30 @@ export class HomeComponent implements OnDestroy {
       clearInterval(this.syncIntervalId);
       this.syncIntervalId = null;
     }
+    if (this.shareToastTimer !== null) {
+      clearTimeout(this.shareToastTimer);
+      this.shareToastTimer = null;
+    }
   }
 
   private async initFromStorage(): Promise<void> {
+    const publicId = this.route.snapshot.paramMap.get('id');
+    if (publicId) {
+      await this.initPublicPage(publicId);
+      return;
+    }
+
     if (this.auth.isLoggedIn()) {
       await this.auth.fetchUser();
     }
 
     const userId = this.auth.user()?.id;
+    let shouldShowCoachMarks = false;
     if (userId) {
       this.storage.setActivePartition(userId);
     } else {
       this.storage.setActivePartition();
+      shouldShowCoachMarks = this.storage.isPartitionEmpty();
     }
 
     const loaded = this.storage.loadSections();
@@ -275,6 +300,29 @@ export class HomeComponent implements OnDestroy {
       await this.doFullSync();
     } else {
       this.startPeriodicSync();
+    }
+
+    if (shouldShowCoachMarks) {
+      this.scheduleCoachMarks();
+    }
+  }
+
+  private async initPublicPage(publicId: string): Promise<void> {
+    this.publicPageId.set(publicId);
+    this.publicLoadFailed.set(false);
+    this.storage.setActivePublicPartition(publicId);
+
+    try {
+      const section = await this.publicSync.loadPublicPage(publicId);
+      this.refreshSectionsFromStorage();
+      this.activeSectionId.set(section.id);
+      this.currentList.set('main');
+      this.clearKeyboardFocus('main');
+    } catch {
+      this.sections.set([]);
+      this.activeSectionId.set(null);
+      this.publicLoadFailed.set(true);
+      this.clearKeyboardFocus('main');
     }
   }
 
@@ -292,6 +340,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private startPeriodicSync(): void {
+    if (this.isPublicPage()) return;
     if (this.syncIntervalId !== null) return;
     this.syncIntervalId = setInterval(async () => {
       if (this.shouldSkipPeriodicSync()) return;
@@ -325,7 +374,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private shouldSkipPeriodicSync(): boolean {
-    return this.isEditing() || this.dragging();
+    return this.isPublicPage() || this.isEditing() || this.dragging();
   }
 
   private async doSyncSection(sectionId: string): Promise<void> {
@@ -358,6 +407,79 @@ export class HomeComponent implements OnDestroy {
 
   private refreshSectionsFromStorage(): void {
     this.sections.set(this.storage.loadSections());
+  }
+
+  private scheduleCoachMarks(): void {
+    afterNextRender(() => {
+      window.setTimeout(() => this.startCoachMarks(), 350);
+    }, { injector: this.injector });
+  }
+
+  private startCoachMarks(): void {
+    if (this.isPublicPage() || this.isEditing()) return;
+
+    const mainListTarget = document.querySelector<HTMLElement>('.my-primary-list-container');
+    const secondaryListTarget = document.querySelector<HTMLElement>('.my-secondary-list-container');
+    const renameTarget = document.querySelector<HTMLElement>('.main-list-title');
+    const addTarget = document.querySelector<HTMLElement>('.main-drop-zone .add-placeholder');
+    const moveTarget = document.querySelector<HTMLElement>('.main-drop-zone [data-keyboard-task]');
+    if (!mainListTarget || !secondaryListTarget || !renameTarget || !addTarget || !moveTarget) return;
+
+    driver({
+      allowClose: false,
+      allowKeyboardControl: false,
+      animate: true,
+      disableActiveInteraction: true,
+      overlayClickBehavior: () => {},
+      overlayOpacity: 0.28,
+      stagePadding: 6,
+      showButtons: ['next'],
+      nextBtnText: '→',
+      doneBtnText: '→',
+      popoverClass: 'splendide-coach-popover',
+      steps: [
+        {
+          element: mainListTarget,
+          popover: {
+            title: 'Things to do right now',
+            side: 'right',
+            align: 'start',
+          },
+        },
+        {
+          element: secondaryListTarget,
+          popover: {
+            title: 'Thing to keep in mind',
+            side: 'right',
+            align: 'start',
+          },
+        },
+        {
+          element: renameTarget,
+          popover: {
+            title: 'Rename a list',
+            side: 'bottom',
+            align: 'start',
+          },
+        },
+        {
+          element: addTarget,
+          popover: {
+            title: 'Add an item',
+            side: 'bottom',
+            align: 'start',
+          },
+        },
+        {
+          element: moveTarget,
+          popover: {
+            title: 'Drag to another list',
+            side: 'right',
+            align: 'start',
+          },
+        },
+      ],
+    }).drive();
   }
 
   protected setDragging(value: boolean): void {
@@ -668,6 +790,7 @@ export class HomeComponent implements OnDestroy {
   // ─── Section tab switching ─────────────────────────────
 
   protected selectSection(sectionId: string): void {
+    if (this.isPublicPage()) return;
     if (this.activeSectionId() === sectionId) return;
     this.sectionMenuOpen.set(false);
     this.activeSectionId.set(sectionId);
@@ -692,6 +815,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected dropSection(event: CdkDragDrop<StoredSection[]>): void {
+    if (this.isPublicPage()) return;
     if (event.previousIndex === event.currentIndex) return;
     const items = [...this.sections()];
     moveItemInArray(items, event.previousIndex, event.currentIndex);
@@ -723,6 +847,7 @@ export class HomeComponent implements OnDestroy {
   // ─── Section creation ──────────────────────────────────
 
   protected startAddingSection(): void {
+    if (this.isPublicPage()) return;
     if (!this.canAddSection() || this.isEditing()) return;
     this.sectionMenuOpen.set(false);
     this.addingSectionTitle.set('');
@@ -816,6 +941,7 @@ export class HomeComponent implements OnDestroy {
   // ─── Section rename ────────────────────────────────────
 
   protected startEditingSection(sectionId: string): void {
+    if (this.isPublicPage()) return;
     if (this.isEditing()) return;
     this.editingSectionId.set(sectionId);
     this.focusVisibleInput(`[data-edit-section="${sectionId}"]`, true);
@@ -883,6 +1009,42 @@ export class HomeComponent implements OnDestroy {
     this.startAddingSection();
   }
 
+  protected async createPublicSection(): Promise<void> {
+    if (this.isEditing()) return;
+    this.sectionMenuOpen.set(false);
+    const previousSectionId = this.activeSectionId();
+    const publicWindow = window.open('', '_blank');
+    try {
+      const section = await this.publicSync.createPublicPage();
+      this.restorePrivatePartition(previousSectionId);
+      const publicUrl = `${window.location.origin}${this.router.serializeUrl(
+        this.router.createUrlTree(['/public', section.id]),
+      )}`;
+      if (publicWindow) {
+        publicWindow.opener = null;
+        publicWindow.location.href = publicUrl;
+      } else {
+        window.open(publicUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      publicWindow?.close();
+      this.restorePrivatePartition(previousSectionId);
+      // The user can retry from the menu.
+    }
+  }
+
+  private restorePrivatePartition(previousSectionId: string | null): void {
+    this.storage.setActivePartition(this.auth.user()?.id);
+    this.refreshSectionsFromStorage();
+    const sections = this.sections();
+    this.activeSectionId.set(
+      previousSectionId && sections.some(section => section.id === previousSectionId)
+        ? previousSectionId
+        : sections[0]?.id ?? null,
+    );
+    this.clearKeyboardFocus('main');
+  }
+
   protected startDeletingActiveSectionFromMenu(): void {
     const sectionId = this.activeSectionId();
     if (!sectionId || this.sections().length < 2) return;
@@ -891,6 +1053,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private deleteSection(sectionId: string): void {
+    if (this.isPublicPage()) return;
     this.storage.removeSection(sectionId);
     this.refreshSectionsFromStorage();
     this.activeKeyboardTask.set(null);
@@ -1112,6 +1275,11 @@ export class HomeComponent implements OnDestroy {
     this.storage.upsertList(sectionId, updatedList);
     this.refreshSectionsFromStorage();
 
+    if (this.isPublicPage()) {
+      this.publicSync.syncPublicLists(sectionId).then(() => this.refreshSectionsFromStorage()).catch(() => {});
+      return;
+    }
+
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
       this.sync.syncSectionLists(sectionId).then(() => this.refreshSectionsFromStorage()).catch(() => {});
     }
@@ -1122,6 +1290,26 @@ export class HomeComponent implements OnDestroy {
   }
 
   private syncItemsForLists(sectionId: string, listIds: string[], syncSectionsFirst = false): void {
+    if (this.isPublicPage()) {
+      for (const listId of listIds) {
+        this.publicSync.reserveListItemsSync(sectionId, listId);
+      }
+
+      this.publicSync.syncPublicLists(sectionId)
+        .then(async () => {
+          for (const listId of listIds) {
+            await this.publicSync.syncPublicListItems(sectionId, listId);
+          }
+          const overflowListIds = this.enforceDoneTaskLimit(sectionId);
+          for (const listId of overflowListIds) {
+            await this.publicSync.syncPublicListItems(sectionId, listId);
+          }
+        })
+        .then(() => this.refreshSectionsFromStorage())
+        .catch(() => {});
+      return;
+    }
+
     if (!this.auth.isLoggedIn() || !this.auth.isPremium()) return;
 
     for (const listId of listIds) {
@@ -1164,6 +1352,19 @@ export class HomeComponent implements OnDestroy {
     }));
     this.storage.setItemsForList(sectionId, list.id, items, { markOrderDirty: true });
     this.refreshSectionsFromStorage();
+
+    if (this.isPublicPage()) {
+      const payload = tasks.map((task, position) => ({ id: task.id, position }));
+      const localItemsRevision = this.storage.getItemsRevision(sectionId, list.id);
+      this.publicSync.reorderPublicItems(sectionId, list.id, payload)
+        .then(result => {
+          if (localItemsRevision !== this.storage.getItemsRevision(sectionId, list.id)) return;
+          this.storage.applyItemPositions(sectionId, list.id, result.positions, result.orderRevision);
+          this.refreshSectionsFromStorage();
+        })
+        .catch(() => {});
+      return;
+    }
 
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
       const payload = tasks.map((task, position) => ({ id: task.id, position }));
@@ -1450,6 +1651,49 @@ export class HomeComponent implements OnDestroy {
 
   protected toggleDark(): void {
     this.theme.toggle();
+  }
+
+  protected toggleShareMenu(): void {
+    this.shareMenuOpen.update(open => !open);
+  }
+
+  protected publicShareUrl(): string {
+    const publicId = this.publicPageId();
+    return publicId ? `${window.location.origin}/public/${publicId}` : window.location.origin;
+  }
+
+  protected async copyPublicLink(): Promise<void> {
+    const publicId = this.publicPageId();
+    if (!publicId) return;
+
+    const url = this.publicShareUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      this.copyTextFallback(url);
+    }
+    this.showShareToast();
+  }
+
+  private copyTextFallback(value: string): void {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+  }
+
+  private showShareToast(): void {
+    this.shareToastVisible.set(true);
+    if (this.shareToastTimer !== null) clearTimeout(this.shareToastTimer);
+    this.shareToastTimer = setTimeout(() => {
+      this.shareToastVisible.set(false);
+      this.shareToastTimer = null;
+    }, 1800);
   }
 
   protected signOut(): void {
