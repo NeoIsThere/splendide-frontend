@@ -11,24 +11,24 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
   template: `
     <div class="auth-page">
       <div class="auth-card">
-        <a class="auth-back" routerLink="/" aria-label="Back to home">
+        <a class="auth-back" routerLink="/" aria-label="back to home">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
           </svg>
         </a>
         <h1 class="auth-logo">splendide.</h1>
         @if (!pendingVerification()) {
-          <h2 class="auth-title">Sign in</h2>
+          <h2 class="auth-title">sign in</h2>
         }
 
         @if (pendingVerification()) {
           <div class="auth-verify-notice" role="status">
-            <p>Your email isn't verified yet. Check your inbox or request a new link.</p>
+            <p>your email isn't verified yet. check your inbox or request a new link.</p>
             @if (resendSuccess()) {
-              <p class="auth-resend-success">A new link has been sent.</p>
+              <p class="auth-resend-success">a new link has been sent.</p>
             } @else {
               <button class="auth-resend-btn" [disabled]="resendLoading()" (click)="onResend()">
-                {{ resendLoading() ? 'Sending…' : 'Resend verification email' }}
+                {{ resendLoading() ? 'sending...' : 'resend verification email' }}
               </button>
             }
           </div>
@@ -38,10 +38,10 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
           }
 
           @if (googleLoading()) {
-            <p class="auth-loading">Signing in…</p>
+            <p class="auth-loading">signing in...</p>
           } @else {
           <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
-            <label class="auth-label" for="email">Email</label>
+            <label class="auth-label" for="email">email</label>
             <input
               id="email"
               class="auth-input"
@@ -52,11 +52,11 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
             />
             @if (form.controls.email.touched && form.controls.email.errors) {
               <p class="auth-field-error" role="alert">
-                Enter a valid email address.
+                enter a valid email address.
               </p>
             }
 
-            <label class="auth-label" for="password">Password</label>
+            <label class="auth-label" for="password">password</label>
             <input
               id="password"
               class="auth-input"
@@ -65,10 +65,10 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
               autocomplete="current-password"
             />
 
-            <a class="auth-forgot" routerLink="/forgot-password">Forgot password?</a>
+            <a class="auth-forgot" routerLink="/forgot-password">forgot password?</a>
 
             <button class="auth-btn" type="submit" [disabled]="loading()">
-              @if (loading()) { Signing in… } @else { Sign in }
+              @if (loading()) { signing in... } @else { sign in }
             </button>
           </form>
 
@@ -78,10 +78,10 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
           }
 
           <p class="auth-switch">
-            Don't have an account? <a routerLink="/sign-up">Sign up</a>
+            don't have an account? <a routerLink="/sign-up">sign up</a>
           </p>
           <p class="auth-legal">
-            <a routerLink="/terms">Terms</a> · <a routerLink="/privacy">Privacy</a>
+            <a routerLink="/terms">terms</a> / <a routerLink="/privacy">privacy</a>
           </p>
         }
       </div>
@@ -173,7 +173,7 @@ export class SignInComponent {
         this.pendingEmail = this.form.getRawValue().email;
         this.pendingVerification.set(true);
       } else {
-        this.error.set(e?.error?.error ?? 'Sign in failed. Please try again.');
+        this.error.set(e?.error?.error ?? 'sign in failed. please try again.');
       }
     } finally {
       this.loading.set(false);
@@ -201,7 +201,7 @@ export class SignInComponent {
       await this.auth.googleAuth(idToken);
       this.router.navigate(['/']);
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'Google sign in failed.');
+      this.error.set(e?.error?.error ?? 'google sign in failed.');
     } finally {
       this.loading.set(false);
       this.googleLoading.set(false);
@@ -216,7 +216,7 @@ export class SignInComponent {
       await this.auth.googleDesktopAuth();
       this.router.navigate(['/']);
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? e?.message ?? 'Google sign in failed.');
+      this.error.set(e?.error?.error ?? e?.message ?? 'google sign in failed.');
     } finally {
       this.loading.set(false);
       this.googleLoading.set(false);

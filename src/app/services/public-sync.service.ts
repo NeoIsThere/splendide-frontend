@@ -113,7 +113,7 @@ export class PublicSyncService {
       sections: [{
         ...section,
         position: 0,
-        title: section.title || 'Public',
+        title: section.title || 'public',
       }],
     });
     return this.storage.loadSections()[0] ?? section;

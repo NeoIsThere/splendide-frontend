@@ -56,6 +56,10 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   justify-content: flex-end;
 }
 
+.public-layout .my-below-top-bar {
+  height: 30px;
+}
+
 .my-upgrade-desktop {
   @media (max-width: 768px) {
     display: none;
@@ -302,13 +306,14 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .public-toolbar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 32px;
   min-height: 40px;
-  padding: 0 0 18px 32px;
+  padding: 0 0 24px 32px;
 
   @media (max-width: 768px) {
-    justify-content: center;
+    justify-content: space-between;
     padding: 0 0 24px;
   }
 }
@@ -324,11 +329,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   justify-content: center;
   gap: 7px;
   min-height: 34px;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--text-secondary));
+  border: none;
   background: transparent;
   color: var(--text-secondary);
-  border-radius: 6px;
-  padding: 7px 12px;
+  border-radius: 0;
+  padding: 7px 2px;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 500;
@@ -337,19 +342,15 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   cursor: pointer;
   white-space: nowrap;
   transition:
-    color 0.2s $ease,
-    border-color 0.2s $ease,
-    background 0.2s $ease;
+    color 0.2s $ease;
 
   &:hover {
     color: var(--text);
-    border-color: var(--text-secondary);
-    background: var(--hover-bg, rgba(128, 128, 128, 0.05));
   }
 
   &:focus-visible {
-    outline: 2px solid var(--text);
-    outline-offset: 2px;
+    outline: none;
+    color: var(--text);
   }
 }
 
@@ -409,30 +410,26 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .public-copy-btn {
-  border: 1px solid var(--border);
+  border: none;
   background: transparent;
   color: var(--text-secondary);
-  border-radius: 999px;
-  padding: 5px 12px;
+  border-radius: 0;
+  padding: 5px 2px;
   font: inherit;
   font-size: 0.78rem;
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
   transition:
-    color 0.2s $ease,
-    border-color 0.2s $ease,
-    background 0.2s $ease;
+    color 0.2s $ease;
 
   &:hover {
     color: var(--text);
-    border-color: var(--text-secondary);
-    background: var(--hover-bg, rgba(128, 128, 128, 0.08));
   }
 
   &:focus-visible {
-    outline: 2px solid var(--text);
-    outline-offset: 2px;
+    outline: none;
+    color: var(--text);
   }
 }
 
@@ -572,6 +569,10 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
+.section-tab-static {
+  cursor: default;
+}
+
 .section-tab-actions {
   height: 30px;
   display: flex;
@@ -582,6 +583,13 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
     margin-top: 0;
     width: max-content;
     justify-content: center;
+  }
+}
+
+.section-tab-add,
+.section-tab-draft {
+  .section-tab-actions {
+    pointer-events: none;
   }
 }
 
@@ -631,6 +639,26 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
+.section-tab-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-muted);
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:disabled {
+    cursor: default;
+    color: var(--text-muted);
+    opacity: 0.45;
+  }
+}
+
 .section-tab-input,
 .section-add-input {
   background: none;
@@ -651,32 +679,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   border-radius: 8px 8px 0 0;
 }
 
-.add-btn-section {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 10px;
-  font-size: 1.5rem !important;
-  width: 30px !important;
-  line-height: 1;
-  color: var(--text-muted);
-  transition: color 0.2s $ease;
-  flex-shrink: 0;
-
-  &:hover {
-    color: var(--text);
-  }
-}
-
-.add-btn-section-label {
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 0.9rem !important;
-  line-height: normal !important;
-  width: auto !important;
-  white-space: nowrap;
+.section-add-input-tab {
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  text-align: center;
 }
 
 .section-actions {
@@ -779,6 +786,12 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   @include quiet-scrollbar;
 }
 
+.public-layout .lists {
+  @media (min-width: 768px) {
+    grid-template-columns: minmax(320px, 520px) minmax(220px, 1fr);
+  }
+}
+
 .my-list-col {
   @media (max-width: 768px) {
     display: flex;
@@ -876,11 +889,10 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   margin-left: 3px;
   margin-top: 2px;
   color: var(--text-muted);
-  font-size: 0.55rem;
+  font-size: 0.62rem;
   font-weight: 500;
   letter-spacing: 0.08em;
   line-height: 1;
-  text-transform: uppercase;
 }
 
 // ─── Upgrade link ──────────────────────────────────────────
@@ -943,7 +955,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .user-menu-badge {
   font-size: 0.68rem;
   color: var(--text-muted);
-  text-transform: uppercase;
   letter-spacing: 0.1em;
   margin: 0 0 10px;
   font-weight: 600;
@@ -1755,6 +1766,25 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 // ─── Empty / done states ───────────────────────────────────
 @media (max-width: 768px) {
+  .main-section .section-title,
+  .secondary-section .section-title {
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .task-text,
+  .sec-task-text,
+  .subtask-text,
+  .edit-input,
+  .edit-input-sec,
+  .edit-input-sub,
+  .input-minimal,
+  .input-sec,
+  .input-sub {
+    color: var(--text);
+    font-weight: 500;
+  }
+
   .sec-header .section-title,
   .list-title-input,
   .sec-task-text,

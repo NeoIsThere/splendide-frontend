@@ -12,24 +12,24 @@ import { openExternalUrl } from '../../utils/external-link';
     <div class="settings-page">
       <div class="settings-card">
 
-        <a class="auth-back" routerLink="/" aria-label="Back to home">
+        <a class="auth-back" routerLink="/" aria-label="back to home">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
           </svg>
         </a>
 
         <h1 class="auth-logo">splendide.</h1>
-        <h2 class="auth-title">Settings</h2>
+        <h2 class="auth-title">settings</h2>
 
         <!-- ── Go Premium ───────────────────────────────── -->
         @if (!auth.isPremium()) {
           <section class="settings-section">
             <div class="settings-section-header">
-              <h3 class="settings-section-title">Go Premium</h3>
-              <p class="settings-section-desc">Unlock unlimited sections and priority support.</p>
+              <h3 class="settings-section-title">go premium</h3>
+              <p class="settings-section-desc">unlock unlimited sections and priority support.</p>
             </div>
             <button class="settings-btn settings-btn--accent" (click)="goPremium()">
-              Upgrade to Premium
+              upgrade to premium
             </button>
           </section>
         }
@@ -38,18 +38,18 @@ import { openExternalUrl } from '../../utils/external-link';
         @if (auth.user()?.hasPassword) {
           <section class="settings-section">
             <div class="settings-section-header">
-              <h3 class="settings-section-title">Change Password</h3>
-              <p class="settings-section-desc">Update your account password.</p>
+              <h3 class="settings-section-title">change password</h3>
+              <p class="settings-section-desc">update your account password.</p>
             </div>
 
             @if (pwSuccess()) {
-              <p class="settings-success">Password changed successfully.</p>
+              <p class="settings-success">password changed successfully.</p>
             } @else {
               <form [formGroup]="pwForm" (ngSubmit)="submitChangePassword()" class="settings-form">
                 @if (pwError()) {
                   <p class="settings-error" role="alert">{{ pwError() }}</p>
                 }
-                <label class="auth-label" for="currentPassword">Current password</label>
+                <label class="auth-label" for="currentPassword">current password</label>
                 <input
                   id="currentPassword"
                   class="auth-input"
@@ -57,7 +57,7 @@ import { openExternalUrl } from '../../utils/external-link';
                   formControlName="currentPassword"
                   autocomplete="current-password"
                 />
-                <label class="auth-label" for="newPassword">New password</label>
+                <label class="auth-label" for="newPassword">new password</label>
                 <input
                   id="newPassword"
                   class="auth-input"
@@ -67,10 +67,10 @@ import { openExternalUrl } from '../../utils/external-link';
                   autocomplete="new-password"
                 />
                 @if (pwForm.controls.newPassword.touched && pwForm.controls.newPassword.errors?.['minlength']) {
-                  <p class="settings-field-error" role="alert">Password must be at least 8 characters.</p>
+                  <p class="settings-field-error" role="alert">password must be at least 8 characters.</p>
                 }
                 <button class="settings-btn settings-btn--primary" type="submit" [disabled]="pwLoading()">
-                  {{ pwLoading() ? 'Saving…' : 'Save password' }}
+                  {{ pwLoading() ? 'saving...' : 'save password' }}
                 </button>
               </form>
             }
@@ -80,41 +80,41 @@ import { openExternalUrl } from '../../utils/external-link';
         <!-- ── Delete Account ───────────────────────────── -->
         <section class="settings-section settings-section--danger">
           <div class="settings-section-header">
-            <h3 class="settings-section-title settings-section-title--danger">Delete Account</h3>
+            <h3 class="settings-section-title settings-section-title--danger">delete account</h3>
             <p class="settings-section-desc">
               @if (auth.isPremium()) {
-                Cancel your subscription before deleting your account.
+                cancel your subscription before deleting your account.
               } @else {
-                Permanently delete your account and all data. This cannot be undone.
+                permanently delete your account and all data. this cannot be undone.
               }
             </p>
           </div>
 
           @if (auth.isPremium()) {
             <button class="settings-btn settings-btn--primary" [disabled]="subscriptionLoading()" (click)="manageSubscription()">
-              {{ subscriptionLoading() ? 'Opening...' : 'Manage subscription' }}
+              {{ subscriptionLoading() ? 'opening...' : 'manage subscription' }}
             </button>
             @if (deleteError()) {
               <p class="settings-error" role="alert">{{ deleteError() }}</p>
             }
           } @else if (!confirmDelete()) {
             <button class="settings-btn settings-btn--danger-outline" (click)="confirmDelete.set(true)">
-              Delete my account
+              delete my account
             </button>
           } @else {
-            <p class="settings-confirm-text">Type <strong>Delete</strong> to confirm account deletion.</p>
+            <p class="settings-confirm-text">type <strong>delete</strong> to confirm account deletion.</p>
             <input
               class="settings-delete-input"
               type="text"
-              placeholder="Delete"
+              placeholder="delete"
               autocomplete="off"
               [value]="deleteConfirmText()"
               (input)="deleteConfirmText.set($any($event.target).value)"
             />
             <div class="settings-confirm-actions">
-              <button class="settings-btn settings-btn--ghost" (click)="confirmDelete.set(false); deleteConfirmText.set('')">Cancel</button>
-              <button class="settings-btn settings-btn--danger" [disabled]="deleteLoading() || deleteConfirmText() !== 'Delete'" (click)="deleteAccount()">
-                {{ deleteLoading() ? 'Deleting…' : 'Yes, delete everything' }}
+              <button class="settings-btn settings-btn--ghost" (click)="confirmDelete.set(false); deleteConfirmText.set('')">cancel</button>
+              <button class="settings-btn settings-btn--danger" [disabled]="deleteLoading() || deleteConfirmText() !== 'delete'" (click)="deleteAccount()">
+                {{ deleteLoading() ? 'deleting...' : 'yes, delete everything' }}
               </button>
             </div>
             @if (deleteError()) {
@@ -302,7 +302,7 @@ export class SettingsComponent {
       this.pwSuccess.set(true);
       this.pwForm.reset();
     } catch (e: any) {
-      this.pwError.set(e?.error?.error ?? 'Failed to change password.');
+      this.pwError.set(e?.error?.error ?? 'failed to change password.');
     } finally {
       this.pwLoading.set(false);
     }
@@ -330,14 +330,14 @@ export class SettingsComponent {
         this.subscriptionLoading.set(false);
       }
     } catch (e: any) {
-      this.deleteError.set(e?.error?.error ?? 'Could not open subscription management.');
+      this.deleteError.set(e?.error?.error ?? 'could not open subscription management.');
       this.subscriptionLoading.set(false);
     }
   }
 
   protected async deleteAccount(): Promise<void> {
     if (this.auth.isPremium()) {
-      this.deleteError.set('Cancel your active subscription before deleting your account.');
+      this.deleteError.set('cancel your active subscription before deleting your account.');
       return;
     }
     this.deleteLoading.set(true);
@@ -345,7 +345,7 @@ export class SettingsComponent {
     try {
       await this.auth.deleteAccount();
     } catch (e: any) {
-      this.deleteError.set(e?.error?.error ?? 'Failed to delete account.');
+      this.deleteError.set(e?.error?.error ?? 'failed to delete account.');
       this.deleteLoading.set(false);
     }
   }

@@ -75,7 +75,7 @@ export class AuthService {
   async googleDesktopAuth(): Promise<{ isNewUser: boolean }> {
     const desktop = window.splendideDesktop;
     if (!desktop?.isDesktop) {
-      throw new Error('Desktop Google sign-in is only available in the Electron app.');
+      throw new Error('desktop google sign-in is only available in the electron app.');
     }
 
     const oauth = await desktop.startGoogleOAuth(environment.googleClientId);

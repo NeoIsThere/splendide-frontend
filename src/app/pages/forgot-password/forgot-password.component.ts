@@ -11,24 +11,24 @@ import { AuthService } from '../../services/auth.service';
     <div class="auth-page">
       <div class="auth-card">
         <h1 class="auth-logo">splendide.</h1>
-        <h2 class="auth-title">Forgot password</h2>
+        <h2 class="auth-title">forgot password</h2>
 
         @if (sent()) {
           <p class="auth-success" role="status">
-            If an account with that email exists, a reset link has been sent. Check your inbox.
+            if an account with that email exists, a reset link has been sent. check your inbox.
           </p>
           <p class="auth-switch">
-            <a routerLink="/sign-in">Back to sign in</a>
+            <a routerLink="/sign-in">back to sign in</a>
           </p>
         } @else {
           @if (error()) {
             <p class="auth-error" role="alert">{{ error() }}</p>
           }
 
-          <p class="auth-subtitle">Enter your email and we'll send you a reset link.</p>
+          <p class="auth-subtitle">enter your email and we'll send you a reset link.</p>
 
           <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
-            <label class="auth-label" for="email">Email</label>
+            <label class="auth-label" for="email">email</label>
             <input
               id="email"
               class="auth-input"
@@ -38,12 +38,12 @@ import { AuthService } from '../../services/auth.service';
             />
 
             <button class="auth-btn" type="submit" [disabled]="loading()">
-              @if (loading()) { Sending… } @else { Send reset link }
+              @if (loading()) { sending... } @else { send reset link }
             </button>
           </form>
 
           <p class="auth-switch">
-            <a routerLink="/sign-in">Back to sign in</a>
+            <a routerLink="/sign-in">back to sign in</a>
           </p>
         }
       </div>
@@ -71,7 +71,7 @@ export class ForgotPasswordComponent {
       await this.auth.forgotPassword(this.form.getRawValue().email);
       this.sent.set(true);
     } catch {
-      this.error.set('Something went wrong. Please try again.');
+      this.error.set('something went wrong. please try again.');
     } finally {
       this.loading.set(false);
     }

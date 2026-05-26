@@ -16,32 +16,32 @@ type State = 'loading' | 'success' | 'invalid' | 'expired';
 
         @switch (state()) {
           @case ('loading') {
-            <p class="auth-loading">Verifying your email…</p>
+            <p class="auth-loading">verifying your email...</p>
           }
 
           @case ('success') {
-            <h2 class="auth-title">Email verified</h2>
-            <p class="verify-msg">Your account is ready. Redirecting…</p>
+            <h2 class="auth-title">email verified</h2>
+            <p class="verify-msg">your account is ready. redirecting...</p>
           }
 
           @case ('invalid') {
-            <h2 class="auth-title">Invalid link</h2>
-            <p class="verify-msg">This verification link is invalid or has already been used.</p>
-            <a class="auth-btn auth-btn--block" routerLink="/sign-up">Back to sign up</a>
+            <h2 class="auth-title">invalid link</h2>
+            <p class="verify-msg">this verification link is invalid or has already been used.</p>
+            <a class="auth-btn auth-btn--block" routerLink="/sign-up">back to sign up</a>
           }
 
           @case ('expired') {
-            <h2 class="auth-title">Link expired</h2>
-            <p class="verify-msg">Your verification link has expired. Enter your email to receive a new one.</p>
+            <h2 class="auth-title">link expired</h2>
+            <p class="verify-msg">your verification link has expired. enter your email to receive a new one.</p>
 
             @if (resendSuccess()) {
-              <p class="verify-resend-success">A new verification link has been sent. Check your inbox.</p>
+              <p class="verify-resend-success">a new verification link has been sent. check your inbox.</p>
             } @else {
               <form [formGroup]="resendForm" (ngSubmit)="onResend()" class="auth-form">
                 @if (resendError()) {
                   <p class="auth-error" role="alert">{{ resendError() }}</p>
                 }
-                <label class="auth-label" for="resend-email">Email</label>
+                <label class="auth-label" for="resend-email">email</label>
                 <input
                   id="resend-email"
                   class="auth-input"
@@ -50,10 +50,10 @@ type State = 'loading' | 'success' | 'invalid' | 'expired';
                   autocomplete="email"
                 />
                 @if (resendForm.controls.email.touched && resendForm.controls.email.errors) {
-                  <p class="auth-field-error" role="alert">Enter a valid email address.</p>
+                  <p class="auth-field-error" role="alert">enter a valid email address.</p>
                 }
                 <button class="auth-btn" type="submit" [disabled]="resendLoading()">
-                  {{ resendLoading() ? 'Sending…' : 'Resend verification email' }}
+                  {{ resendLoading() ? 'sending...' : 'resend verification email' }}
                 </button>
               </form>
             }

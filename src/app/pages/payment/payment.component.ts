@@ -287,21 +287,21 @@ function guessCurrency(): string {
       <h1 class="logo">splendide.</h1>
       <div class="content">
         @if (mode() === 'success') {
-          <h2 class="result-title">Welcome to Premium.</h2>
-          <p class="result-text">Your subscription is active. Tasks now sync across all your devices.</p>
-          <a class="result-link" routerLink="/" (click)="onEnjoyIt()">Enjoy it</a>
+          <h2 class="result-title">welcome to premium.</h2>
+          <p class="result-text">your subscription is active. tasks now sync across all your devices.</p>
+          <a class="result-link" routerLink="/" (click)="onEnjoyIt()">enjoy it</a>
         } @else if (mode() === 'cancel') {
-          <h2 class="result-title">Payment cancelled</h2>
-          <p class="result-text">No worries — you can upgrade anytime.</p>
-          <a class="result-link" routerLink="/">Back to tasks</a>
+          <h2 class="result-title">payment cancelled</h2>
+          <p class="result-text">no worries - you can upgrade anytime.</p>
+          <a class="result-link" routerLink="/">back to tasks</a>
         } @else {
-          <h2 class="title">Synchronize on all your devices.</h2>
+          <h2 class="title">synchronize on all your devices.</h2>
           <p class="description">
-            Keep your tasks synced, and accessible across all your devices.
+            keep your tasks synced, and accessible across all your devices.
           </p>
 
           @if (availableBillingIntervals().length > 1) {
-            <div class="billing-toggle" role="group" aria-label="Billing period">
+            <div class="billing-toggle" role="group" aria-label="billing period">
               @for (interval of availableBillingIntervals(); track interval) {
                 <button
                   type="button"
@@ -323,10 +323,10 @@ function guessCurrency(): string {
                   class="currency-select"
                   [value]="selectedCurrency()"
                   (change)="onCurrencyChange($event)"
-                  aria-label="Currency"
+                  aria-label="currency"
                 >
                   @for (opt of availableCurrencies(); track opt) {
-                    <option [value]="opt">{{ opt.toUpperCase() }}</option>
+                    <option [value]="opt">{{ opt }}</option>
                   }
                 </select>
               }
@@ -340,29 +340,29 @@ function guessCurrency(): string {
           }
 
           <button class="pay-btn" (click)="checkout()" [disabled]="loading() || !currentPrice()">
-            @if (loading()) { Redirecting to checkout… } @else { Subscribe with Stripe }
+            @if (loading()) { redirecting to checkout... } @else { subscribe with stripe }
           </button>
 
           @if (externalCheckoutPending()) {
-            <p class="checkout-note">Checkout is open in your browser. Keep Splendide open and it will update when payment is complete.</p>
+            <p class="checkout-note">checkout is open in your browser. keep splendide open and it will update when payment is complete.</p>
           }
 
-          <a class="back" routerLink="/">Maybe later</a>
+          <a class="back" routerLink="/">maybe later</a>
 
           @if (!showCodeInput()) {
-            <button class="code-link" (click)="showCodeInput.set(true)">I have a code</button>
+            <button class="code-link" (click)="showCodeInput.set(true)">i have a code</button>
           } @else {
             <div class="code-form">
               <input
                 class="code-input"
                 type="text"
-                placeholder="Enter your code"
+                placeholder="enter your code"
                 [value]="codeValue()"
                 (input)="codeValue.set($any($event.target).value)"
                 (keydown.enter)="redeemCode()"
                 maxlength="64"
               />
-              <button class="code-btn" (click)="redeemCode()" [disabled]="codeLoading() || !codeValue().trim()">Redeem</button>
+              <button class="code-btn" (click)="redeemCode()" [disabled]="codeLoading() || !codeValue().trim()">redeem</button>
             </div>
           }
         }
@@ -444,7 +444,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
   }
 
   protected billingIntervalLabel(interval: BillingInterval): string {
-    return interval === 'yearly' ? 'Yearly' : 'Monthly';
+    return interval === 'yearly' ? 'yearly' : 'monthly';
   }
 
   protected billingPeriodLabel(): string {
@@ -469,7 +469,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
         this.pollPremiumAfterExternalCheckout();
       }
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'Could not start checkout. Please try again.');
+      this.error.set(e?.error?.error ?? 'could not start checkout. please try again.');
       this.loading.set(false);
     }
   }
@@ -524,7 +524,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
       await this.syncSignedInPartition();
       this.mode.set('success');
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'Invalid or expired code.');
+      this.error.set(e?.error?.error ?? 'invalid or expired code.');
       this.codeLoading.set(false);
     }
   }
@@ -542,7 +542,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
       this.selectedBillingInterval.set(intervals.includes('monthly') ? 'monthly' : intervals[0] ?? 'monthly');
       this.refreshAvailableCurrencies();
     } catch {
-      this.error.set('Could not load pricing. Please refresh.');
+      this.error.set('could not load pricing. please refresh.');
     }
   }
 

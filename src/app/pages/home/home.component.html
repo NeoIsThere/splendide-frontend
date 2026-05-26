@@ -1,9 +1,9 @@
-<div class="layout">
+<div class="layout" [class.public-layout]="isPublicPage()">
   <!-- ═══ Top bar ═══ -->
 
   <div class="my-top-bar">
     @if (isPublicPage()) {
-      <a class="my-left logo logo-link logo-shared" routerLink="/" aria-label="Go to Splendide">
+      <a class="my-left logo logo-link logo-shared" routerLink="/" aria-label="go to splendide">
         splendide.<sup>shared</sup>
       </a>
     } @else {
@@ -17,7 +17,7 @@
           <button
             class="icon-btn"
             (click)="toggleMenu()"
-            aria-label="User menu"
+            aria-label="user menu"
             [attr.aria-expanded]="menuOpen()"
           >
             <svg
@@ -77,7 +77,7 @@
         <button
           class="icon-btn"
           (click)="toggleDark()"
-          [attr.aria-label]="dark() ? 'Switch to light theme' : 'Switch to dark theme'"
+          [attr.aria-label]="dark() ? 'switch to light theme' : 'switch to dark theme'"
         >
           @if (dark()) {
             <svg
@@ -119,7 +119,7 @@
         </button>
         <div class="my-upgrade-desktop">
           @if (!isPublicPage() && auth.isLoggedIn() && !auth.isPremium()) {
-            <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium"
+            <a class="upgrade-link" routerLink="/payment" aria-label="upgrade to premium"
               >upgrade ✦</a
             >
           }
@@ -130,7 +130,7 @@
   <div class="my-below-top-bar">
     <div class="my-upgrade-mobile">
       @if (!isPublicPage() && auth.isLoggedIn() && !auth.isPremium()) {
-        <a class="upgrade-link" routerLink="/payment" aria-label="Upgrade to premium">upgrade</a>
+        <a class="upgrade-link" routerLink="/payment" aria-label="upgrade to premium">upgrade</a>
       }
     </div>
   </div>
@@ -138,8 +138,8 @@
   <!-- ═══ Section Nav (mobile) ═══ -->
   @if (publicLoadFailed()) {
     <main class="public-expired" aria-live="polite">
-      <h1>This public page has expired</h1>
-      <p>Public pages are removed after six months without activity.</p>
+      <h1>this public page has expired</h1>
+      <p>public pages are removed after six months without activity.</p>
     </main>
   } @else {
 
@@ -166,7 +166,7 @@
         <button
           class="public-share-btn"
           (click)="toggleShareMenu()"
-          aria-label="Share public section"
+          aria-label="share public section"
           [attr.aria-expanded]="shareMenuOpen()"
         >
           <svg
@@ -191,10 +191,10 @@
         </button>
         @if (shareMenuOpen()) {
           <div class="public-share-popover">
-            <p class="public-share-title">Share this space</p>
-            <p class="public-share-copy">Anyone with the link can collaborate.</p>
+            <p class="public-share-title">share this space</p>
+            <p class="public-share-copy">anyone with the link can collaborate.</p>
             <div class="public-share-link-row">
-              <input class="public-share-link" type="text" [value]="publicShareUrl()" readonly aria-label="Public section link" />
+              <input class="public-share-link" type="text" [value]="publicShareUrl()" readonly aria-label="public section link" />
               <button class="public-copy-btn" (click)="copyPublicLink()">copy</button>
             </div>
             @if (shareToastVisible()) {
@@ -209,7 +209,7 @@
   <div class="section-nav-mobile">
     <div class="section-nav-left">
       @if (showPrevArrow()) {
-        <button class="section-nav-arrow" (click)="goToPrevSection()" aria-label="Previous section">
+        <button class="section-nav-arrow" (click)="goToPrevSection()" aria-label="previous section">
           <svg
             width="20"
             height="20"
@@ -234,7 +234,7 @@
           (input)="onAddSectionInput($event)"
           (keydown)="handleAddSectionKeydown($event)"
           (blur)="confirmAddSection()"
-          placeholder="Tab name"
+          placeholder="tab name"
         />
       } @else if (editingSectionId() === activeSectionId()) {
         <input
@@ -249,6 +249,7 @@
           class="section-nav-title"
           [class.keyboard-focused]="isTabsFocused()"
           [attr.data-keyboard-section]="activeSectionId()"
+          data-coach-section-rename
           (click)="startEditingSection(activeSectionId()!)"
         >
           {{ activeSection()?.title }}
@@ -261,7 +262,7 @@
           <button
             class="section-menu-trigger"
             (click)="toggleSectionMenu()"
-            aria-label="Tab actions"
+            aria-label="tab actions"
             [attr.aria-expanded]="sectionMenuOpen()"
           >
             <svg
@@ -305,7 +306,7 @@
       </div>
       <div class="section-nav-right-inner">
         @if (showNextArrow()) {
-          <button class="section-nav-arrow" (click)="goToNextSection()" aria-label="Next section">
+          <button class="section-nav-arrow" (click)="goToNextSection()" aria-label="next section">
             <svg
               width="20"
               height="20"
@@ -332,7 +333,7 @@
       cdkDropListOrientation="horizontal"
       (cdkDropListDropped)="dropSection($any($event))"
     >
-    @for (sec of sections(); track sec.id) {
+      @for (sec of sections(); track sec.id) {
         <div
           class="section-tab"
           [class.active]="activeSectionId() === sec.id"
@@ -359,6 +360,7 @@
             } @else {
               <button
                 class="section-tab-btn"
+                [attr.data-coach-section-rename]="activeSectionId() === sec.id ? '' : null"
                 (click)="selectSection(sec.id); focusTabsForKeyboard()"
                 (dblclick)="startEditingSection(sec.id)"
               >
@@ -384,7 +386,7 @@
               <button
                 class="icon-btn-sm remove-btn remove-btn-section"
                 (click)="startDeleteSection(sec.id)"
-                aria-label="Delete section"
+                aria-label="delete section"
               >
                 <svg
                   width="16"
@@ -406,36 +408,46 @@
         </div>
       }
 
-    </div>
-
-    <div class="section-tabs-actions">
       @if (canAddSection()) {
-        <div>
-          @if (addingSectionTitle() !== null) {
-            <input
-              class="section-add-input"
-              [value]="addingSectionTitle()"
-              (input)="onAddSectionInput($event)"
-              (keydown)="handleAddSectionKeydown($event)"
-              (blur)="confirmAddSection()"
-              placeholder="Tab name"
-            />
-          } @else {
+        @if (addingSectionTitle() !== null) {
+          <div class="section-tab section-tab-draft">
+            <div class="section-tab-surface section-tab-static">
+              <input
+                class="section-add-input section-add-input-tab"
+                [value]="addingSectionTitle()"
+                (input)="onAddSectionInput($event)"
+                (keydown)="handleAddSectionKeydown($event)"
+                (blur)="confirmAddSection()"
+                placeholder="tab name"
+              />
+            </div>
+            <div class="section-tab-actions"></div>
+          </div>
+        }
+
+        <div class="section-tab section-tab-add">
+          <div class="section-tab-surface section-tab-static">
             <button
-              class="add-btn add-btn-section"
+              class="section-tab-btn section-tab-add-btn"
               (click)="startAddingSection()"
-              aria-label="Add section"
+              [disabled]="addingSectionTitle() !== null"
+              aria-label="add section"
             >
               +
             </button>
-          }
+          </div>
+          <div class="section-tab-actions"></div>
         </div>
       }
+
+    </div>
+
+    <div class="section-tabs-actions">
       <div class="section-menu-wrapper section-public-menu">
         <button
           class="section-menu-trigger"
           (click)="toggleSectionMenu()"
-          aria-label="Section actions"
+          aria-label="section actions"
           [attr.aria-expanded]="sectionMenuOpen()"
         >
           <svg
@@ -482,7 +494,7 @@
             [value]="mainTitle()"
             (blur)="saveMainTitle($event)"
             (keydown)="handleMainTitleKeydown($event)"
-            aria-label="Edit list title"
+            aria-label="edit list title"
             maxlength="40"
           />
         } @else {
@@ -498,9 +510,10 @@
         <div
           class="main-drop-zone"
           cdkDropList
+          id="mainDropList"
           #mainList="cdkDropList"
           [cdkDropListData]="tasks()"
-          [cdkDropListConnectedTo]="[secList]"
+          [cdkDropListConnectedTo]="mainDropListConnections()"
           (cdkDropListDropped)="dropMainTask($any($event))"
         >
         <!-- Add task form -->
@@ -509,12 +522,12 @@
             <input
               class="input-minimal"
               type="text"
-              placeholder="Task..."
+              placeholder="task..."
               [value]="newTaskText()"
               (input)="onNewTaskInput($event)"
               (keydown)="handleAddKeydown($event)"
               autofocus
-              aria-label="New task"
+              aria-label="new task"
               maxlength="120"
             />
             @for (sub of newSubtasks(); track $index) {
@@ -522,17 +535,17 @@
                 <input
                   class="input-minimal input-sub"
                   type="text"
-                  placeholder="Subtask..."
+                  placeholder="subtask..."
                   [value]="sub"
                   (input)="updateNewSubtask($index, $event)"
                   (keydown)="handleAddKeydown($event)"
-                  aria-label="Subtask"
+                  aria-label="subtask"
                   maxlength="120"
                 />
                 <button
                   class="icon-btn-sm"
                   (click)="removeSubtaskField($index)"
-                  aria-label="Remove subtask field"
+                  aria-label="remove subtask field"
                 >
                   <svg
                     width="14"
@@ -556,7 +569,7 @@
                 <button
                   class="add-subtask-btn add-subtask-btn-form"
                   (click)="addSubtaskField()"
-                  aria-label="Add subtask field"
+                  aria-label="add subtask field"
                 >
                   <svg
                     width="12"
@@ -586,7 +599,7 @@
             (keydown.enter)="startAdding()"
             role="button"
             tabindex="0"
-            aria-label="Add a task"
+            aria-label="add a task"
           >
             <svg
               class="add-placeholder-icon"
@@ -610,7 +623,7 @@
         <div
           class="task-list"
           role="list"
-          aria-label="Tasks"
+          aria-label="tasks"
         >
           @for (task of tasks(); track task.id) {
             <div
@@ -634,7 +647,7 @@
                   (click)="toggleTask(task.id)"
                   (mousedown)="$event.stopPropagation()"
                   [attr.aria-label]="
-                    (task.done ? 'Mark incomplete: ' : 'Mark complete: ') + task.text
+                    (task.done ? 'mark incomplete: ' : 'mark complete: ') + task.text
                   "
                 >
                   @if (task.done) {
@@ -662,7 +675,7 @@
                     [attr.data-edit-id]="'task-' + task.id"
                     (blur)="saveTaskEdit(task.id, $event)"
                     (keydown)="handleTaskEditKeydown(task.id, $event)"
-                    aria-label="Edit task"
+                    aria-label="edit task"
                     maxlength="120"
                   />
                 } @else {
@@ -692,7 +705,7 @@
                 <button
                   class="icon-btn-sm remove-btn"
                   (click)="removeTask(task.id)"
-                  [attr.aria-label]="'Remove: ' + task.text"
+                  [attr.aria-label]="'remove: ' + task.text"
                 >
                   <svg
                     width="16"
@@ -715,14 +728,16 @@
                   <button
                     class="icon-btn-sm task-dots-btn"
                     (click)="toggleTaskMenu(task.id, $event)"
-                    [attr.aria-label]="'Options for: ' + task.text"
+                    [attr.aria-label]="'options for: ' + task.text"
                   >&#8226;&#8226;&#8226;</button>
                   @if (taskMenuOpenId() === task.id) {
                     <div class="task-dots-menu">
-                      <button
-                        class="task-dots-item"
-                        (click)="moveToBacklog(task.id); taskMenuOpenId.set(null)"
-                      >move to {{ secondaryTitle() }}</button>
+                      @if (!isPublicPage()) {
+                        <button
+                          class="task-dots-item"
+                          (click)="moveToBacklog(task.id); taskMenuOpenId.set(null)"
+                        >move to {{ secondaryTitle() }}</button>
+                      }
                       <button
                         class="task-dots-item task-dots-item-danger"
                         (click)="removeTask(task.id)"
@@ -753,7 +768,7 @@
                       (click)="toggleSubtask(task.id, sub.id)"
                       (mousedown)="$event.stopPropagation()"
                       [attr.aria-label]="
-                        (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
+                        (sub.done ? 'mark incomplete: ' : 'mark complete: ') + sub.text
                       "
                     >
                       @if (sub.done) {
@@ -783,7 +798,7 @@
                         [attr.data-edit-id]="'sub-' + sub.id"
                         (blur)="saveSubtaskEdit(task.id, sub.id, $event)"
                         (keydown)="handleSubtaskEditKeydown(task.id, sub.id, $event)"
-                        aria-label="Edit subtask"
+                        aria-label="edit subtask"
                         maxlength="120"
                       />
                     } @else {
@@ -814,7 +829,7 @@
                     <button
                       class="icon-btn-sm remove-btn"
                       (click)="removeSubtask(task.id, sub.id)"
-                      [attr.aria-label]="'Remove subtask: ' + sub.text"
+                      [attr.aria-label]="'remove subtask: ' + sub.text"
                     >
                       <svg
                         width="14"
@@ -841,13 +856,13 @@
                   <input
                     class="edit-input edit-input-sub"
                     type="text"
-                    placeholder="Subtask..."
+                    placeholder="subtask..."
                     data-inline-subtask
                     [value]="newInlineSubtaskText()"
                     (input)="onInlineSubtaskInput($event)"
                     (keydown)="handleInlineSubtaskKeydown(task.id, $event)"
                     (blur)="confirmAddSubtask(task.id)"
-                    aria-label="New subtask"
+                    aria-label="new subtask"
                     maxlength="120"
                   />
                 </div>
@@ -858,7 +873,7 @@
                 <button
                   class="add-subtask-btn"
                   (click)="startAddingSubtask(task.id)"
-                  aria-label="Add subtask"
+                  aria-label="add subtask"
                 >
                   <svg
                     width="12"
@@ -887,16 +902,16 @@
         @if (taskCount() > 0) {
           @if (confirmingClear()) {
             <div class="clear-confirm" data-confirm-clear>
-              <span class="clear-confirm-label">Delete:</span>
+              <span class="clear-confirm-label">delete:</span>
               @if (completedCount() > 0 && completedCount() < taskCount()) {
                 <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">done only</button>
               }
-              <button class="clear-yes" (click)="confirmClear()">All</button>
-              <button class="clear-no" (click)="cancelClear()">Cancel</button>
+              <button class="clear-yes" (click)="confirmClear()">all</button>
+              <button class="clear-no" (click)="cancelClear()">cancel</button>
             </div>
           } @else {
             <div class="clear-actions" data-confirm-clear>
-              <button class="clear-btn" (click)="startClear()" aria-label="Clear the list">
+              <button class="clear-btn" (click)="startClear()" aria-label="clear the list">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="3 6 5 6 21 6" />
                   <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -913,6 +928,7 @@
     </div>
 
     <!-- ═══ Secondary Section ═══ -->
+    @if (!isPublicPage()) {
     <div class="my-list-col secondary-section" #secondarySection>
       <div class="my-secondary-list-container">
         <div class="sec-header">
@@ -924,7 +940,7 @@
               (blur)="saveSecondaryTitle($event)"
               (keydown)="handleSecondaryTitleKeydown($event)"
               autofocus
-              aria-label="Edit list title"
+              aria-label="edit list title"
               maxlength="40"
             />
           } @else {
@@ -944,9 +960,10 @@
         <div
           class="sec-drop-zone"
           cdkDropList
+          id="secondaryDropList"
           #secList="cdkDropList"
           [cdkDropListData]="secondaryTasks()"
-          [cdkDropListConnectedTo]="[mainList]"
+          [cdkDropListConnectedTo]="secondaryDropListConnections()"
           (cdkDropListDropped)="dropSecondaryTask($any($event))"
         >
         @if (secondaryVisible()) {
@@ -955,12 +972,12 @@
               <input
                 class="input-minimal input-sec"
                 type="text"
-                placeholder="Task..."
+                placeholder="task..."
                 [value]="newSecondaryText()"
                 (input)="onNewSecondaryInput($event)"
                 (keydown)="handleSecondaryKeydown($event)"
                 autofocus
-                aria-label="New secondary task"
+                aria-label="new secondary task"
                 maxlength="120"
               />
               @for (sub of newSecondarySubtasks(); track $index) {
@@ -968,17 +985,17 @@
                   <input
                     class="input-minimal input-sub"
                     type="text"
-                    placeholder="Subtask..."
+                    placeholder="subtask..."
                     [value]="sub"
                     (input)="updateNewSecSubtask($index, $event)"
                     (keydown)="handleSecondaryKeydown($event)"
-                    aria-label="Subtask"
+                    aria-label="subtask"
                     maxlength="120"
                   />
                   <button
                     class="icon-btn-sm"
                     (click)="removeSecSubtaskField($index)"
-                    aria-label="Remove subtask field"
+                    aria-label="remove subtask field"
                   >
                     <svg
                       width="14"
@@ -1002,7 +1019,7 @@
                   <button
                     class="add-subtask-btn add-subtask-btn-form"
                     (click)="addSecSubtaskField()"
-                    aria-label="Add subtask field"
+                    aria-label="add subtask field"
                   >
                     <svg
                       width="12"
@@ -1032,7 +1049,7 @@
               (keydown.enter)="startAddingSecondary()"
               role="button"
               tabindex="0"
-              aria-label="Add a task"
+              aria-label="add a task"
             >
               <svg
                 class="add-placeholder-icon add-placeholder-icon-sec"
@@ -1056,7 +1073,7 @@
         <div
           class="task-list"
           role="list"
-          aria-label="Secondary tasks"
+          aria-label="secondary tasks"
         >
           @for (task of secondaryTasks(); track task.id) {
             <div
@@ -1080,7 +1097,7 @@
                   (click)="toggleSecondaryTask(task.id)"
                   (mousedown)="$event.stopPropagation()"
                   [attr.aria-label]="
-                    (task.done ? 'Mark incomplete: ' : 'Mark complete: ') + task.text
+                    (task.done ? 'mark incomplete: ' : 'mark complete: ') + task.text
                   "
                 >
                   @if (task.done) {
@@ -1108,7 +1125,7 @@
                     [attr.data-edit-id]="'sec-' + task.id"
                     (blur)="saveSecondaryEdit(task.id, $event)"
                     (keydown)="handleSecondaryEditKeydown(task.id, $event)"
-                    aria-label="Edit task"
+                    aria-label="edit task"
                     maxlength="120"
                   />
                 } @else {
@@ -1138,7 +1155,7 @@
                 <button
                   class="icon-btn-sm remove-btn"
                   (click)="removeSecondaryTask(task.id)"
-                  [attr.aria-label]="'Remove: ' + task.text"
+                  [attr.aria-label]="'remove: ' + task.text"
                 >
                   <svg
                     width="14"
@@ -1161,7 +1178,7 @@
                   <button
                     class="icon-btn-sm task-dots-btn"
                     (click)="toggleSecTaskMenu(task.id, $event)"
-                    [attr.aria-label]="'Options for: ' + task.text"
+                    [attr.aria-label]="'options for: ' + task.text"
                   >&#8226;&#8226;&#8226;</button>
                   @if (secTaskMenuOpenId() === task.id) {
                     <div class="task-dots-menu task-dots-menu-left">
@@ -1199,7 +1216,7 @@
                       (click)="toggleSecSubtask(task.id, sub.id)"
                       (mousedown)="$event.stopPropagation()"
                       [attr.aria-label]="
-                        (sub.done ? 'Mark incomplete: ' : 'Mark complete: ') + sub.text
+                        (sub.done ? 'mark incomplete: ' : 'mark complete: ') + sub.text
                       "
                     >
                       @if (sub.done) {
@@ -1230,7 +1247,7 @@
                         [attr.data-edit-id]="'secsub-' + sub.id"
                         (blur)="saveSecSubtaskEdit(task.id, sub.id, $event)"
                         (keydown)="handleSecSubtaskEditKeydown(task.id, sub.id, $event)"
-                        aria-label="Edit subtask"
+                        aria-label="edit subtask"
                         maxlength="120"
                       />
                     } @else {
@@ -1261,7 +1278,7 @@
                     <button
                       class="icon-btn-sm remove-btn"
                       (click)="removeSecSubtask(task.id, sub.id)"
-                      [attr.aria-label]="'Remove subtask: ' + sub.text"
+                      [attr.aria-label]="'remove subtask: ' + sub.text"
                     >
                       <svg
                         width="14"
@@ -1288,13 +1305,13 @@
                   <input
                     class="edit-input edit-input-sub"
                     type="text"
-                    placeholder="Subtask..."
+                    placeholder="subtask..."
                     data-inline-sec-subtask
                     [value]="newInlineSecSubtaskText()"
                     (input)="onInlineSecSubtaskInput($event)"
                     (keydown)="handleInlineSecSubtaskKeydown(task.id, $event)"
                     (blur)="confirmAddSecSubtask(task.id)"
-                    aria-label="New subtask"
+                    aria-label="new subtask"
                     maxlength="120"
                   />
                 </div>
@@ -1305,7 +1322,7 @@
                 <button
                   class="add-subtask-btn"
                   (click)="startAddingSecSubtask(task.id)"
-                  aria-label="Add subtask"
+                  aria-label="add subtask"
                 >
                   <svg
                     width="12"
@@ -1334,16 +1351,16 @@
         @if (secondaryVisible() && secondaryCount() > 0) {
           @if (confirmingSecondaryClear()) {
             <div class="clear-confirm" data-confirm-secondary-clear>
-              <span class="clear-confirm-label">Delete:</span>
+              <span class="clear-confirm-label">delete:</span>
               @if (secondaryCompletedCount() > 0 && secondaryCompletedCount() < secondaryCount()) {
                 <button class="clear-yes" (click)="clearDoneSecondary(); cancelSecondaryClear()">done only</button>
               }
-              <button class="clear-yes" (click)="confirmSecondaryClear()">All</button>
-              <button class="clear-no" (click)="cancelSecondaryClear()">Cancel</button>
+              <button class="clear-yes" (click)="confirmSecondaryClear()">all</button>
+              <button class="clear-no" (click)="cancelSecondaryClear()">cancel</button>
             </div>
           } @else {
             <div class="clear-actions" data-confirm-secondary-clear>
-              <button class="clear-btn" (click)="startSecondaryClear()" aria-label="Clear the list">
+              <button class="clear-btn" (click)="startSecondaryClear()" aria-label="clear the list">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="3 6 5 6 21 6" />
                   <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -1357,18 +1374,19 @@
         }
       </div>
     </div>
+    }
 
     @if (doneTaskCount() > 0) {
       <div class="my-list-col my-last-list-col">
         <div class="my-tertiary-list-container">
-          <h2 class="section-title done-list-title">Done</h2>
-          <div class="done-list" role="list" aria-label="Done tasks">
+          <h2 class="section-title done-list-title">done</h2>
+          <div class="done-list" role="list" aria-label="done tasks">
             @for (task of doneTasks(); track task.id) {
               <div class="done-task-item" role="listitem">
                 <button
                   class="check-btn checked"
                   (click)="restoreDoneTask(task)"
-                  [attr.aria-label]="'Mark incomplete: ' + task.text"
+                  [attr.aria-label]="'mark incomplete: ' + task.text"
                 >
                   <svg
                     width="8"

@@ -182,7 +182,7 @@ function normalizeList(value: LegacyList, index: number, fallbackTimestamp: stri
 
   return {
     id: String(value.id ?? generateId()),
-    title: String(value.title ?? (value.isBacklog ? 'Later' : 'Now')),
+    title: String(value.title ?? (value.isBacklog ? 'later' : 'now')),
     metadataLastModifiedAt: timestamp,
     serverRevision: revision(value.serverRevision),
     itemsOrderRevision: revision(value.itemsOrderRevision),
@@ -205,7 +205,7 @@ function normalizeSection(
 
   return {
     id: String(value.id ?? generateId()),
-    title: String(value.title ?? 'My Tasks'),
+    title: String(value.title ?? 'my tasks'),
     position: Number(value.position ?? index),
     metadataLastModifiedAt: timestamp,
     serverRevision: revision(value.serverRevision),
@@ -235,8 +235,9 @@ function normalizePartition(value: unknown): Partition {
 
 function createDefaultPartition(): Partition {
   const timestamp = nowIso();
-  const workMainTaskIds = [generateId(), generateId()];
-  const workLaterTaskIds = [generateId(), generateId(), generateId()];
+  const mainTaskId = generateId();
+  const mainSubtaskId = generateId();
+  const secondaryTaskId = generateId();
 
   return {
     sectionOrderRevision: 0,
@@ -244,7 +245,7 @@ function createDefaultPartition(): Partition {
     sections: [
       {
         id: generateId(),
-        title: 'Work',
+        title: 'my list',
         position: 0,
         metadataLastModifiedAt: timestamp,
         serverRevision: 0,
@@ -252,7 +253,7 @@ function createDefaultPartition(): Partition {
         lists: [
           {
             id: generateId(),
-            title: 'Now',
+            title: 'now',
             metadataLastModifiedAt: timestamp,
             serverRevision: 0,
             itemsOrderRevision: 0,
@@ -261,95 +262,39 @@ function createDefaultPartition(): Partition {
             isBacklog: false,
             items: [
               {
-                id: workMainTaskIds[0],
-                content: { id: workMainTaskIds[0], text: 'Review slides', done: false, subtasks: [] },
-                position: 0,
-                lastModifiedAt: timestamp,
-                serverRevision: 0,
-                dirty: true,
-              },
-              {
-                id: workMainTaskIds[1],
-                content: { id: workMainTaskIds[1], text: 'Call John', done: false, subtasks: [] },
-                position: 1,
-                lastModifiedAt: timestamp,
-                serverRevision: 0,
-                dirty: true,
-              },
-            ],
-          },
-          {
-            id: generateId(),
-            title: 'Later',
-            metadataLastModifiedAt: timestamp,
-            serverRevision: 0,
-            itemsOrderRevision: 0,
-            itemsBaseOrderRevision: 0,
-            dirty: true,
-            isBacklog: true,
-            items: [
-              {
-                id: workLaterTaskIds[0],
-                content: { id: workLaterTaskIds[0], text: 'Generate report', done: false, subtasks: [] },
-                position: 0,
-                lastModifiedAt: timestamp,
-                serverRevision: 0,
-                dirty: true,
-              },
-              {
-                id: workLaterTaskIds[1],
+                id: mainTaskId,
                 content: {
-                  id: workLaterTaskIds[1],
-                  text: 'Submit review to the team',
+                  id: mainTaskId,
+                  text: 'my tasks...',
                   done: false,
-                  subtasks: [],
+                  subtasks: [{ id: mainSubtaskId, text: 'my subtask...', done: false }],
                 },
-                position: 1,
-                lastModifiedAt: timestamp,
-                serverRevision: 0,
-                dirty: true,
-              },
-              {
-                id: workLaterTaskIds[2],
-                content: { id: workLaterTaskIds[2], text: 'Add missing section', done: false, subtasks: [] },
-                position: 2,
+                position: 0,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
                 dirty: true,
               },
             ],
           },
-        ],
-      },
-      {
-        id: generateId(),
-        title: 'Travel',
-        position: 1,
-        metadataLastModifiedAt: timestamp,
-        serverRevision: 0,
-        dirty: true,
-        lists: [
           {
             id: generateId(),
-            title: 'Now',
-            metadataLastModifiedAt: timestamp,
-            serverRevision: 0,
-            itemsOrderRevision: 0,
-            itemsBaseOrderRevision: 0,
-            dirty: true,
-            isBacklog: false,
-            items: [],
-          },
-          {
-            id: generateId(),
-            title: 'Later',
+            title: 'later',
             metadataLastModifiedAt: timestamp,
             serverRevision: 0,
             itemsOrderRevision: 0,
             itemsBaseOrderRevision: 0,
             dirty: true,
             isBacklog: true,
-            items: [],
+            items: [
+              {
+                id: secondaryTaskId,
+                content: { id: secondaryTaskId, text: 'my task...', done: false, subtasks: [] },
+                position: 0,
+                lastModifiedAt: timestamp,
+                serverRevision: 0,
+                dirty: true,
+              },
+            ],
           },
         ],
       },

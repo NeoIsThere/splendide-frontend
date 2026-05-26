@@ -39,8 +39,8 @@ type TaskListKind = 'main' | 'secondary';
 type KeyboardZone = 'tabs' | TaskListKind;
 type SectionDeleteOption = 'delete' | 'cancel';
 
-const DEFAULT_BACKLOG_TITLE = 'Later';
-const DEFAULT_MAIN_TITLE = 'Now';
+const DEFAULT_BACKLOG_TITLE = 'later';
+const DEFAULT_MAIN_TITLE = 'now';
 const MAX_SECTIONS = 10;
 const MAX_BACKLOG_TASKS = 200;
 const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
@@ -96,12 +96,15 @@ export class HomeComponent implements OnDestroy {
   // ─── Tasks from active lists ────────────────────────────
   protected readonly tasks = computed<Task[]>(() => this.visibleTasks(this.mainList()));
   protected readonly secondaryTasks = computed<Task[]>(() => this.visibleTasks(this.backlogList()));
-  protected readonly doneTasks = computed<DoneTask[]>(() => [
-    ...this.doneTasksForList('main', this.mainList()),
-    ...this.doneTasksForList('secondary', this.backlogList()),
-  ]
-    .sort((left, right) => this.compareDoneTasksNewestFirst(left, right))
-    .slice(0, MAX_DONE_TASKS));
+  protected readonly doneTasks = computed<DoneTask[]>(() => {
+    const tasks = this.doneTasksForList('main', this.mainList());
+    if (!this.isPublicPage()) {
+      tasks.push(...this.doneTasksForList('secondary', this.backlogList()));
+    }
+    return tasks
+      .sort((left, right) => this.compareDoneTasksNewestFirst(left, right))
+      .slice(0, MAX_DONE_TASKS);
+  });
   protected readonly doneTaskCount = computed(() => this.doneTasks().length);
   protected readonly mainTitle = computed(() => this.mainList()?.title || DEFAULT_MAIN_TITLE);
   protected readonly secondaryTitle = computed(() => this.backlogList()?.title || DEFAULT_BACKLOG_TITLE);
@@ -166,6 +169,8 @@ export class HomeComponent implements OnDestroy {
   protected readonly secondaryCount = computed(() => this.secondaryTasks().length);
   protected readonly secondaryCompletedCount = computed(() => this.secondaryTasks().filter(t => t.done).length);
   protected readonly canAddSecondary = computed(() => this.secondaryCount() < MAX_BACKLOG_TASKS);
+  protected readonly mainDropListConnections = computed<string[]>(() => this.isPublicPage() ? [] : ['secondaryDropList']);
+  protected readonly secondaryDropListConnections = computed<string[]>(() => ['mainDropList']);
 
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragging = signal(false);
@@ -421,27 +426,26 @@ export class HomeComponent implements OnDestroy {
     const mainListTarget = document.querySelector<HTMLElement>('.my-primary-list-container');
     const secondaryListTarget = document.querySelector<HTMLElement>('.my-secondary-list-container');
     const renameTarget = document.querySelector<HTMLElement>('.main-list-title');
-    const addTarget = document.querySelector<HTMLElement>('.main-drop-zone .add-placeholder');
+    const sectionRenameTarget = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-coach-section-rename]'),
+    ).find(element => element.offsetParent !== null || element.getClientRects().length > 0);
     const moveTarget = document.querySelector<HTMLElement>('.main-drop-zone [data-keyboard-task]');
-    if (!mainListTarget || !secondaryListTarget || !renameTarget || !addTarget || !moveTarget) return;
+    if (!mainListTarget || !secondaryListTarget || !renameTarget || !sectionRenameTarget || !moveTarget) return;
 
     driver({
       allowClose: false,
-      allowKeyboardControl: false,
       animate: true,
-      disableActiveInteraction: true,
-      overlayClickBehavior: () => {},
       overlayOpacity: 0.28,
       stagePadding: 6,
       showButtons: ['next'],
-      nextBtnText: '→',
-      doneBtnText: '→',
-      popoverClass: 'splendide-coach-popover',
+      nextBtnText: 'next &rarr;',
+      doneBtnText: 'done',
       steps: [
         {
           element: mainListTarget,
           popover: {
-            title: 'Things to do right now',
+            title: 'Focus on what matters now',
+            description: "Add tasks you're working on here",
             side: 'right',
             align: 'start',
           },
@@ -449,7 +453,8 @@ export class HomeComponent implements OnDestroy {
         {
           element: secondaryListTarget,
           popover: {
-            title: 'Thing to keep in mind',
+            title: 'Keep the rest for later',
+            description: "Store ideas here",
             side: 'right',
             align: 'start',
           },
@@ -457,15 +462,15 @@ export class HomeComponent implements OnDestroy {
         {
           element: renameTarget,
           popover: {
-            title: 'Rename a list',
+            title: 'Double click to rename list',
             side: 'bottom',
             align: 'start',
           },
         },
         {
-          element: addTarget,
+          element: sectionRenameTarget,
           popover: {
-            title: 'Add an item',
+            title: 'Double click to rename section',
             side: 'bottom',
             align: 'start',
           },
@@ -473,7 +478,7 @@ export class HomeComponent implements OnDestroy {
         {
           element: moveTarget,
           popover: {
-            title: 'Drag to another list',
+            title: 'Drag tasks between lists',
             side: 'right',
             align: 'start',
           },
@@ -577,6 +582,7 @@ export class HomeComponent implements OnDestroy {
       this.moveSectionKeyboardFocus(direction);
       return;
     }
+    if (this.isPublicPage()) return;
 
     const sourceList = this.currentList();
     const targetList: TaskListKind = direction > 0 ? 'secondary' : 'main';
@@ -633,6 +639,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private setActiveKeyboardTask(list: TaskListKind, id: string): void {
+    if (this.isPublicPage() && list === 'secondary') list = 'main';
     this.currentList.set(list);
     this.keyboardZone.set(list);
     this.activeKeyboardTask.set({ list, id });
@@ -640,6 +647,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private focusListWithoutTask(list: TaskListKind): void {
+    if (this.isPublicPage() && list === 'secondary') list = 'main';
     this.currentList.set(list);
     this.keyboardZone.set(list);
     this.activeKeyboardTask.set(null);
@@ -915,7 +923,7 @@ export class HomeComponent implements OnDestroy {
     }
 
     if (this.sections().length === 0) {
-      this.createSection('My Tasks');
+      this.createSection('my list');
     }
   }
 
@@ -1557,8 +1565,11 @@ export class HomeComponent implements OnDestroy {
     const section = this.storage.getSection(sectionId);
     if (!section) return [];
 
+    const lists = this.isPublicPage()
+      ? section.lists.filter(list => !list.isBacklog)
+      : section.lists;
     const doneItems: Array<{ list: StoredList; item: StoredItem; task: Task }> = [];
-    for (const list of section.lists) {
+    for (const list of lists) {
       for (const item of list.items) {
         if (item.deleted) continue;
         const task = this.normalizeTask(item.content, item.id);

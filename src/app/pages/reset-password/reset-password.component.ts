@@ -11,14 +11,14 @@ import { AuthService } from '../../services/auth.service';
     <div class="auth-page">
       <div class="auth-card">
         <h1 class="auth-logo">splendide.</h1>
-        <h2 class="auth-title">Reset password</h2>
+        <h2 class="auth-title">reset password</h2>
 
         @if (success()) {
           <p class="auth-success" role="status">
-            Password has been reset successfully.
+            password has been reset successfully.
           </p>
           <p class="auth-switch">
-            <a routerLink="/sign-in">Sign in with your new password</a>
+            <a routerLink="/sign-in">sign in with your new password</a>
           </p>
         } @else {
           @if (error()) {
@@ -26,7 +26,7 @@ import { AuthService } from '../../services/auth.service';
           }
 
           <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
-            <label class="auth-label" for="password">New password</label>
+            <label class="auth-label" for="password">new password</label>
             <input
               id="password"
               class="auth-input"
@@ -36,7 +36,7 @@ import { AuthService } from '../../services/auth.service';
             />
 
             <button class="auth-btn" type="submit" [disabled]="loading()">
-              @if (loading()) { Resetting… } @else { Reset password }
+              @if (loading()) { resetting... } @else { reset password }
             </button>
           </form>
         }
@@ -62,7 +62,7 @@ export class ResetPasswordComponent implements OnInit {
   ngOnInit(): void {
     this.token = this.route.snapshot.queryParamMap.get('token') ?? '';
     if (!this.token) {
-      this.error.set('Invalid or missing reset token.');
+      this.error.set('invalid or missing reset token.');
     }
   }
 
@@ -75,7 +75,7 @@ export class ResetPasswordComponent implements OnInit {
       await this.auth.resetPassword(this.token, this.form.getRawValue().password);
       this.success.set(true);
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'Reset failed. The link may have expired.');
+      this.error.set(e?.error?.error ?? 'reset failed. the link may have expired.');
     } finally {
       this.loading.set(false);
     }
