@@ -11,48 +11,57 @@ import { APP_VERSION } from '../../../environments/environment';
       <div class="legal-card">
         <a class="legal-back" routerLink="/">&larr; Back to Splendide</a>
         <h1>Terms of Use</h1>
-        <p class="legal-updated">Last updated: March 24, 2026</p>
+        <p class="legal-updated">Last updated: May 27, 2026</p>
 
         <h2>1. Acceptance of Terms</h2>
         <p>By accessing or using Splendide ("the Service"), you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.</p>
 
         <h2>2. Description of Service</h2>
-        <p>Splendide is a task management application. The Service is available as a free tier (local browser storage only) and a paid Premium tier (cloud sync, $7 one-time payment).</p>
+        <p>Splendide is a task management application for organizing work sessions. You can use private local pages without payment. Optional Premium features add cloud sync for private pages. The Service also includes shared pages that can be opened and edited by anyone with the page URL.</p>
 
         <h2>3. User Accounts</h2>
-        <p>Account creation is optional. You may use the Service without an account, in which case your data is stored only in your browser's local storage. If you create an account, you are responsible for maintaining the confidentiality of your credentials.</p>
+        <p>Account creation is optional. If you use private pages without an account, your private task data is stored in your browser's local storage. If you create an account, you are responsible for maintaining the confidentiality of your credentials and for activity under your account.</p>
 
-        <h2>4. Premium Purchases</h2>
-        <p>Premium access is a one-time payment of $7 USD processed through Stripe. All payments are final. Refund requests may be considered on a case-by-case basis within 14 days of purchase by contacting support.</p>
+        <h2>4. Premium Subscriptions</h2>
+        <p>Payment is not required to use the basic private local features of the Service. Premium is optional and is offered as a paid subscription processed through Stripe. The current price, currency, billing period, renewal terms, and any taxes are shown during checkout.</p>
+        <p>Premium subscriptions renew until canceled. You can manage or cancel your subscription from your account settings. Refunds are handled case by case unless a refund is required by applicable law. If there is a conflict between these Terms and the checkout page about price or billing period, the checkout page controls for that purchase.</p>
 
-        <h2>5. User Conduct</h2>
+        <h2>5. Shared Pages</h2>
+        <p>Shared pages are public-by-link collaboration spaces. Anyone who knows or receives the URL can view, edit, reorder, complete, or delete content on that page. There is no owner, admin, or permission difference between the person who created a shared page and anyone who later joins it.</p>
+        <p>Do not put passwords, secrets, confidential information, regulated personal data, or sensitive content in shared pages. You are responsible for deciding who receives a shared page link. Shared pages may be deleted after six months without activity, and we may remove shared pages that violate these Terms or create legal, security, or abuse risks.</p>
+
+        <h2>6. User Content</h2>
+        <p>Your task data remains yours. You grant Splendide the limited permission needed to store, process, sync, transmit, display, and otherwise operate the Service for your content. For shared pages, you understand that other people with the link may change or delete the content.</p>
+
+        <h2>7. User Conduct</h2>
         <p>You agree not to:</p>
         <ul>
           <li>Use the Service for any unlawful purpose</li>
           <li>Attempt to gain unauthorized access to the Service or its systems</li>
           <li>Interfere with or disrupt the Service</li>
+          <li>Use shared pages to publish unlawful, abusive, infringing, or sensitive personal content</li>
           <li>Reverse engineer, decompile, or disassemble any part of the Service</li>
         </ul>
 
-        <h2>6. Intellectual Property</h2>
+        <h2>8. Intellectual Property</h2>
         <p>All content, design, and code of the Service are owned by Splendide and protected by applicable intellectual property laws. Your task data remains yours.</p>
 
-        <h2>7. Disclaimer of Warranties</h2>
+        <h2>9. Disclaimer of Warranties</h2>
         <p>The Service is provided "as is" and "as available" without warranties of any kind, either express or implied. We do not guarantee that the Service will be uninterrupted, secure, or error-free.</p>
 
-        <h2>8. Limitation of Liability</h2>
+        <h2>10. Limitation of Liability</h2>
         <p>To the maximum extent permitted by law, Splendide shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of data, profits, or goodwill.</p>
 
-        <h2>9. Termination</h2>
-        <p>We may suspend or terminate your access to the Service at any time for violation of these Terms. You may delete your account at any time.</p>
+        <h2>11. Termination and Account Deletion</h2>
+        <p>We may suspend or terminate access to the Service for violation of these Terms, security risk, abuse, or legal reasons. You may delete your account from settings. If you have an active Premium subscription, you must cancel the subscription before deleting your account.</p>
 
-        <h2>10. Changes to Terms</h2>
+        <h2>12. Changes to Terms</h2>
         <p>We reserve the right to modify these Terms at any time. Continued use of the Service after changes constitutes acceptance of the modified Terms.</p>
 
-        <h2>11. Governing Law</h2>
+        <h2>13. Governing Law</h2>
         <p>These Terms are governed by the laws of the United States. For users in the European Union, mandatory consumer protection laws of your country of residence apply.</p>
 
-        <h2>12. Contact</h2>
+        <h2>14. Contact</h2>
         <p>For questions about these Terms, contact us at <strong>support&#64;email.splendide.app</strong>.</p>
         <p class="legal-version">{{ version }}</p>
       </div>

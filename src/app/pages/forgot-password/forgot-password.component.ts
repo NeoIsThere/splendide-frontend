@@ -15,7 +15,7 @@ import { AuthService } from '../../services/auth.service';
 
         @if (sent()) {
           <p class="auth-success" role="status">
-            if an account with that email exists, a reset link has been sent. check your inbox.
+            if an account with that email exists, a reset link has been sent. check your inbox
           </p>
           <p class="auth-switch">
             <a routerLink="/sign-in">back to sign in</a>
@@ -25,7 +25,7 @@ import { AuthService } from '../../services/auth.service';
             <p class="auth-error" role="alert">{{ error() }}</p>
           }
 
-          <p class="auth-subtitle">enter your email and we'll send you a reset link.</p>
+          <p class="auth-subtitle">enter your email and we'll send you a reset link</p>
 
           <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
             <label class="auth-label" for="email">email</label>
@@ -38,7 +38,7 @@ import { AuthService } from '../../services/auth.service';
             />
 
             <button class="auth-btn" type="submit" [disabled]="loading()">
-              @if (loading()) { sending... } @else { send reset link }
+              @if (loading()) { sending } @else { send reset link }
             </button>
           </form>
 
@@ -71,7 +71,7 @@ export class ForgotPasswordComponent {
       await this.auth.forgotPassword(this.form.getRawValue().email);
       this.sent.set(true);
     } catch {
-      this.error.set('something went wrong. please try again.');
+      this.error.set('something went wrong. please try again');
     } finally {
       this.loading.set(false);
     }

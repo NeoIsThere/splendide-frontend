@@ -49,7 +49,9 @@ export class AuthService {
   async verifyEmail(token: string): Promise<void> {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-email`, { token }, { withCredentials: true }));
     this.setSession(res);
-    this.storage.copyAnonymousToUser(res.user.id);
+    if (res.isNewUser) {
+      this.storage.copyAnonymousToUser(res.user.id);
+    }
   }
 
   async resendVerification(email: string): Promise<void> {
@@ -75,7 +77,7 @@ export class AuthService {
   async googleDesktopAuth(): Promise<{ isNewUser: boolean }> {
     const desktop = window.splendideDesktop;
     if (!desktop?.isDesktop) {
-      throw new Error('desktop google sign-in is only available in the electron app.');
+      throw new Error('desktop google sign-in is only available in the electron app');
     }
 
     const oauth = await desktop.startGoogleOAuth(environment.googleClientId);
@@ -162,8 +164,11 @@ export class AuthService {
     return res.url;
   }
 
-  async checkPremiumStatus(): Promise<boolean> {
-    const res = await firstValueFrom(this.http.get<{ isPremium: boolean }>(`${this.apiUrl}/payment/status`));
+  async checkPremiumStatus(sessionId?: string): Promise<boolean> {
+    const url = sessionId
+      ? `${this.apiUrl}/payment/status?session_id=${encodeURIComponent(sessionId)}`
+      : `${this.apiUrl}/payment/status`;
+    const res = await firstValueFrom(this.http.get<{ isPremium: boolean }>(url));
     const isPremium = res.isPremium;
     this._user.update(u => u ? { ...u, isPremium } : u);
     const user = this._user();

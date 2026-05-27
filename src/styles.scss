@@ -28,7 +28,8 @@ body {
   outline: none;
 }
 
-.driver-popover-title {
+.driver-popover-title,
+.driver-popover-description {
   color: var(--text-secondary);
   font-weight: 400;
 }
@@ -174,6 +175,102 @@ body.dark {
     opacity: 0.4;
     cursor: not-allowed;
   }
+}
+
+.premium-upgrade-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+  z-index: 180;
+}
+
+.premium-upgrade-dialog {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  width: min(400px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
+  z-index: 181;
+}
+
+.premium-upgrade-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.premium-upgrade-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 32px 12px 0;
+}
+
+.premium-upgrade-description {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.premium-upgrade-button {
+  width: 100%;
+}
+
+.task-drag-preview-card {
+  width: min(320px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  padding: 12px 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.task-drag-preview-card.cdk-drag-preview {
+  padding: 12px 14px;
+}
+
+.task-drag-preview-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.task-drag-preview-check {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+}
+
+.task-drag-preview-text {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-drag-preview-subtasks {
+  margin: 8px 0 0 28px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.task-drag-preview-card-sec .task-drag-preview-check {
+  width: 13px;
+  height: 13px;
 }
 
 .auth-error {

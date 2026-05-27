@@ -25,11 +25,10 @@ import { openExternalUrl } from '../../utils/external-link';
         @if (!auth.isPremium()) {
           <section class="settings-section">
             <div class="settings-section-header">
-              <h3 class="settings-section-title">go premium</h3>
-              <p class="settings-section-desc">unlock unlimited sections and priority support.</p>
+              <h3 class="settings-section-title">save your pages and access them everywhere</h3>
             </div>
             <button class="settings-btn settings-btn--accent" (click)="goPremium()">
-              upgrade to premium
+              upgrade to premium ✦
             </button>
           </section>
         }
@@ -39,11 +38,10 @@ import { openExternalUrl } from '../../utils/external-link';
           <section class="settings-section">
             <div class="settings-section-header">
               <h3 class="settings-section-title">change password</h3>
-              <p class="settings-section-desc">update your account password.</p>
             </div>
 
             @if (pwSuccess()) {
-              <p class="settings-success">password changed successfully.</p>
+              <p class="settings-success">password changed successfully</p>
             } @else {
               <form [formGroup]="pwForm" (ngSubmit)="submitChangePassword()" class="settings-form">
                 @if (pwError()) {
@@ -67,10 +65,22 @@ import { openExternalUrl } from '../../utils/external-link';
                   autocomplete="new-password"
                 />
                 @if (pwForm.controls.newPassword.touched && pwForm.controls.newPassword.errors?.['minlength']) {
-                  <p class="settings-field-error" role="alert">password must be at least 8 characters.</p>
+                  <p class="settings-field-error" role="alert">password must be at least 8 characters</p>
+                }
+                <label class="auth-label" for="confirmNewPassword">confirm new password</label>
+                <input
+                  id="confirmNewPassword"
+                  class="auth-input"
+                  [class.auth-input--error]="pwForm.controls.confirmNewPassword.touched && passwordsMismatch()"
+                  type="password"
+                  formControlName="confirmNewPassword"
+                  autocomplete="new-password"
+                />
+                @if (pwForm.controls.confirmNewPassword.touched && passwordsMismatch()) {
+                  <p class="settings-field-error" role="alert">new passwords do not match</p>
                 }
                 <button class="settings-btn settings-btn--primary" type="submit" [disabled]="pwLoading()">
-                  {{ pwLoading() ? 'saving...' : 'save password' }}
+                  {{ pwLoading() ? 'saving' : 'save password' }}
                 </button>
               </form>
             }
@@ -83,26 +93,26 @@ import { openExternalUrl } from '../../utils/external-link';
             <h3 class="settings-section-title settings-section-title--danger">delete account</h3>
             <p class="settings-section-desc">
               @if (auth.isPremium()) {
-                cancel your subscription before deleting your account.
+                cancel your subscription before deleting your account
               } @else {
-                permanently delete your account and all data. this cannot be undone.
+                permanently delete your account and all data. this cannot be undone
               }
             </p>
           </div>
 
           @if (auth.isPremium()) {
             <button class="settings-btn settings-btn--primary" [disabled]="subscriptionLoading()" (click)="manageSubscription()">
-              {{ subscriptionLoading() ? 'opening...' : 'manage subscription' }}
+              {{ subscriptionLoading() ? 'opening' : 'manage subscription' }}
             </button>
             @if (deleteError()) {
               <p class="settings-error" role="alert">{{ deleteError() }}</p>
             }
           } @else if (!confirmDelete()) {
             <button class="settings-btn settings-btn--danger-outline" (click)="confirmDelete.set(true)">
-              delete my account
+              Delete my account
             </button>
           } @else {
-            <p class="settings-confirm-text">type <strong>delete</strong> to confirm account deletion.</p>
+            <p class="settings-confirm-text">type <strong>delete</strong> to confirm account deletion</p>
             <input
               class="settings-delete-input"
               type="text"
@@ -114,7 +124,7 @@ import { openExternalUrl } from '../../utils/external-link';
             <div class="settings-confirm-actions">
               <button class="settings-btn settings-btn--ghost" (click)="confirmDelete.set(false); deleteConfirmText.set('')">cancel</button>
               <button class="settings-btn settings-btn--danger" [disabled]="deleteLoading() || deleteConfirmText() !== 'delete'" (click)="deleteAccount()">
-                {{ deleteLoading() ? 'deleting...' : 'yes, delete everything' }}
+                {{ deleteLoading() ? 'deleting' : 'yes, delete everything' }}
               </button>
             </div>
             @if (deleteError()) {
@@ -154,14 +164,14 @@ import { openExternalUrl } from '../../utils/external-link';
     .settings-section-header {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 12px;
     }
 
     .settings-section-title {
       font-size: 1rem;
       font-weight: 600;
       color: var(--text);
-      margin: 0;
+      margin: 0 0 10px 0;
 
       &--danger {
         color: #e53e3e;
@@ -182,6 +192,7 @@ import { openExternalUrl } from '../../utils/external-link';
 
     .settings-btn {
       align-self: flex-start;
+      min-height: 38px;
       padding: 9px 18px;
       border-radius: 8px;
       font-size: 0.875rem;
@@ -284,6 +295,7 @@ export class SettingsComponent {
   protected readonly pwForm = this.fb.group({
     currentPassword: ['', Validators.required],
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
+    confirmNewPassword: ['', Validators.required],
   });
   protected readonly pwLoading = signal(false);
   protected readonly pwError = signal('');
@@ -294,6 +306,11 @@ export class SettingsComponent {
       this.pwForm.markAllAsTouched();
       return;
     }
+    if (this.passwordsMismatch()) {
+      this.pwForm.controls.confirmNewPassword.markAsTouched();
+      this.pwError.set('new passwords do not match');
+      return;
+    }
     this.pwLoading.set(true);
     this.pwError.set('');
     try {
@@ -302,10 +319,15 @@ export class SettingsComponent {
       this.pwSuccess.set(true);
       this.pwForm.reset();
     } catch (e: any) {
-      this.pwError.set(e?.error?.error ?? 'failed to change password.');
+      this.pwError.set(e?.error?.error ?? 'failed to change password');
     } finally {
       this.pwLoading.set(false);
     }
+  }
+
+  protected passwordsMismatch(): boolean {
+    const { newPassword, confirmNewPassword } = this.pwForm.getRawValue();
+    return Boolean(confirmNewPassword) && newPassword !== confirmNewPassword;
   }
 
   // ── Go Premium ───────────────────────────────────────────
@@ -330,14 +352,14 @@ export class SettingsComponent {
         this.subscriptionLoading.set(false);
       }
     } catch (e: any) {
-      this.deleteError.set(e?.error?.error ?? 'could not open subscription management.');
+      this.deleteError.set(e?.error?.error ?? 'could not open subscription management');
       this.subscriptionLoading.set(false);
     }
   }
 
   protected async deleteAccount(): Promise<void> {
     if (this.auth.isPremium()) {
-      this.deleteError.set('cancel your active subscription before deleting your account.');
+      this.deleteError.set('cancel your active subscription before deleting your account');
       return;
     }
     this.deleteLoading.set(true);
@@ -345,7 +367,7 @@ export class SettingsComponent {
     try {
       await this.auth.deleteAccount();
     } catch (e: any) {
-      this.deleteError.set(e?.error?.error ?? 'failed to delete account.');
+      this.deleteError.set(e?.error?.error ?? 'failed to delete account');
       this.deleteLoading.set(false);
     }
   }

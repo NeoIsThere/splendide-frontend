@@ -287,17 +287,22 @@ function guessCurrency(): string {
       <h1 class="logo">splendide.</h1>
       <div class="content">
         @if (mode() === 'success') {
-          <h2 class="result-title">welcome to premium.</h2>
-          <p class="result-text">your subscription is active. tasks now sync across all your devices.</p>
-          <a class="result-link" routerLink="/" (click)="onEnjoyIt()">enjoy it</a>
+          <h2 class="result-title">welcome to premium</h2>
+          @if (premiumActivationPending()) {
+            <p class="result-text">activating your subscription and syncing your tasks</p>
+            <div class="price-loading"><div class="spinner"></div></div>
+          } @else {
+            <p class="result-text">your subscription is active. tasks now sync across all your devices</p>
+            <a class="result-link" routerLink="/" (click)="onEnjoyIt()">enjoy it</a>
+          }
         } @else if (mode() === 'cancel') {
           <h2 class="result-title">payment cancelled</h2>
-          <p class="result-text">no worries - you can upgrade anytime.</p>
+          <p class="result-text">no worries - you can upgrade anytime</p>
           <a class="result-link" routerLink="/">back to tasks</a>
         } @else {
-          <h2 class="title">synchronize on all your devices.</h2>
+          <h2 class="title">Upgrade for cloud save</h2>
           <p class="description">
-            keep your tasks synced, and accessible across all your devices.
+            Keep your tasks saved in the cloud and synced across all your devices
           </p>
 
           @if (availableBillingIntervals().length > 1) {
@@ -340,11 +345,11 @@ function guessCurrency(): string {
           }
 
           <button class="pay-btn" (click)="checkout()" [disabled]="loading() || !currentPrice()">
-            @if (loading()) { redirecting to checkout... } @else { subscribe with stripe }
+            @if (loading()) { redirecting to checkout } @else { subscribe with stripe }
           </button>
 
           @if (externalCheckoutPending()) {
-            <p class="checkout-note">checkout is open in your browser. keep splendide open and it will update when payment is complete.</p>
+            <p class="checkout-note">checkout is open in your browser. keep splendide open and it will update when payment is complete</p>
           }
 
           <a class="back" routerLink="/">maybe later</a>
@@ -381,6 +386,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
   protected readonly loading = signal(false);
   protected readonly error = signal('');
   protected readonly externalCheckoutPending = signal(false);
+  protected readonly premiumActivationPending = signal(false);
 
   protected readonly prices = signal<PriceCatalog>({});
   protected readonly selectedBillingInterval = signal<BillingInterval>('monthly');
@@ -399,10 +405,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
     const url = this.router.url;
     if (url.includes('/payment/success')) {
       this.mode.set('success');
-      const isPremium = await this.auth.checkPremiumStatus();
-      if (isPremium) {
-        await this.syncSignedInPartition();
-      }
+      this.pollPremiumUntilActive();
     } else if (url.includes('/payment/cancel')) {
       this.mode.set('cancel');
     } else {
@@ -469,28 +472,38 @@ export class PaymentComponent implements OnInit, OnDestroy {
         this.pollPremiumAfterExternalCheckout();
       }
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'could not start checkout. please try again.');
+      this.error.set(e?.error?.error ?? 'could not start checkout. please try again');
       this.loading.set(false);
     }
   }
 
   private pollPremiumAfterExternalCheckout(): void {
+    this.pollPremiumUntilActive({ successModeOnActivation: true, initialDelayMs: 3000 });
+  }
+
+  private pollPremiumUntilActive(options?: { successModeOnActivation?: boolean; initialDelayMs?: number }): void {
     this.clearPaymentPoll();
     this.paymentPollCount = 0;
+    this.premiumActivationPending.set(true);
 
     const poll = async () => {
       this.paymentPollCount += 1;
       if (this.paymentPollCount > 80) {
         this.externalCheckoutPending.set(false);
+        this.premiumActivationPending.set(false);
+        this.error.set('premium activation is taking longer than expected. please refresh in a moment');
         return;
       }
 
       try {
-        const isPremium = await this.auth.checkPremiumStatus();
+        const isPremium = await this.auth.checkPremiumStatus(this.checkoutSessionId());
         if (isPremium) {
           await this.syncSignedInPartition();
           this.externalCheckoutPending.set(false);
-          this.mode.set('success');
+          this.premiumActivationPending.set(false);
+          if (options?.successModeOnActivation) {
+            this.mode.set('success');
+          }
           return;
         }
       } catch {
@@ -500,7 +513,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
       this.paymentPollTimer = setTimeout(poll, 3000);
     };
 
-    this.paymentPollTimer = setTimeout(poll, 3000);
+    this.paymentPollTimer = setTimeout(poll, options?.initialDelayMs ?? 0);
   }
 
   private clearPaymentPoll(): void {
@@ -508,6 +521,11 @@ export class PaymentComponent implements OnInit, OnDestroy {
       clearTimeout(this.paymentPollTimer);
       this.paymentPollTimer = null;
     }
+  }
+
+  private checkoutSessionId(): string | undefined {
+    const value = this.router.parseUrl(this.router.url).queryParams['session_id'];
+    return typeof value === 'string' && value ? value : undefined;
   }
 
   protected onEnjoyIt(): void {
@@ -524,7 +542,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
       await this.syncSignedInPartition();
       this.mode.set('success');
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'invalid or expired code.');
+      this.error.set(e?.error?.error ?? 'invalid or expired code');
       this.codeLoading.set(false);
     }
   }
@@ -542,7 +560,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
       this.selectedBillingInterval.set(intervals.includes('monthly') ? 'monthly' : intervals[0] ?? 'monthly');
       this.refreshAvailableCurrencies();
     } catch {
-      this.error.set('could not load pricing. please refresh.');
+      this.error.set('could not load pricing. please refresh');
     }
   }
 

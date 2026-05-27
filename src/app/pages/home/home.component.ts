@@ -1,5 +1,5 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy, HostListener } from '@angular/core';
-import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkDragDrop, CdkDrag, CdkDragMove, CdkDropList, CdkDragPlaceholder, CdkDragPreview, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { driver } from 'driver.js';
 import { AuthService } from '../../services/auth.service';
@@ -45,13 +45,17 @@ const MAX_SECTIONS = 10;
 const MAX_BACKLOG_TASKS = 200;
 const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
 const MAX_DONE_TASKS = 10;
+const PREMIUM_UPGRADE_PROMPT_DELAY_MS = 60_000; // 1 minute
+const PREMIUM_UPGRADE_PROMPT_LAST_SHOWN_KEY = 'splendide_premium_upgrade_prompt_last_shown_day';
+
+let premiumUpgradePromptShownThisAppLoad = false;
 
 @Component({
   selector: 'app-home',
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, RouterLink],
+  imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, CdkDragPreview, RouterLink],
 })
 export class HomeComponent implements OnDestroy {
   private readonly urlPattern = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
@@ -69,6 +73,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly publicLoadFailed = signal(false);
   protected readonly shareMenuOpen = signal(false);
   protected readonly shareToastVisible = signal(false);
+  protected readonly premiumUpgradePromptOpen = signal(false);
   protected readonly isPublicPage = computed(() => this.publicPageId() !== null);
 
   // ─── Sections ───────────────────────────────────────────
@@ -175,12 +180,15 @@ export class HomeComponent implements OnDestroy {
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragging = signal(false);
   protected readonly dragDelay = computed(() => this.isMobile() ? { touch: 200, mouse: 0 } : { touch: 0, mouse: 0 });
+  protected readonly dragAutoScrollDisabled = true;
+  protected readonly dragAutoScrollStep = 24;
   protected readonly activeSectionIndex = computed(() => this.sections().findIndex(s => s.id === this.activeSectionId()));
   protected readonly showPrevArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() > 0);
   protected readonly showNextArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() < this.sections().length - 1);
 
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
   private shareToastTimer: ReturnType<typeof setTimeout> | null = null;
+  private premiumUpgradePromptTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     void this.initFromStorage();
@@ -189,6 +197,11 @@ export class HomeComponent implements OnDestroy {
   @HostListener('document:keydown', ['$event'])
   protected handleDocumentKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || event.repeat || event.isComposing) return;
+    if (this.premiumUpgradePromptOpen()) {
+      if (event.key === 'Tab' || this.isInteractiveTarget(event.target)) return;
+      event.preventDefault();
+      return;
+    }
     if (this.isTextEntryTarget(event.target)) {
       if (event.key === 'Tab') {
         event.preventDefault();
@@ -272,6 +285,10 @@ export class HomeComponent implements OnDestroy {
       clearTimeout(this.shareToastTimer);
       this.shareToastTimer = null;
     }
+    if (this.premiumUpgradePromptTimer !== null) {
+      clearTimeout(this.premiumUpgradePromptTimer);
+      this.premiumUpgradePromptTimer = null;
+    }
   }
 
   private async initFromStorage(): Promise<void> {
@@ -304,12 +321,14 @@ export class HomeComponent implements OnDestroy {
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
       await this.doFullSync();
     } else {
+      this.ensureLocalDefaultListsForSections();
       this.startPeriodicSync();
     }
 
     if (shouldShowCoachMarks) {
       this.scheduleCoachMarks();
     }
+    this.schedulePremiumUpgradePrompt();
   }
 
   private async initPublicPage(publicId: string): Promise<void> {
@@ -335,10 +354,14 @@ export class HomeComponent implements OnDestroy {
     try {
       const synced = await this.sync.syncSections();
       this.sections.set(synced);
-      const first = synced[0];
+      await this.hydrateMissingSectionLists();
+      const sections = this.sections();
+      const first = sections[0];
       if (first) {
         this.activeSectionId.set(first.id);
-        await this.doSyncSection(first.id);
+      }
+      for (const section of sections) {
+        await this.doSyncSection(section.id);
       }
     } catch { /* silently fail */ }
     this.startPeriodicSync();
@@ -352,6 +375,7 @@ export class HomeComponent implements OnDestroy {
       if (this.auth.isLoggedIn()) {
         await this.auth.fetchUser();
       }
+      this.schedulePremiumUpgradePrompt();
       if (this.shouldSkipPeriodicSync()) return;
       if (this.auth.isLoggedIn() && this.auth.isPremium()) {
         await this.doPeriodicSync();
@@ -365,10 +389,13 @@ export class HomeComponent implements OnDestroy {
       const synced = await this.sync.syncSections();
       if (this.shouldSkipPeriodicSync()) return;
       this.sections.set(synced);
+      await this.hydrateMissingSectionLists();
+      if (this.shouldSkipPeriodicSync()) return;
+      const refreshed = this.sections();
       const activeId = this.activeSectionId();
-      const syncedActiveId = activeId && synced.some(section => section.id === activeId)
+      const syncedActiveId = activeId && refreshed.some(section => section.id === activeId)
         ? activeId
-        : synced[0]?.id ?? null;
+        : refreshed[0]?.id ?? null;
       if (syncedActiveId !== activeId) {
         this.activeSectionId.set(syncedActiveId);
       }
@@ -380,6 +407,60 @@ export class HomeComponent implements OnDestroy {
 
   private shouldSkipPeriodicSync(): boolean {
     return this.isPublicPage() || this.isEditing() || this.dragging();
+  }
+
+  private schedulePremiumUpgradePrompt(): void {
+    if (
+      premiumUpgradePromptShownThisAppLoad ||
+      this.wasPremiumUpgradePromptShownToday() ||
+      !this.shouldOfferPremiumUpgrade()
+    ) return;
+    if (this.premiumUpgradePromptTimer !== null) return;
+
+    this.premiumUpgradePromptTimer = setTimeout(() => {
+      this.premiumUpgradePromptTimer = null;
+      if (
+        premiumUpgradePromptShownThisAppLoad ||
+        this.wasPremiumUpgradePromptShownToday() ||
+        !this.shouldOfferPremiumUpgrade()
+      ) return;
+
+      premiumUpgradePromptShownThisAppLoad = true;
+      this.markPremiumUpgradePromptShownToday();
+      this.premiumUpgradePromptOpen.set(true);
+    }, PREMIUM_UPGRADE_PROMPT_DELAY_MS);
+  }
+
+  private shouldOfferPremiumUpgrade(): boolean {
+    return this.isMainPage() && (!this.auth.isLoggedIn() || !this.auth.isPremium());
+  }
+
+  private isMainPage(): boolean {
+    const path = this.router.url.split('?')[0]?.split('#')[0] ?? '/';
+    return path === '/';
+  }
+
+  private wasPremiumUpgradePromptShownToday(): boolean {
+    try {
+      return localStorage.getItem(PREMIUM_UPGRADE_PROMPT_LAST_SHOWN_KEY) === this.localDayKey();
+    } catch {
+      return false;
+    }
+  }
+
+  private markPremiumUpgradePromptShownToday(): void {
+    try {
+      localStorage.setItem(PREMIUM_UPGRADE_PROMPT_LAST_SHOWN_KEY, this.localDayKey());
+    } catch {
+      // Ignore storage errors; the in-memory guard still prevents repeats in this app load.
+    }
+  }
+
+  private localDayKey(): string {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${now.getFullYear()}-${month}-${day}`;
   }
 
   private async doSyncSection(sectionId: string): Promise<void> {
@@ -394,6 +475,49 @@ export class HomeComponent implements OnDestroy {
       }
       this.refreshSectionsFromStorage();
     } catch { /* silently fail */ }
+  }
+
+  private async hydrateMissingSectionLists(sectionIds?: string[]): Promise<void> {
+    if (this.isPublicPage() || !this.auth.isLoggedIn() || !this.auth.isPremium()) return;
+
+    const ids = sectionIds ?? this.sections().map(section => section.id);
+    for (const sectionId of ids) {
+      const section = this.sections().find(existing => existing.id === sectionId);
+      if (!section || this.sectionHasDefaultLists(section)) continue;
+
+      try {
+        await this.sync.syncSectionLists(sectionId);
+        this.refreshSectionsFromStorage();
+      } catch {
+        // Keep the local section unchanged if we could not verify the backend state.
+      }
+    }
+  }
+
+  private sectionHasDefaultLists(section: StoredSection | null): boolean {
+    return !!section &&
+      section.lists.some(list => !list.isBacklog) &&
+      section.lists.some(list => list.isBacklog);
+  }
+
+  private sectionHasList(section: StoredSection | null, list: TaskListKind): boolean {
+    return !!section?.lists.some(existing => list === 'main' ? !existing.isBacklog : existing.isBacklog);
+  }
+
+  private ensureLocalDefaultLists(sectionId: string): void {
+    if (this.storage.ensureSectionHasDefaultLists(sectionId)) {
+      this.refreshSectionsFromStorage();
+    }
+  }
+
+  private ensureLocalDefaultListsForSections(): void {
+    let changed = false;
+    for (const section of this.sections()) {
+      if (!this.sectionHasDefaultLists(section)) {
+        changed = this.storage.ensureSectionHasDefaultLists(section.id) || changed;
+      }
+    }
+    if (changed) this.refreshSectionsFromStorage();
   }
 
   private prioritizeMovedIntoLists(sectionId: string, lists: StoredList[]): StoredList[] {
@@ -425,12 +549,11 @@ export class HomeComponent implements OnDestroy {
 
     const mainListTarget = document.querySelector<HTMLElement>('.my-primary-list-container');
     const secondaryListTarget = document.querySelector<HTMLElement>('.my-secondary-list-container');
-    const renameTarget = document.querySelector<HTMLElement>('.main-list-title');
-    const sectionRenameTarget = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-coach-section-rename]'),
+    const createSectionTarget = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-coach-create-section]'),
     ).find(element => element.offsetParent !== null || element.getClientRects().length > 0);
     const moveTarget = document.querySelector<HTMLElement>('.main-drop-zone [data-keyboard-task]');
-    if (!mainListTarget || !secondaryListTarget || !renameTarget || !sectionRenameTarget || !moveTarget) return;
+    if (!mainListTarget || !secondaryListTarget || !createSectionTarget || !moveTarget) return;
 
     driver({
       allowClose: false,
@@ -460,22 +583,6 @@ export class HomeComponent implements OnDestroy {
           },
         },
         {
-          element: renameTarget,
-          popover: {
-            title: 'Double click to rename list',
-            side: 'bottom',
-            align: 'start',
-          },
-        },
-        {
-          element: sectionRenameTarget,
-          popover: {
-            title: 'Double click to rename section',
-            side: 'bottom',
-            align: 'start',
-          },
-        },
-        {
           element: moveTarget,
           popover: {
             title: 'Drag tasks between lists',
@@ -483,12 +590,22 @@ export class HomeComponent implements OnDestroy {
             align: 'start',
           },
         },
+        {
+          element: createSectionTarget,
+          popover: {
+            title: 'Add a new page',
+            description: "Use pages to organize work in different areas",
+            side: 'bottom',
+            align: 'start',
+          },
+        }
       ],
     }).drive();
   }
 
   protected setDragging(value: boolean): void {
     this.dragging.set(value);
+    this.resetHorizontalListScroll();
   }
 
   protected isTabsFocused(): boolean {
@@ -727,9 +844,9 @@ export class HomeComponent implements OnDestroy {
 
   private startAddingInCurrentList(): void {
     if (this.currentList() === 'secondary') {
-      this.startAddingSecondary();
+      void this.startAddingSecondary();
     } else {
-      this.startAdding();
+      void this.startAdding();
     }
   }
 
@@ -805,10 +922,13 @@ export class HomeComponent implements OnDestroy {
     this.activeKeyboardTask.set(null);
 
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
-      this.sync.syncSections().then(synced => {
+      this.sync.syncSections().then(async synced => {
         this.sections.set(synced);
+        await this.hydrateMissingSectionLists([sectionId]);
         return this.doSyncSection(sectionId);
       }).catch(() => {});
+    } else {
+      this.ensureLocalDefaultLists(sectionId);
     }
   }
 
@@ -850,6 +970,68 @@ export class HomeComponent implements OnDestroy {
   protected dropSecSubtask(taskId: string, event: CdkDragDrop<Subtask[]>): void {
     if (event.previousIndex === event.currentIndex) return;
     this.reorderSubtasksInList(this.backlogList(), taskId, event.previousIndex, event.currentIndex);
+  }
+
+  protected handleTaskDragMoved(event: CdkDragMove<unknown>): void {
+    if (typeof document === 'undefined') return;
+
+    this.resetHorizontalListScroll();
+
+    const pointer = event.pointerPosition;
+    const pointedElement = document.elementFromPoint(pointer.x, pointer.y) as HTMLElement | null;
+    const targetContainer = this.closestScrollableDragContainer(pointedElement);
+    const sourceContainer = this.closestScrollableDragContainer(event.source.element.nativeElement);
+    const container = targetContainer ?? sourceContainer;
+
+    if (container) this.scrollDragContainer(container, pointer.y);
+    this.resetHorizontalListScroll();
+  }
+
+  private resetHorizontalListScroll(): void {
+    if (typeof document === 'undefined') return;
+
+    for (const element of document.querySelectorAll<HTMLElement>(
+      '.lists, .main-section, .secondary-section, .main-drop-zone, .sec-drop-zone, .task-list',
+    )) {
+      if (element.scrollLeft !== 0) element.scrollLeft = 0;
+    }
+  }
+
+  private closestScrollableDragContainer(element: HTMLElement | null): HTMLElement | null {
+    let current: HTMLElement | null = element;
+
+    while (current && current !== document.body) {
+      const style = getComputedStyle(current);
+      const canScrollY = style.overflowY === 'auto' || style.overflowY === 'scroll';
+
+      if (canScrollY && current.scrollHeight > current.clientHeight + 1) {
+        return current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return null;
+  }
+
+  private scrollDragContainer(container: HTMLElement, pointerY: number): void {
+    const rect = container.getBoundingClientRect();
+    const threshold = Math.min(96, rect.height / 4);
+    if (threshold <= 0) return;
+
+    let delta = 0;
+    if (pointerY < rect.top + threshold) {
+      delta = -this.dragAutoScrollDelta(rect.top + threshold - pointerY, threshold);
+    } else if (pointerY > rect.bottom - threshold) {
+      delta = this.dragAutoScrollDelta(pointerY - (rect.bottom - threshold), threshold);
+    }
+
+    if (delta !== 0) container.scrollTop += delta;
+  }
+
+  private dragAutoScrollDelta(distance: number, threshold: number): number {
+    const ratio = Math.min(Math.max(distance / threshold, 0), 1);
+    return Math.ceil(this.dragAutoScrollStep * ratio);
   }
 
   // ─── Section creation ──────────────────────────────────
@@ -910,21 +1092,59 @@ export class HomeComponent implements OnDestroy {
     return newSection;
   }
 
-  private ensureDefaultSectionForItemCreation(): void {
-    if (this.activeSection() && this.mainList() && this.backlogList()) return;
+  private ensureDefaultSectionForItemCreation(list: TaskListKind): boolean {
+    const active = this.activeSection();
+    if (this.sectionHasList(active, list)) return true;
 
-    const existingSection = this.sections().find(section =>
-      section.lists.some(list => !list.isBacklog) &&
-      section.lists.some(list => list.isBacklog),
-    );
-    if (existingSection) {
-      this.activeSectionId.set(existingSection.id);
-      return;
+    if (active) {
+      if (this.auth.isLoggedIn() && this.auth.isPremium() && !this.isPublicPage()) return false;
+      this.ensureLocalDefaultLists(active.id);
+      return this.sectionHasList(this.activeSection(), list);
     }
 
     if (this.sections().length === 0) {
-      this.createSection('my list');
+      const created = this.createSection('my list');
+      return this.sectionHasList(created, list);
     }
+
+    const first = this.sections()[0];
+    if (!first) return false;
+    this.activeSectionId.set(first.id);
+    if (this.auth.isLoggedIn() && this.auth.isPremium() && !this.isPublicPage()) return this.sectionHasList(first, list);
+    this.ensureLocalDefaultLists(first.id);
+    return this.sectionHasList(this.activeSection(), list);
+  }
+
+  private async ensureActiveListReadyForItemCreation(list: TaskListKind): Promise<boolean> {
+    let active = this.activeSection();
+    if (!active) {
+      if (this.sections().length === 0 && !this.isPublicPage()) {
+        active = this.createSection('my list');
+      } else {
+        active = this.sections()[0] ?? null;
+        if (active) this.activeSectionId.set(active.id);
+      }
+    }
+    if (!active) return false;
+    if (this.sectionHasList(active, list)) return true;
+
+    const sectionId = active.id;
+    if (this.auth.isLoggedIn() && this.auth.isPremium() && !this.isPublicPage()) {
+      try {
+        await this.sync.syncSectionLists(sectionId);
+        this.refreshSectionsFromStorage();
+      } catch {
+        return false;
+      }
+
+      active = this.activeSection();
+      if (this.sectionHasList(active, list)) return true;
+    }
+
+    if (!this.isPublicPage() || list === 'main') {
+      this.ensureLocalDefaultLists(sectionId);
+    }
+    return this.sectionHasList(this.activeSection(), list);
   }
 
   protected handleAddSectionKeydown(event: KeyboardEvent): void {
@@ -1716,6 +1936,7 @@ export class HomeComponent implements OnDestroy {
     this.sections.set(loaded);
     this.activeSectionId.set(loaded[0]?.id ?? null);
     this.clearKeyboardFocus('main');
+    this.schedulePremiumUpgradePrompt();
   }
 
   protected openSettings(): void {
@@ -1734,8 +1955,25 @@ export class HomeComponent implements OnDestroy {
   }
 
   // ─── Main task: add ─────────────────────────────────────
-  protected startAdding(): void {
+  protected dismissPremiumUpgradePrompt(): void {
+    premiumUpgradePromptShownThisAppLoad = true;
+    this.markPremiumUpgradePromptShownToday();
+    this.premiumUpgradePromptOpen.set(false);
+    if (this.premiumUpgradePromptTimer !== null) {
+      clearTimeout(this.premiumUpgradePromptTimer);
+      this.premiumUpgradePromptTimer = null;
+    }
+  }
+
+  protected goToPremiumUpgrade(): void {
+    this.dismissPremiumUpgradePrompt();
+    this.router.navigate(['/payment']);
+  }
+
+  protected async startAdding(): Promise<void> {
     this.focusListWithoutTask('main');
+    if (!this.canAdd() || this.isEditing()) return;
+    if (!(await this.ensureActiveListReadyForItemCreation('main'))) return;
     if (!this.canAdd() || this.isEditing()) return;
     this.adding.set(true);
     this.newTaskText.set('');
@@ -1752,7 +1990,7 @@ export class HomeComponent implements OnDestroy {
   protected confirmAdd(): void {
     const text = this.newTaskText().trim();
     if (!text) { this.cancelAdding(); return; }
-    this.ensureDefaultSectionForItemCreation();
+    if (!this.ensureDefaultSectionForItemCreation('main')) return;
     const subtasks: Subtask[] = this.newSubtasks()
       .map(s => s.trim())
       .filter(s => s.length > 0)
@@ -1988,8 +2226,10 @@ export class HomeComponent implements OnDestroy {
   }
 
   // ─── Secondary tasks ───────────────────────────────────
-  protected startAddingSecondary(): void {
+  protected async startAddingSecondary(): Promise<void> {
     this.focusListWithoutTask('secondary');
+    if (!this.canAddSecondary() || this.isEditing()) return;
+    if (!(await this.ensureActiveListReadyForItemCreation('secondary'))) return;
     if (!this.canAddSecondary() || this.isEditing()) return;
     this.addingSecondary.set(true);
     this.newSecondaryText.set('');
@@ -2006,7 +2246,7 @@ export class HomeComponent implements OnDestroy {
   protected confirmAddSecondary(): void {
     const text = this.newSecondaryText().trim();
     if (!text) { this.cancelAddingSecondary(); return; }
-    this.ensureDefaultSectionForItemCreation();
+    if (!this.ensureDefaultSectionForItemCreation('secondary')) return;
     const subtasks: Subtask[] = this.newSecondarySubtasks()
       .map(s => s.trim())
       .filter(s => s.length > 0)

@@ -15,7 +15,7 @@ import { AuthService } from '../../services/auth.service';
 
         @if (success()) {
           <p class="auth-success" role="status">
-            password has been reset successfully.
+            password has been reset successfully
           </p>
           <p class="auth-switch">
             <a routerLink="/sign-in">sign in with your new password</a>
@@ -36,7 +36,7 @@ import { AuthService } from '../../services/auth.service';
             />
 
             <button class="auth-btn" type="submit" [disabled]="loading()">
-              @if (loading()) { resetting... } @else { reset password }
+              @if (loading()) { resetting } @else { reset password }
             </button>
           </form>
         }
@@ -62,7 +62,7 @@ export class ResetPasswordComponent implements OnInit {
   ngOnInit(): void {
     this.token = this.route.snapshot.queryParamMap.get('token') ?? '';
     if (!this.token) {
-      this.error.set('invalid or missing reset token.');
+      this.error.set('invalid or missing reset token');
     }
   }
 
@@ -75,7 +75,7 @@ export class ResetPasswordComponent implements OnInit {
       await this.auth.resetPassword(this.token, this.form.getRawValue().password);
       this.success.set(true);
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'reset failed. the link may have expired.');
+      this.error.set(e?.error?.error ?? 'reset failed. the link may have expired');
     } finally {
       this.loading.set(false);
     }

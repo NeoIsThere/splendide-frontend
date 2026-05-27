@@ -139,7 +139,7 @@
   @if (publicLoadFailed()) {
     <main class="public-expired" aria-live="polite">
       <h1>this public page has expired</h1>
-      <p>public pages are removed after six months without activity.</p>
+      <p>public pages are removed after six months without activity</p>
     </main>
   } @else {
 
@@ -160,7 +160,7 @@
         >
           <polyline points="15 18 9 12 15 6" />
         </svg>
-        private spaces
+        private tasks
       </a>
       <div class="public-share-wrapper" data-public-share>
         <button
@@ -191,8 +191,8 @@
         </button>
         @if (shareMenuOpen()) {
           <div class="public-share-popover">
-            <p class="public-share-title">share this space</p>
-            <p class="public-share-copy">anyone with the link can collaborate.</p>
+            <p class="public-share-title">share this page</p>
+            <p class="public-share-copy">anyone with the link can collaborate. private tasks are not shared</p>
             <div class="public-share-link-row">
               <input class="public-share-link" type="text" [value]="publicShareUrl()" readonly aria-label="public section link" />
               <button class="public-copy-btn" (click)="copyPublicLink()">copy</button>
@@ -200,6 +200,7 @@
             @if (shareToastVisible()) {
               <span class="public-share-toast" aria-live="polite">link copied</span>
             }
+
           </div>
         }
       </div>
@@ -234,7 +235,7 @@
           (input)="onAddSectionInput($event)"
           (keydown)="handleAddSectionKeydown($event)"
           (blur)="confirmAddSection()"
-          placeholder="tab name"
+          placeholder="page name"
         />
       } @else if (editingSectionId() === activeSectionId()) {
         <input
@@ -249,7 +250,6 @@
           class="section-nav-title"
           [class.keyboard-focused]="isTabsFocused()"
           [attr.data-keyboard-section]="activeSectionId()"
-          data-coach-section-rename
           (click)="startEditingSection(activeSectionId()!)"
         >
           {{ activeSection()?.title }}
@@ -263,6 +263,7 @@
             class="section-menu-trigger"
             (click)="toggleSectionMenu()"
             aria-label="tab actions"
+            data-coach-create-section
             [attr.aria-expanded]="sectionMenuOpen()"
           >
             <svg
@@ -285,15 +286,16 @@
             <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
             <div class="section-menu">
               <button
-                class="section-menu-item"
+                class="section-menu-item section-menu-item-icon"
                 (click)="startAddingSectionFromMenu()"
                 [disabled]="!canAddSection()"
               >
-                add new tab
+                <span class="section-menu-plus" aria-hidden="true">+</span>
+                <span>add new tab</span>
               </button>
               <button class="section-menu-item section-menu-item-icon" (click)="createPublicSection()">
                 <span class="section-menu-plus" aria-hidden="true">+</span>
-                <span>shareable section</span>
+                <span>shared page</span>
               </button>
               @if (sections().length > 1) {
                 <button class="section-menu-item danger" (click)="startDeletingActiveSectionFromMenu()">
@@ -360,7 +362,6 @@
             } @else {
               <button
                 class="section-tab-btn"
-                [attr.data-coach-section-rename]="activeSectionId() === sec.id ? '' : null"
                 (click)="selectSection(sec.id); focusTabsForKeyboard()"
                 (dblclick)="startEditingSection(sec.id)"
               >
@@ -418,7 +419,7 @@
                 (input)="onAddSectionInput($event)"
                 (keydown)="handleAddSectionKeydown($event)"
                 (blur)="confirmAddSection()"
-                placeholder="tab name"
+                placeholder="page name"
               />
             </div>
             <div class="section-tab-actions"></div>
@@ -432,6 +433,7 @@
               (click)="startAddingSection()"
               [disabled]="addingSectionTitle() !== null"
               aria-label="add section"
+              data-coach-create-section
             >
               +
             </button>
@@ -471,7 +473,7 @@
           <div class="section-menu">
             <button class="section-menu-item section-menu-item-icon" (click)="createPublicSection()">
               <span class="section-menu-plus" aria-hidden="true">+</span>
-              <span>shareable section</span>
+              <span>shared page</span>
             </button>
           </div>
         }
@@ -514,6 +516,8 @@
           #mainList="cdkDropList"
           [cdkDropListData]="tasks()"
           [cdkDropListConnectedTo]="mainDropListConnections()"
+          [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
+          [cdkDropListAutoScrollStep]="dragAutoScrollStep"
           (cdkDropListDropped)="dropMainTask($any($event))"
         >
         <!-- Add task form -->
@@ -522,7 +526,7 @@
             <input
               class="input-minimal"
               type="text"
-              placeholder="task..."
+              placeholder="task"
               [value]="newTaskText()"
               (input)="onNewTaskInput($event)"
               (keydown)="handleAddKeydown($event)"
@@ -535,7 +539,7 @@
                 <input
                   class="input-minimal input-sub"
                   type="text"
-                  placeholder="subtask..."
+                  placeholder="subtask"
                   [value]="sub"
                   (input)="updateNewSubtask($index, $event)"
                   (keydown)="handleAddKeydown($event)"
@@ -636,10 +640,25 @@
               [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
               (cdkDragStarted)="setDragging(true)"
+              (cdkDragMoved)="handleTaskDragMoved($any($event))"
               (cdkDragEnded)="setDragging(false)"
               (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
               role="listitem"
             >
+              <ng-template cdkDragPreview>
+                <div class="task-drag-preview-card">
+                  <div class="task-drag-preview-main">
+                    <span class="task-drag-preview-check" aria-hidden="true"></span>
+                    <span class="task-drag-preview-text">{{ task.text }}</span>
+                  </div>
+                  @if (task.subtasks.length > 0) {
+                    <div class="task-drag-preview-subtasks">
+                      {{ task.subtasks.length }} subtask{{ task.subtasks.length === 1 ? '' : 's' }}
+                    </div>
+                  }
+                </div>
+              </ng-template>
+              <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
               <div class="task-main">
                 <button
                   class="check-btn"
@@ -856,7 +875,7 @@
                   <input
                     class="edit-input edit-input-sub"
                     type="text"
-                    placeholder="subtask..."
+                    placeholder="subtask"
                     data-inline-subtask
                     [value]="newInlineSubtaskText()"
                     (input)="onInlineSubtaskInput($event)"
@@ -964,6 +983,8 @@
           #secList="cdkDropList"
           [cdkDropListData]="secondaryTasks()"
           [cdkDropListConnectedTo]="secondaryDropListConnections()"
+          [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
+          [cdkDropListAutoScrollStep]="dragAutoScrollStep"
           (cdkDropListDropped)="dropSecondaryTask($any($event))"
         >
         @if (secondaryVisible()) {
@@ -972,7 +993,7 @@
               <input
                 class="input-minimal input-sec"
                 type="text"
-                placeholder="task..."
+                placeholder="task"
                 [value]="newSecondaryText()"
                 (input)="onNewSecondaryInput($event)"
                 (keydown)="handleSecondaryKeydown($event)"
@@ -985,7 +1006,7 @@
                   <input
                     class="input-minimal input-sub"
                     type="text"
-                    placeholder="subtask..."
+                    placeholder="subtask"
                     [value]="sub"
                     (input)="updateNewSecSubtask($index, $event)"
                     (keydown)="handleSecondaryKeydown($event)"
@@ -1086,10 +1107,25 @@
               [cdkDragDisabled]="isEditing()"
               [cdkDragStartDelay]="dragDelay()"
               (cdkDragStarted)="setDragging(true)"
+              (cdkDragMoved)="handleTaskDragMoved($any($event))"
               (cdkDragEnded)="setDragging(false)"
               (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
               role="listitem"
             >
+              <ng-template cdkDragPreview>
+                <div class="task-drag-preview-card task-drag-preview-card-sec">
+                  <div class="task-drag-preview-main">
+                    <span class="task-drag-preview-check" aria-hidden="true"></span>
+                    <span class="task-drag-preview-text">{{ task.text }}</span>
+                  </div>
+                  @if (task.subtasks.length > 0) {
+                    <div class="task-drag-preview-subtasks">
+                      {{ task.subtasks.length }} subtask{{ task.subtasks.length === 1 ? '' : 's' }}
+                    </div>
+                  }
+                </div>
+              </ng-template>
+              <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
               <div class="sec-task-main">
                 <button
                   class="check-btn check-btn-sub"
@@ -1305,7 +1341,7 @@
                   <input
                     class="edit-input edit-input-sub"
                     type="text"
-                    placeholder="subtask..."
+                    placeholder="subtask"
                     data-inline-sec-subtask
                     [value]="newInlineSecSubtaskText()"
                     (input)="onInlineSecSubtaskInput($event)"
@@ -1379,7 +1415,10 @@
     @if (doneTaskCount() > 0) {
       <div class="my-list-col my-last-list-col">
         <div class="my-tertiary-list-container">
-          <h2 class="section-title done-list-title">done</h2>
+          <h2
+            class="section-title done-list-title"
+            title="done tasks are deleted automatically"
+          >done</h2>
           <div class="done-list" role="list" aria-label="done tasks">
             @for (task of doneTasks(); track task.id) {
               <div class="done-task-item" role="listitem">
@@ -1428,6 +1467,46 @@
       </div>
     }
   </div>
+  }
+
+  @if (premiumUpgradePromptOpen()) {
+    <div class="premium-upgrade-backdrop" aria-hidden="true"></div>
+    <section
+      class="premium-upgrade-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="premium-upgrade-title"
+      aria-describedby="premium-upgrade-description"
+    >
+      <button
+        class="icon-btn-sm premium-upgrade-close"
+        type="button"
+        (click)="dismissPremiumUpgradePrompt()"
+        aria-label="dismiss upgrade dialog"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      <h2 class="premium-upgrade-title" id="premium-upgrade-title">Upgrade for cloud save</h2>
+      <p class="premium-upgrade-description" id="premium-upgrade-description">
+         Keep your tasks saved in the cloud and synced across all your devices
+      </p>
+      <button class="auth-btn premium-upgrade-button" type="button" (click)="goToPremiumUpgrade()">
+        Upgrade 
+      </button>
+    </section>
   }
 
   <footer class="site-footer">

@@ -42,6 +42,16 @@ export class SyncService {
       ...(section.deleted ? { deleted: true } : {}),
       ...(section.created ? { created: true } : {}),
       ...(section.dirty ? { dirty: true } : {}),
+      ...(!section.deleted && (section.created || section.serverRevision === 0) ? {
+        lists: section.lists.map(list => ({
+          id: list.id,
+          title: list.title,
+          isBacklog: list.isBacklog,
+          metadataLastModifiedAt: list.metadataLastModifiedAt,
+          serverRevision: list.serverRevision,
+          ...(list.dirty ? { dirty: true } : {}),
+        })),
+      } : {}),
     }));
     const order = this.storage.getSectionOrderSync();
     const payload = {
@@ -57,7 +67,10 @@ export class SyncService {
       generation === this.sectionsSyncGeneration &&
       localOrderRevision === this.storage.getSectionOrderLocalRevision()
     ) {
-      this.storage.applySyncedSections(synced);
+      const rebasedLocalSections = this.storage.applySyncedSections(synced);
+      if (rebasedLocalSections) {
+        return this.syncSections();
+      }
     }
     return this.storage.loadSections();
   }

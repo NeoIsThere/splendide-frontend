@@ -24,7 +24,7 @@ function loadGoogleScript(): Promise<void> {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${GOOGLE_SCRIPT_SRC}"]`);
     if (existing) {
       existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error('google sign-in failed to load.')), { once: true });
+      existing.addEventListener('error', () => reject(new Error('google sign-in failed to load')), { once: true });
       return;
     }
 
@@ -33,7 +33,7 @@ function loadGoogleScript(): Promise<void> {
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('google sign-in failed to load.'));
+    script.onerror = () => reject(new Error('google sign-in failed to load'));
     document.head.appendChild(script);
   });
 

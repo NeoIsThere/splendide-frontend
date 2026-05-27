@@ -195,6 +195,20 @@ function normalizeList(value: LegacyList, index: number, fallbackTimestamp: stri
   };
 }
 
+function createEmptyList(isBacklog: boolean, timestamp: string = nowIso()): StoredList {
+  return {
+    id: generateId(),
+    title: isBacklog ? 'later' : 'now',
+    metadataLastModifiedAt: timestamp,
+    serverRevision: 0,
+    itemsOrderRevision: 0,
+    itemsBaseOrderRevision: 0,
+    dirty: true,
+    isBacklog,
+    items: [],
+  };
+}
+
 function normalizeSection(
   value: LegacySection,
   index: number,
@@ -307,7 +321,7 @@ function cloneItemForUser(item: StoredItem, position: number): StoredItem {
   return {
     id,
     content: normalizeTaskContent(item.content, id),
-    position: item.position ?? position,
+    position,
     lastModifiedAt: item.lastModifiedAt,
     serverRevision: 0,
     created: true,
@@ -468,6 +482,27 @@ export class StorageService {
     return this.load().sections.find((section) => section.id === sectionId);
   }
 
+  ensureSectionHasDefaultLists(sectionId: string): boolean {
+    const partition = this.load();
+    const section = partition.sections.find((existing) => existing.id === sectionId && !existing.deleted);
+    if (!section) return false;
+
+    const hasMainList = section.lists.some((list) => !list.isBacklog);
+    const hasBacklogList = section.lists.some((list) => list.isBacklog);
+    if (hasMainList && hasBacklogList) return false;
+
+    const timestamp = nowIso();
+    if (!hasMainList) {
+      section.lists.push(createEmptyList(false, timestamp));
+    }
+    if (!hasBacklogList) {
+      section.lists.push(createEmptyList(true, timestamp));
+    }
+    section.lists.sort((left, right) => Number(left.isBacklog) - Number(right.isBacklog));
+    this.save(partition);
+    return true;
+  }
+
   upsertSection(section: StoredSection): void {
     const partition = this.load();
     const index = partition.sections.findIndex((existing) => existing.id === section.id);
@@ -510,10 +545,11 @@ export class StorageService {
       : partition.sectionOrderRevision;
   }
 
-  applySyncedSections(response: SectionsSyncResponse): void {
+  applySyncedSections(response: SectionsSyncResponse): boolean {
     const synced = response.sections;
     const partition = this.load();
     const existingMap = new Map(partition.sections.map((section) => [section.id, section]));
+    let rebasedLocalSections = false;
 
     const remoteIds = new Set(synced.map((section) => section.id));
     const merged = synced.map((section) => {
@@ -535,15 +571,32 @@ export class StorageService {
 
     for (const section of partition.sections) {
       if (!remoteIds.has(section.id) && section.dirty && !section.deleted) {
-        merged.push(section);
+        if (section.created || section.serverRevision === 0) {
+          merged.push(section);
+        } else {
+          const cloned = cloneSectionForUser(section);
+          cloned.position = merged.length;
+          merged.push(cloned);
+          rebasedLocalSections = true;
+        }
       }
     }
 
-    this.save({
+    merged.forEach((section, index) => {
+      section.position = index;
+    });
+
+    const nextPartition: Partition = {
       sectionOrderRevision: response.sectionOrderRevision,
       sectionBaseOrderRevision: response.sectionOrderRevision,
       sections: merged,
-    });
+    };
+    if (rebasedLocalSections) {
+      this.markSectionOrderDirty(nextPartition);
+    }
+
+    this.save(nextPartition);
+    return rebasedLocalSections;
   }
 
   applySectionPositions(
@@ -610,7 +663,8 @@ export class StorageService {
     });
 
     for (const list of existingMap.values()) {
-      if (!remoteIds.has(list.id) && list.dirty) {
+      const remoteHasSameRole = lists.some((remote) => remote.isBacklog === list.isBacklog);
+      if (!remoteIds.has(list.id) && list.dirty && !remoteHasSameRole) {
         section.lists.push(list);
       }
     }

@@ -23,12 +23,12 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
 
         @if (pendingVerification()) {
           <div class="auth-verify-notice" role="status">
-            <p>your email isn't verified yet. check your inbox or request a new link.</p>
+            <p>your email isn't verified yet. check your inbox or request a new link</p>
             @if (resendSuccess()) {
-              <p class="auth-resend-success">a new link has been sent.</p>
+              <p class="auth-resend-success">a new link has been sent</p>
             } @else {
               <button class="auth-resend-btn" [disabled]="resendLoading()" (click)="onResend()">
-                {{ resendLoading() ? 'sending...' : 'resend verification email' }}
+                {{ resendLoading() ? 'sending' : 'resend verification email' }}
               </button>
             }
           </div>
@@ -38,7 +38,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
           }
 
           @if (googleLoading()) {
-            <p class="auth-loading">signing in...</p>
+            <p class="auth-loading">signing in</p>
           } @else {
           <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
             <label class="auth-label" for="email">email</label>
@@ -52,7 +52,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
             />
             @if (form.controls.email.touched && form.controls.email.errors) {
               <p class="auth-field-error" role="alert">
-                enter a valid email address.
+                enter a valid email address
               </p>
             }
 
@@ -68,7 +68,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
             <a class="auth-forgot" routerLink="/forgot-password">forgot password?</a>
 
             <button class="auth-btn" type="submit" [disabled]="loading()">
-              @if (loading()) { signing in... } @else { sign in }
+              @if (loading()) { signing in } @else { sign in }
             </button>
           </form>
 
@@ -173,7 +173,7 @@ export class SignInComponent {
         this.pendingEmail = this.form.getRawValue().email;
         this.pendingVerification.set(true);
       } else {
-        this.error.set(e?.error?.error ?? 'sign in failed. please try again.');
+        this.error.set(e?.error?.error ?? 'sign in failed. please try again');
       }
     } finally {
       this.loading.set(false);
@@ -201,7 +201,7 @@ export class SignInComponent {
       await this.auth.googleAuth(idToken);
       this.router.navigate(['/']);
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? 'google sign in failed.');
+      this.error.set(e?.error?.error ?? 'google sign in failed');
     } finally {
       this.loading.set(false);
       this.googleLoading.set(false);
@@ -216,7 +216,7 @@ export class SignInComponent {
       await this.auth.googleDesktopAuth();
       this.router.navigate(['/']);
     } catch (e: any) {
-      this.error.set(e?.error?.error ?? e?.message ?? 'google sign in failed.');
+      this.error.set(e?.error?.error ?? e?.message ?? 'google sign in failed');
     } finally {
       this.loading.set(false);
       this.googleLoading.set(false);

@@ -44,7 +44,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   align-items: center;
   gap: 10px;
   position: relative;
-  z-index: 10;
+  z-index: 120;
   @media (max-width: 768px) {
     gap: 3px;
   }
@@ -361,7 +361,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .public-share-popover {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
+  left: auto;
   width: min(320px, calc(100vw - 40px));
   padding: 14px;
   border: 1px solid var(--border);
@@ -371,8 +372,9 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   z-index: 95;
 
   @media (max-width: 768px) {
-    left: 50%;
-    transform: translateX(-50%);
+    right: 0;
+    left: auto;
+    transform: none;
   }
 }
 
@@ -384,7 +386,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .public-share-copy {
-  margin: 0 0 12px;
+  margin: 12px 0 12px;
   color: var(--text-muted);
   font-size: 0.82rem;
   line-height: 1.35;
@@ -749,28 +751,29 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 // ─── Lists row ────────────────────────────────────────────
 .lists {
   flex: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   overflow: hidden;
   padding: 0 0 0 32px;
 
   @media (min-width: 768px) {
     display: grid;
-    grid-template-columns: 35vw 20vw 1fr;
+    grid-template-columns: minmax(0, 35vw) minmax(0, 20vw) minmax(0, 1fr);
     grid-column-gap: 40px;
   }
 
   @media (min-width: 1200px) {
-    display: grid;
-    grid-template-columns: 30vw 20vw 1fr;
+    grid-template-columns: minmax(0, 30vw) minmax(0, 20vw) minmax(0, 1fr);
   }
 
   @media (min-width: 1600px) {
-    display: grid;
-    grid-template-columns: 25vw 15vw 1fr;
+    grid-template-columns: minmax(0, 25vw) minmax(0, 15vw) minmax(0, 1fr);
   }
 
   @media (min-width: 2000px) {
-    display: grid;
-    grid-template-columns: 20vw 12vw 1fr;
+    grid-template-columns: minmax(0, 20vw) minmax(0, 12vw) minmax(0, 1fr);
   }
 
   @media (max-width: 768px) {
@@ -793,6 +796,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .my-list-col {
+  min-width: 0;
+
   @media (max-width: 768px) {
     display: flex;
     flex-direction: column;
@@ -808,31 +813,37 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .my-primary-list-container {
+  min-width: 0;
+  width: 100%;
+
   @media (max-width: 768px) {
     display: flex;
     flex-direction: column;
     flex: 1;
   }
-
-  width: 100%;
 }
 
 .my-secondary-list-container {
+  min-width: 0;
   width: 100%;
 }
 
 .my-tertiary-list-container {
+  min-width: 0;
   width: 100%;
 }
 
 .secondary-section {
+  min-width: 0;
+  contain: layout paint;
+
   @media (min-width: 768px) {
     display: flex;
     justify-content: flex-start;
     overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0 8px;
-    margin: 0 -8px;
+    overflow-x: clip;
+    padding: 0;
+    margin: 0;
   }
 
   .icon-btn-sm {
@@ -923,12 +934,13 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 // ─── User menu ─────────────────────────────────────────────
 .user-menu-wrapper {
   position: relative;
+  z-index: 1;
 }
 
 .user-menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 99;
+  z-index: 1;
 }
 
 .user-menu {
@@ -938,11 +950,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px 16px;
+  padding: 8px;
   min-width: 200px;
   max-width: calc(100vw - 32px);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
-  z-index: 100;
+  z-index: 2;
 }
 
 .user-menu-email {
@@ -964,9 +976,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .user-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
-  padding: 8px 0;
+  min-height: 40px;
+  padding: 10px 8px;
   border: none;
   background: none;
   color: var(--text);
@@ -975,10 +989,12 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   cursor: pointer;
   text-align: left;
   border-top: 1px solid var(--border);
+  border-radius: 4px;
   transition: color 0.2s $ease;
 
   &:hover {
     color: var(--text-primary);
+    background: var(--hover);
   }
 }
 
@@ -1081,6 +1097,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   min-height: 200px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow-x: hidden;
 
   @media (max-width: 768px) {
     &:has(> .add-btn-empty) {
@@ -1093,6 +1111,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 // ─── Secondary drop zone ─────────────────────────────────
 .sec-drop-zone {
   min-height: 200px;
+  min-width: 0;
+  overflow-x: hidden;
 
   @media (max-width: 768px) {
     min-height: 80px;
@@ -1104,6 +1124,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .task-list {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow-x: hidden;
 
   @media (max-width: 768px) {
     min-height: 0;
@@ -1113,7 +1135,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 // ─── Main task item ────────────────────────────────────────
 .task-item {
   padding: 14px 10px;
-  margin: 0 -10px;
+  margin: 0;
   border-radius: 6px;
   transition:
     opacity 0.4s $ease,
@@ -1439,7 +1461,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   column-gap: 4px;
   row-gap: 0;
   padding: 14px 10px;
-  margin: 0 -10px;
+  margin: 0;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s $ease;
@@ -1484,7 +1506,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 .add-placeholder-sec {
   padding: 10px 8px;
-  margin: 0 -8px;
+  margin: 0;
   margin-bottom: 0;
 }
 
@@ -1708,7 +1730,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 // ─── Secondary task item ──────────────────────────────────
 .sec-task-item {
   padding: 10px 8px;
-  margin: 0 -8px;
+  margin: 0;
   border-radius: 6px;
   transition:
     opacity 0.4s $ease,
@@ -1922,7 +1944,37 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   padding: 14px 16px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   opacity: 0.9;
+  box-sizing: border-box;
+  max-width: calc(100vw - 32px);
   overflow: hidden;
+}
+
+.main-drop-zone .cdk-drag-placeholder,
+.sec-drop-zone .cdk-drag-placeholder {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  box-sizing: border-box;
+}
+
+.task-drag-placeholder {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 46px;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.task-item.cdk-drag-preview,
+.sec-task-item.cdk-drag-preview {
+  max-width: calc(100vw - 32px);
+  margin: 0 !important;
+  box-sizing: border-box;
+  overflow: visible;
 }
 
 .cdk-drag-placeholder {
@@ -1947,11 +1999,14 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 // ─── Main section scrollable ─────────────────────────────
 .main-section {
+  min-width: 0;
+  contain: layout paint;
+
   @media (min-width: 768px) {
     overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0 10px;
-    margin: 0 -10px;
+    overflow-x: clip;
+    padding: 0;
+    margin: 0;
   }
 
   @include quiet-scrollbar;
