@@ -206,9 +206,13 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   text-align: center;
 
   &.keyboard-focused {
-    color: var(--text);
-    background: var(--active-tab-bg, rgba(128, 128, 128, 0.12));
-    border-radius: 4px;
+    color: var(--text-muted);
+    background: none;
+    border-radius: 0;
+  }
+
+  &:focus-visible {
+    outline: none;
   }
 }
 
@@ -265,8 +269,12 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  display: block;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
   padding: 8px 10px;
+  min-height: 34px;
   border-radius: 4px;
   font: inherit;
   font-size: 0.82rem;
@@ -292,15 +300,62 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 // ─── Section tabs (desktop) ──────────────────────────────
 .section-menu-item-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  > span:last-child {
+    line-height: 16px;
+  }
+}
+
+.section-menu-plus {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  font-size: 1.2rem;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+.section-menu-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.section-delete-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 154px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  z-index: 91;
+}
+
+.section-delete-title {
+  display: block;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  margin-bottom: 8px;
+}
+
+.section-delete-actions {
+  display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.section-menu-plus {
-  font-size: 1.25rem;
-  line-height: 1;
-  color: var(--text-muted);
+[data-confirm-delete-section] .clear-yes {
+  color: #c44;
 }
 
 .public-toolbar {
@@ -1175,6 +1230,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 16px;
   overflow-x: clip;
 }
 

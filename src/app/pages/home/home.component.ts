@@ -180,7 +180,7 @@ export class HomeComponent implements OnDestroy {
 
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragging = signal(false);
-  protected readonly dragDelay = computed(() => this.isMobile() ? { touch: 200, mouse: 0 } : { touch: 0, mouse: 0 });
+  protected readonly dragDelay = computed(() => ({ touch: 0, mouse: 0 }));
   protected readonly dragAutoScrollDisabled = false;
   protected readonly dragAutoScrollStep = 24;
   protected readonly activeSectionIndex = computed(() => this.sections().findIndex(s => s.id === this.activeSectionId()));
@@ -194,6 +194,8 @@ export class HomeComponent implements OnDestroy {
   private horizontalScrollLocks: Array<{
     target: Window | HTMLElement;
     scrollBy: typeof window.scrollBy;
+    scrollTo: typeof window.scrollTo;
+    scroll: typeof window.scroll;
   }> = [];
 
   constructor() {
@@ -279,6 +281,19 @@ export class HomeComponent implements OnDestroy {
     }
     if (this.shareMenuOpen() && !target.closest('[data-public-share]')) {
       this.shareMenuOpen.set(false);
+    }
+  }
+
+  @HostListener('window:resize')
+  protected handleWindowResize(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    const width = window.innerWidth || document.documentElement.clientWidth;
+    const mobile = width <= 768;
+    if (mobile === this.isMobile()) return;
+    this.isMobile.set(mobile);
+    if (mobile) {
+      this.stopHorizontalScrollGuard();
+      this.unlockHorizontalDragScroll();
     }
   }
 
@@ -613,10 +628,12 @@ export class HomeComponent implements OnDestroy {
 
   protected setDragging(value: boolean): void {
     this.dragging.set(value);
-    this.resetHorizontalListScroll();
     if (value) {
-      this.lockHorizontalDragScroll();
-      this.startHorizontalScrollGuard();
+      if (!this.isMobile()) {
+        this.resetHorizontalListScroll();
+        this.lockHorizontalDragScroll();
+        this.startHorizontalScrollGuard();
+      }
     } else {
       this.stopHorizontalScrollGuard();
       this.unlockHorizontalDragScroll();
@@ -988,12 +1005,20 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected handleTaskDragMoved(_event: CdkDragMove<unknown>): void {
-    if (typeof document === 'undefined') return;
+    if (this.isMobile() || typeof document === 'undefined') return;
     this.resetHorizontalListScroll();
   }
 
   private resetHorizontalListScroll(): void {
+    if (this.isMobile()) return;
     if (typeof document === 'undefined') return;
+
+    if (typeof window !== 'undefined' && window.scrollX !== 0) {
+      window.scrollTo(0, window.scrollY);
+    }
+
+    if (document.documentElement.scrollLeft !== 0) document.documentElement.scrollLeft = 0;
+    if (document.body.scrollLeft !== 0) document.body.scrollLeft = 0;
 
     for (const element of document.querySelectorAll<HTMLElement>(
       '.lists, .main-section, .secondary-section, .main-drop-zone, .sec-drop-zone, .task-list',
@@ -1003,7 +1028,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private startHorizontalScrollGuard(): void {
-    if (typeof window === 'undefined' || this.horizontalScrollGuardFrame !== null) return;
+    if (this.isMobile() || typeof window === 'undefined' || this.horizontalScrollGuardFrame !== null) return;
 
     const tick = () => {
       this.resetHorizontalListScroll();
@@ -1016,15 +1041,21 @@ export class HomeComponent implements OnDestroy {
 
   private stopHorizontalScrollGuard(): void {
     if (typeof window === 'undefined') return;
+    const hadGuard = this.horizontalScrollGuardFrame !== null;
     if (this.horizontalScrollGuardFrame !== null) {
       window.cancelAnimationFrame(this.horizontalScrollGuardFrame);
       this.horizontalScrollGuardFrame = null;
     }
-    this.resetHorizontalListScroll();
+    if (hadGuard || !this.isMobile()) this.resetHorizontalListScroll();
   }
 
   private lockHorizontalDragScroll(): void {
-    if (typeof window === 'undefined' || typeof document === 'undefined' || this.horizontalScrollLocks.length > 0) return;
+    if (
+      this.isMobile() ||
+      typeof window === 'undefined' ||
+      typeof document === 'undefined' ||
+      this.horizontalScrollLocks.length > 0
+    ) return;
 
     const targets: Array<Window | HTMLElement> = [
       window,
@@ -1035,23 +1066,53 @@ export class HomeComponent implements OnDestroy {
 
     for (const target of targets) {
       const originalScrollBy = target.scrollBy.bind(target);
-      this.horizontalScrollLocks.push({ target, scrollBy: originalScrollBy });
+      const originalScrollTo = target.scrollTo.bind(target);
+      const originalScroll = target.scroll.bind(target);
+      const currentTop = () => target === window ? window.scrollY : (target as HTMLElement).scrollTop;
+      const pinOptionsLeft = (options: ScrollToOptions): ScrollToOptions => ({ ...options, left: 0 });
+
+      this.horizontalScrollLocks.push({
+        target,
+        scrollBy: originalScrollBy,
+        scrollTo: originalScrollTo,
+        scroll: originalScroll,
+      });
+
       target.scrollBy = ((leftOrOptions?: number | ScrollToOptions, top?: number) => {
         if (typeof leftOrOptions === 'object') {
-          originalScrollBy({ ...leftOrOptions, left: 0 });
+          originalScrollBy(pinOptionsLeft(leftOrOptions));
         } else {
           originalScrollBy(0, top ?? 0);
         }
       }) as typeof target.scrollBy;
+
+      target.scrollTo = ((leftOrOptions?: number | ScrollToOptions, top?: number) => {
+        if (typeof leftOrOptions === 'object') {
+          originalScrollTo(pinOptionsLeft(leftOrOptions));
+        } else {
+          originalScrollTo(0, top ?? currentTop());
+        }
+      }) as typeof target.scrollTo;
+
+      target.scroll = ((leftOrOptions?: number | ScrollToOptions, top?: number) => {
+        if (typeof leftOrOptions === 'object') {
+          originalScroll(pinOptionsLeft(leftOrOptions));
+        } else {
+          originalScroll(0, top ?? currentTop());
+        }
+      }) as typeof target.scroll;
     }
   }
 
   private unlockHorizontalDragScroll(): void {
-    for (const { target, scrollBy } of this.horizontalScrollLocks) {
+    const hadLocks = this.horizontalScrollLocks.length > 0;
+    for (const { target, scrollBy, scrollTo, scroll } of this.horizontalScrollLocks) {
       target.scrollBy = scrollBy as typeof target.scrollBy;
+      target.scrollTo = scrollTo as typeof target.scrollTo;
+      target.scroll = scroll as typeof target.scroll;
     }
     this.horizontalScrollLocks = [];
-    this.resetHorizontalListScroll();
+    if (hadLocks || !this.isMobile()) this.resetHorizontalListScroll();
   }
 
   // ─── Section creation ──────────────────────────────────
@@ -1297,8 +1358,7 @@ export class HomeComponent implements OnDestroy {
   protected startDeletingActiveSectionFromMenu(): void {
     const sectionId = this.activeSectionId();
     if (!sectionId || this.sections().length < 2) return;
-    this.sectionMenuOpen.set(false);
-    this.deleteSection(sectionId);
+    this.startDeleteSection(sectionId);
   }
 
   private deleteSection(sectionId: string): void {
