@@ -3,6 +3,7 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { StorageService } from '../../services/storage.service';
 import { SyncService } from '../../services/sync.service';
+import { PremiumActivationService } from '../../services/premium-activation.service';
 import { openExternalUrl } from '../../utils/external-link';
 
 interface PriceOption {
@@ -381,6 +382,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly storage = inject(StorageService);
   private readonly sync = inject(SyncService);
+  private readonly premiumActivation = inject(PremiumActivationService);
 
   protected readonly mode = signal<'upgrade' | 'success' | 'cancel'>('upgrade');
   protected readonly loading = signal(false);
@@ -469,6 +471,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
       if (openedExternally) {
         this.loading.set(false);
         this.externalCheckoutPending.set(true);
+        this.premiumActivation.markDesktopCheckoutPending();
         this.pollPremiumAfterExternalCheckout();
       }
     } catch (e: any) {

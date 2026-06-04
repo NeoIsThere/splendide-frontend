@@ -78,7 +78,7 @@ export class PublicSyncService {
         lastModifiedAt: item.lastModifiedAt,
         serverRevision: item.serverRevision,
         ...(item.deleted ? { deleted: true } : {}),
-        ...(item.created && !item.deleted ? { created: true } : {}),
+        ...(this.shouldSyncAsCreated(item) ? { created: true } : {}),
         ...(item.dirty ? { dirty: true } : {}),
       }));
     const order = this.storage.getListOrderSync(publicId, listId);
@@ -139,6 +139,10 @@ export class PublicSyncService {
       ...(typeof record['doneAt'] === 'string' && record['doneAt'].length > 0 ? { doneAt: record['doneAt'] } : {}),
       subtasks,
     };
+  }
+
+  private shouldSyncAsCreated(item: StoredItem): boolean {
+    return !item.deleted && (item.created === true || (item.serverRevision === 0 && item.dirty === true));
   }
 
   private asRecord(value: unknown): Record<string, unknown> {

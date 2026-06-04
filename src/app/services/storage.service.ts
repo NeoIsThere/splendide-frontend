@@ -100,6 +100,47 @@ function shouldAcceptRemote(
   return local.dirty !== true;
 }
 
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+  if (isRecord(value)) {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function sameContent(left: unknown, right: unknown): boolean {
+  return stableStringify(left) === stableStringify(right);
+}
+
+function timestampMs(value: string | undefined): number {
+  const parsed = value ? new Date(value).getTime() : Number.NaN;
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function shouldRebaseLocalDirtyItem(remote: StoredItem, local: StoredItem): boolean {
+  return local.dirty === true &&
+    local.deleted !== true &&
+    remote.deleted !== true &&
+    !sameContent(remote.content, local.content) &&
+    timestampMs(local.lastModifiedAt) > timestampMs(remote.lastModifiedAt);
+}
+
+function rebaseLocalDirtyItem(remote: StoredItem, local: StoredItem): StoredItem {
+  return {
+    id: local.id,
+    content: local.content,
+    position: remote.position,
+    lastModifiedAt: local.lastModifiedAt,
+    serverRevision: remote.serverRevision,
+    dirty: true,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -734,6 +775,37 @@ export class StorageService {
     const remoteIds = new Set(items.map((item) => item.id));
     const merged = items.map((item) => {
       const local = localById.get(item.id);
+      if (
+        local &&
+        item.serverRevision === local.serverRevision &&
+        item.deleted === local.deleted &&
+        sameContent(item.content, local.content)
+      ) {
+        return {
+          id: item.id,
+          content: item.content,
+          position: item.position,
+          lastModifiedAt: item.lastModifiedAt,
+          serverRevision: item.serverRevision,
+          ...(item.deleted ? { deleted: true } : {}),
+        };
+      }
+
+      if (local && item.deleted && item.serverRevision >= local.serverRevision) {
+        return {
+          id: item.id,
+          content: item.content,
+          position: item.position,
+          lastModifiedAt: item.lastModifiedAt,
+          serverRevision: item.serverRevision,
+          deleted: true,
+        };
+      }
+
+      if (local && shouldRebaseLocalDirtyItem(item, local)) {
+        return rebaseLocalDirtyItem(item, local);
+      }
+
       if (local && !shouldAcceptRemote(item, local)) {
         return { ...local, position: item.position };
       }
@@ -749,7 +821,12 @@ export class StorageService {
     });
 
     for (const item of localItems) {
-      if (!remoteIds.has(item.id) && item.dirty && !item.deleted) {
+      if (
+        !remoteIds.has(item.id) &&
+        item.dirty &&
+        !item.deleted &&
+        item.serverRevision === 0
+      ) {
         merged.push(item);
       }
     }

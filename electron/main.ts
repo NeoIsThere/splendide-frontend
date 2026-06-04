@@ -11,6 +11,19 @@ const GOOGLE_AUTH_CALLBACK_PATH = '/google/callback';
 const GOOGLE_AUTH_REDIRECT_URI = `${APP_PROTOCOL}://${GOOGLE_AUTH_HOST}${GOOGLE_AUTH_CALLBACK_PATH}`;
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_AUTH_TIMEOUT_MS = 5 * 60 * 1000;
+const DEV_SERVER_URL = 'http://localhost:4201';
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://api.splendide.app",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
 let mainWindow: BrowserWindow | null = null;
 
 type GoogleAuthResult = {
@@ -87,7 +100,22 @@ function isInsideRoot(root: string, filePath: string): boolean {
 async function fileResponse(filePath: string): Promise<Response> {
   const file = await fs.readFile(filePath);
   return new Response(file, {
-    headers: { 'content-type': contentType(filePath) },
+    headers: protocolHeaders(contentType(filePath)),
+  });
+}
+
+function protocolHeaders(type = 'text/plain; charset=utf-8'): Record<string, string> {
+  return {
+    'content-type': type,
+    'content-security-policy': CONTENT_SECURITY_POLICY,
+    'x-content-type-options': 'nosniff',
+  };
+}
+
+function textProtocolResponse(body: string, status: number): Response {
+  return new Response(body, {
+    status,
+    headers: protocolHeaders(),
   });
 }
 
@@ -103,21 +131,21 @@ async function registerAppProtocol(): Promise<void> {
   protocol.handle(APP_PROTOCOL, async (request) => {
     const url = new URL(request.url);
     if (url.hostname !== APP_HOST) {
-      return new Response('Not found', { status: 404 });
+      return textProtocolResponse('Not found', 404);
     }
 
     let pathname: string;
     try {
       pathname = decodeURIComponent(url.pathname || '/index.html');
     } catch {
-      return new Response('Bad request', { status: 400 });
+      return textProtocolResponse('Bad request', 400);
     }
 
     const requested = pathname === '/' ? '/index.html' : pathname;
     const filePath = path.resolve(root, `.${requested}`);
 
     if (!isInsideRoot(root, filePath)) {
-      return new Response('Not found', { status: 404 });
+      return textProtocolResponse('Not found', 404);
     }
 
     try {
@@ -130,9 +158,44 @@ async function registerAppProtocol(): Promise<void> {
           logDesktop('Failed to serve SPA fallback', error);
         }
       }
-      return new Response('Not found', { status: 404 });
+      return textProtocolResponse('Not found', 404);
     }
   });
+}
+
+function parseUrl(rawUrl: string): URL | null {
+  try {
+    return new URL(rawUrl);
+  } catch {
+    return null;
+  }
+}
+
+function isHttpsUrl(rawUrl: string): boolean {
+  return parseUrl(rawUrl)?.protocol === 'https:';
+}
+
+function isAllowedRendererNavigation(rawUrl: string): boolean {
+  const url = parseUrl(rawUrl);
+  if (!url) return false;
+
+  if (url.protocol === `${APP_PROTOCOL}:`) {
+    return url.hostname === APP_HOST;
+  }
+
+  if (process.env['ELECTRON_START_URL'] && url.origin === DEV_SERVER_URL) {
+    return true;
+  }
+
+  return false;
+}
+
+async function openHttpsExternal(rawUrl: string): Promise<void> {
+  const url = parseUrl(rawUrl);
+  if (!url || url.protocol !== 'https:') {
+    throw new Error('Only HTTPS links can be opened externally.');
+  }
+  await shell.openExternal(url.toString());
 }
 
 function registerDeepLinkClient(): void {
@@ -314,18 +377,17 @@ function createWindow(): BrowserWindow {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
-      void shell.openExternal(url);
+    if (isHttpsUrl(url)) {
+      void openHttpsExternal(url).catch((error) => logDesktop('Failed to open external window URL', error));
     }
     return { action: 'deny' };
   });
 
   win.webContents.on('will-navigate', (event, url) => {
-    const isAppUrl = url.startsWith(`${APP_PROTOCOL}://${APP_HOST}`) || url.startsWith('http://localhost:4201');
-    if (!isAppUrl) {
+    if (!isAllowedRendererNavigation(url)) {
       event.preventDefault();
-      if (url.startsWith('https://') || url.startsWith('http://')) {
-        void shell.openExternal(url);
+      if (isHttpsUrl(url)) {
+        void openHttpsExternal(url).catch((error) => logDesktop('Failed to open external navigation URL', error));
       }
     }
   });
@@ -342,11 +404,7 @@ function createWindow(): BrowserWindow {
 
 function registerIpc(): void {
   ipcMain.handle('open-external', async (_event, rawUrl: string) => {
-    const url = new URL(rawUrl);
-    if (url.protocol !== 'https:') {
-      throw new Error('Only HTTPS links can be opened externally.');
-    }
-    await shell.openExternal(url.toString());
+    await openHttpsExternal(rawUrl);
   });
 
   ipcMain.handle('google-oauth-start', async (_event, clientId: string) => startGoogleOAuth(clientId));

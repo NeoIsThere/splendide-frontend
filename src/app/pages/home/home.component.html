@@ -484,7 +484,7 @@
   <!-- ═══ Lists ═══ -->
   }
 
-  <div class="lists">
+  <div class="lists" cdkScrollable>
 
     <!-- ═══ Main Section ═══ -->
     <div class="my-list-col main-section" #mainSection>
@@ -645,7 +645,7 @@
               (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
               role="listitem"
             >
-              <ng-template cdkDragPreview>
+              <ng-template cdkDragPreview [matchSize]="true">
                 <div class="task-drag-preview-card">
                   <div class="task-drag-preview-main">
                     <span class="task-drag-preview-check" aria-hidden="true"></span>
@@ -1112,7 +1112,7 @@
               (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
               role="listitem"
             >
-              <ng-template cdkDragPreview>
+              <ng-template cdkDragPreview [matchSize]="true">
                 <div class="task-drag-preview-card task-drag-preview-card-sec">
                   <div class="task-drag-preview-main">
                     <span class="task-drag-preview-check" aria-hidden="true"></span>
@@ -1459,6 +1459,50 @@
                       }
                     }
                   </span>
+                  @if (task.subtasks.length > 0) {
+                    <div class="done-subtask-list" role="list" aria-label="done subtasks">
+                      @for (sub of task.subtasks; track sub.id) {
+                        <div class="done-subtask-row" role="listitem">
+                          <button
+                            class="check-btn check-btn-sub checked done-subtask-check"
+                            (click)="restoreDoneSubtask(task, sub.id)"
+                            [attr.aria-label]="'mark incomplete: ' + sub.text"
+                          >
+                            <svg
+                              width="8"
+                              height="8"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="3"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </button>
+                          <span class="done-subtask-text" [class.struck]="sub.done">
+                            @for (segment of linkSegments(sub.text); track $index) {
+                              @if (segment.href; as href) {
+                                <a
+                                  class="task-link"
+                                  [href]="href"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  (pointerdown)="$event.stopPropagation()"
+                                  (click)="openTaskLink($event, href)"
+                                  [textContent]="segment.text"
+                                ></a>
+                              } @else {
+                                <span [textContent]="segment.text"></span>
+                              }
+                            }
+                          </span>
+                        </div>
+                      }
+                    </div>
+                  }
                 </div>
               </div>
             }

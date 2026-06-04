@@ -109,7 +109,7 @@ export class SyncService {
           lastModifiedAt: item.lastModifiedAt,
           serverRevision: item.serverRevision,
           ...(item.deleted ? { deleted: true } : {}),
-          ...(item.created && !item.deleted ? { created: true } : {}),
+          ...(this.shouldSyncAsCreated(item) ? { created: true } : {}),
           ...(item.dirty ? { dirty: true } : {}),
         };
       });
@@ -149,6 +149,10 @@ export class SyncService {
       ...(typeof record['doneAt'] === 'string' && record['doneAt'].length > 0 ? { doneAt: record['doneAt'] } : {}),
       subtasks,
     };
+  }
+
+  private shouldSyncAsCreated(item: StoredItem): boolean {
+    return !item.deleted && (item.created === true || (item.serverRevision === 0 && item.dirty === true));
   }
 
   private asRecord(value: unknown): Record<string, unknown> {

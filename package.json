@@ -87,7 +87,9 @@
       ],
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "nsis": {
       "oneClick": false,

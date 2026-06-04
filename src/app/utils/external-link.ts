@@ -8,7 +8,6 @@ declare global {
   interface Window {
     splendideDesktop?: {
       isDesktop: boolean;
-      platform: string;
       openExternal(url: string): Promise<void>;
       startGoogleOAuth(clientId: string): Promise<DesktopGoogleOAuthResult>;
     };

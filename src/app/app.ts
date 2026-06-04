@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ThemeService } from './services/theme.service';
+import { PremiumActivationService } from './services/premium-activation.service';
 
 @Component({
   selector: 'app-root',
@@ -14,4 +15,5 @@ import { ThemeService } from './services/theme.service';
 })
 export class App {
   protected readonly theme = inject(ThemeService);
+  private readonly premiumActivation = inject(PremiumActivationService);
 }

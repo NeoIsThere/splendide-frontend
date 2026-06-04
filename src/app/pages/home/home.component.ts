@@ -1,5 +1,6 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy, HostListener } from '@angular/core';
 import { CdkDragDrop, CdkDrag, CdkDragMove, CdkDropList, CdkDragPlaceholder, CdkDragPreview, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkScrollable } from '@angular/cdk/scrolling';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { driver } from 'driver.js';
 import { AuthService } from '../../services/auth.service';
@@ -41,7 +42,7 @@ type SectionDeleteOption = 'delete' | 'cancel';
 
 const DEFAULT_BACKLOG_TITLE = 'later';
 const DEFAULT_MAIN_TITLE = 'now';
-const MAX_SECTIONS = 10;
+const MAX_SECTIONS = 15;
 const MAX_BACKLOG_TASKS = 200;
 const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
 const MAX_DONE_TASKS = 10;
@@ -55,7 +56,7 @@ let premiumUpgradePromptShownThisAppLoad = false;
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, CdkDragPreview, RouterLink],
+  imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, CdkDragPreview, CdkScrollable, RouterLink],
 })
 export class HomeComponent implements OnDestroy {
   private readonly urlPattern = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
@@ -180,7 +181,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragging = signal(false);
   protected readonly dragDelay = computed(() => this.isMobile() ? { touch: 200, mouse: 0 } : { touch: 0, mouse: 0 });
-  protected readonly dragAutoScrollDisabled = true;
+  protected readonly dragAutoScrollDisabled = false;
   protected readonly dragAutoScrollStep = 24;
   protected readonly activeSectionIndex = computed(() => this.sections().findIndex(s => s.id === this.activeSectionId()));
   protected readonly showPrevArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() > 0);
@@ -189,6 +190,11 @@ export class HomeComponent implements OnDestroy {
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
   private shareToastTimer: ReturnType<typeof setTimeout> | null = null;
   private premiumUpgradePromptTimer: ReturnType<typeof setTimeout> | null = null;
+  private horizontalScrollGuardFrame: number | null = null;
+  private horizontalScrollLocks: Array<{
+    target: Window | HTMLElement;
+    scrollBy: typeof window.scrollBy;
+  }> = [];
 
   constructor() {
     void this.initFromStorage();
@@ -289,6 +295,8 @@ export class HomeComponent implements OnDestroy {
       clearTimeout(this.premiumUpgradePromptTimer);
       this.premiumUpgradePromptTimer = null;
     }
+    this.stopHorizontalScrollGuard();
+    this.unlockHorizontalDragScroll();
   }
 
   private async initFromStorage(): Promise<void> {
@@ -380,7 +388,7 @@ export class HomeComponent implements OnDestroy {
       if (this.auth.isLoggedIn() && this.auth.isPremium()) {
         await this.doPeriodicSync();
       }
-    }, 30_000);
+    }, 5_000);
   }
 
   private async doPeriodicSync(): Promise<void> {
@@ -606,6 +614,13 @@ export class HomeComponent implements OnDestroy {
   protected setDragging(value: boolean): void {
     this.dragging.set(value);
     this.resetHorizontalListScroll();
+    if (value) {
+      this.lockHorizontalDragScroll();
+      this.startHorizontalScrollGuard();
+    } else {
+      this.stopHorizontalScrollGuard();
+      this.unlockHorizontalDragScroll();
+    }
   }
 
   protected isTabsFocused(): boolean {
@@ -634,7 +649,7 @@ export class HomeComponent implements OnDestroy {
 
   protected isSectionDeleteOptionFocused(option: SectionDeleteOption): boolean {
     return this.keyboardZone() === 'tabs' &&
-      this.confirmingDeleteSectionId() === this.activeSectionId() &&
+      this.confirmingDeleteSectionId() !== null &&
       this.sectionDeleteConfirmFocus() === option;
   }
 
@@ -812,8 +827,8 @@ export class HomeComponent implements OnDestroy {
   }
 
   private handleSectionDeleteConfirmationKeydown(event: KeyboardEvent): boolean {
-    const sectionId = this.activeSectionId();
-    if (this.keyboardZone() !== 'tabs' || !sectionId || this.confirmingDeleteSectionId() !== sectionId) {
+    const sectionId = this.confirmingDeleteSectionId();
+    if (this.keyboardZone() !== 'tabs' || !sectionId) {
       return false;
     }
 
@@ -972,18 +987,8 @@ export class HomeComponent implements OnDestroy {
     this.reorderSubtasksInList(this.backlogList(), taskId, event.previousIndex, event.currentIndex);
   }
 
-  protected handleTaskDragMoved(event: CdkDragMove<unknown>): void {
+  protected handleTaskDragMoved(_event: CdkDragMove<unknown>): void {
     if (typeof document === 'undefined') return;
-
-    this.resetHorizontalListScroll();
-
-    const pointer = event.pointerPosition;
-    const pointedElement = document.elementFromPoint(pointer.x, pointer.y) as HTMLElement | null;
-    const targetContainer = this.closestScrollableDragContainer(pointedElement);
-    const sourceContainer = this.closestScrollableDragContainer(event.source.element.nativeElement);
-    const container = targetContainer ?? sourceContainer;
-
-    if (container) this.scrollDragContainer(container, pointer.y);
     this.resetHorizontalListScroll();
   }
 
@@ -997,41 +1002,56 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  private closestScrollableDragContainer(element: HTMLElement | null): HTMLElement | null {
-    let current: HTMLElement | null = element;
+  private startHorizontalScrollGuard(): void {
+    if (typeof window === 'undefined' || this.horizontalScrollGuardFrame !== null) return;
 
-    while (current && current !== document.body) {
-      const style = getComputedStyle(current);
-      const canScrollY = style.overflowY === 'auto' || style.overflowY === 'scroll';
-
-      if (canScrollY && current.scrollHeight > current.clientHeight + 1) {
-        return current;
-      }
-
-      current = current.parentElement;
-    }
-
-    return null;
+    const tick = () => {
+      this.resetHorizontalListScroll();
+      this.horizontalScrollGuardFrame = this.dragging()
+        ? window.requestAnimationFrame(tick)
+        : null;
+    };
+    this.horizontalScrollGuardFrame = window.requestAnimationFrame(tick);
   }
 
-  private scrollDragContainer(container: HTMLElement, pointerY: number): void {
-    const rect = container.getBoundingClientRect();
-    const threshold = Math.min(96, rect.height / 4);
-    if (threshold <= 0) return;
-
-    let delta = 0;
-    if (pointerY < rect.top + threshold) {
-      delta = -this.dragAutoScrollDelta(rect.top + threshold - pointerY, threshold);
-    } else if (pointerY > rect.bottom - threshold) {
-      delta = this.dragAutoScrollDelta(pointerY - (rect.bottom - threshold), threshold);
+  private stopHorizontalScrollGuard(): void {
+    if (typeof window === 'undefined') return;
+    if (this.horizontalScrollGuardFrame !== null) {
+      window.cancelAnimationFrame(this.horizontalScrollGuardFrame);
+      this.horizontalScrollGuardFrame = null;
     }
-
-    if (delta !== 0) container.scrollTop += delta;
+    this.resetHorizontalListScroll();
   }
 
-  private dragAutoScrollDelta(distance: number, threshold: number): number {
-    const ratio = Math.min(Math.max(distance / threshold, 0), 1);
-    return Math.ceil(this.dragAutoScrollStep * ratio);
+  private lockHorizontalDragScroll(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined' || this.horizontalScrollLocks.length > 0) return;
+
+    const targets: Array<Window | HTMLElement> = [
+      window,
+      ...document.querySelectorAll<HTMLElement>(
+        '.lists, .main-section, .secondary-section, .main-drop-zone, .sec-drop-zone, .task-list',
+      ),
+    ];
+
+    for (const target of targets) {
+      const originalScrollBy = target.scrollBy.bind(target);
+      this.horizontalScrollLocks.push({ target, scrollBy: originalScrollBy });
+      target.scrollBy = ((leftOrOptions?: number | ScrollToOptions, top?: number) => {
+        if (typeof leftOrOptions === 'object') {
+          originalScrollBy({ ...leftOrOptions, left: 0 });
+        } else {
+          originalScrollBy(0, top ?? 0);
+        }
+      }) as typeof target.scrollBy;
+    }
+  }
+
+  private unlockHorizontalDragScroll(): void {
+    for (const { target, scrollBy } of this.horizontalScrollLocks) {
+      target.scrollBy = scrollBy as typeof target.scrollBy;
+    }
+    this.horizontalScrollLocks = [];
+    this.resetHorizontalListScroll();
   }
 
   // ─── Section creation ──────────────────────────────────
@@ -1206,7 +1226,8 @@ export class HomeComponent implements OnDestroy {
     this.sectionMenuOpen.set(false);
     this.confirmingDeleteSectionId.set(sectionId);
     this.sectionDeleteConfirmFocus.set('delete');
-    this.focusTabsForKeyboard();
+    this.keyboardZone.set('tabs');
+    this.activeKeyboardTask.set(null);
   }
 
   protected cancelDeleteSection(): void {
@@ -1655,58 +1676,46 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected restoreDoneTask(task: DoneTask): void {
+    this.restoreDoneTaskToSource(task, this.withoutDoneDate({ ...task, done: false }));
+  }
+
+  protected restoreDoneSubtask(task: DoneTask, subtaskId: string): void {
+    const restoredTask = this.withoutDoneDate({
+      ...task,
+      done: false,
+      subtasks: task.subtasks.map(subtask =>
+        subtask.id === subtaskId ? { ...subtask, done: false } : subtask
+      ),
+    });
+    this.restoreDoneTaskToSource(task, restoredTask);
+  }
+
+  private restoreDoneTaskToSource(task: DoneTask, restoredTask: Task): void {
     const sec = this.activeSection();
-    const mainList = this.mainList();
     const sourceList = this.listForKind(task.sourceList);
-    if (!sec || !mainList || !sourceList) return;
+    if (!sec || !sourceList) return;
 
     const sourceItem = sourceList.items.find(item => item.id === task.id);
     if (!sourceItem) return;
 
     const now = new Date().toISOString();
-    const restoredTask = this.withoutDoneDate({ ...task, done: false });
     const restoredItem: StoredItem = {
       ...sourceItem,
       content: restoredTask,
       position: 0,
       lastModifiedAt: now,
       dirty: true,
-      ...(task.sourceList === 'secondary' ? { created: true } : {}),
     };
     delete restoredItem.deleted;
 
-    if (task.sourceList === 'main') {
-      this.storage.setItemsForList(
-        sec.id,
-        mainList.id,
-        this.prependVisibleItem(mainList.items, restoredItem),
-        { markOrderDirty: true },
-      );
-      this.refreshSectionsFromStorage();
-      this.syncItemsForList(sec.id, mainList.id, sec.created === true);
-      return;
-    }
-
-    const sourceItems = sourceList.items.map(item =>
-      item.id === task.id
-        ? {
-            ...item,
-            content: restoredTask,
-            deleted: true,
-            dirty: true,
-            lastModifiedAt: now,
-          }
-        : item
-    );
-    this.storage.setItemsForList(sec.id, sourceList.id, sourceItems);
     this.storage.setItemsForList(
       sec.id,
-      mainList.id,
-      this.prependVisibleItem(mainList.items, restoredItem),
+      sourceList.id,
+      this.prependVisibleItem(sourceList.items, restoredItem),
       { markOrderDirty: true },
     );
     this.refreshSectionsFromStorage();
-    this.syncItemsForLists(sec.id, [mainList.id, sourceList.id], sec.created === true);
+    this.syncItemsForList(sec.id, sourceList.id, sec.created === true);
   }
 
   private completeTask(listKind: TaskListKind, id: string): void {
