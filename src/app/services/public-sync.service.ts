@@ -108,6 +108,7 @@ export class PublicSyncService {
 
   private applyPublicSection(section: StoredSection): StoredSection {
     this.storage.save({
+      syncGeneration: 0,
       sectionOrderRevision: 0,
       sectionBaseOrderRevision: 0,
       sections: [{

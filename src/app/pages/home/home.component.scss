@@ -53,11 +53,12 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .my-below-top-bar {
   height: 50px;
   display: flex;
+  align-items: flex-start;
   justify-content: flex-end;
 }
 
 .public-layout .my-below-top-bar {
-  height: 30px;
+  height: 34px;
 }
 
 .my-upgrade-desktop {
@@ -378,6 +379,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .public-share-btn,
+.public-info-btn,
 .private-space-btn {
   display: inline-flex;
   align-items: center;
@@ -409,8 +411,135 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
+.public-info-btn {
+
+  @media (max-width: 768px) {
+  }
+}
+
+.public-question-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.private-question-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.shared-wordmark {
+  display: inline-flex;
+  align-items: flex-start;
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.shared-info-title {
+  margin-right: 28px;
+  margin-bottom: 100px;
+}
+
+.shared-dialog-wordmark {
+  font-size: 1.35rem;
+}
+
+.private-info-title {
+  font-size: 1.35rem;
+}
+
 .public-action-icon {
   flex-shrink: 0;
+}
+
+.splendide-info-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 210;
+}
+
+.splendide-info-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(360px, calc(100vw - 40px));
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  padding: 22px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.2);
+  z-index: 211;
+}
+
+.splendide-info-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.splendide-info-title {
+  margin: 0 28px 24px 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.splendide-info-description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+
+  a {
+    color: var(--link);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  p {
+    margin: 0 0 10px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.splendide-info-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition:
+    color 0.2s $ease,
+    border-color 0.2s $ease;
+
+  &:hover {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
 }
 
 .public-share-popover {
@@ -881,6 +1010,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   @media (max-width: 768px) {
     height: auto;
     flex: 0 0 auto;
+    padding-bottom: 20px;
   }
 }
 
@@ -1230,7 +1360,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 16px;
+  min-height: 120px;
   overflow-x: clip;
 }
 
@@ -2247,6 +2377,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   margin-top: 30px;
   opacity: 0.58;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
 
   @include quiet-scrollbar;
@@ -2262,8 +2393,9 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  min-width: 0;
   padding: 10px 8px;
-  margin: 0 -8px;
+  margin: 0;
   border-radius: 6px;
   color: var(--text-muted);
   transition: background 0.15s $ease;
@@ -2303,6 +2435,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  min-width: 0;
   padding-left: 2px;
 }
 
@@ -2312,14 +2445,23 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 .done-subtask-text {
   min-width: 0;
+  flex: 1;
   color: var(--text-muted);
   font-size: 0.8rem;
   font-weight: 400;
   overflow-wrap: break-word;
+  word-break: break-word;
 
   &.struck {
     text-decoration: line-through;
   }
+}
+
+.done-task-text,
+.done-subtask-text,
+.done-task-text .task-link,
+.done-subtask-text .task-link {
+  overflow-wrap: anywhere;
 }
 
 // ─── Editing active: block all interaction ─────────────────

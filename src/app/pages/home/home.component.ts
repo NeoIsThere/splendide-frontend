@@ -39,6 +39,7 @@ interface TextSegment {
 type TaskListKind = 'main' | 'secondary';
 type KeyboardZone = 'tabs' | TaskListKind;
 type SectionDeleteOption = 'delete' | 'cancel';
+type InfoDialogKind = 'shared-page' | 'private-welcome';
 
 const DEFAULT_BACKLOG_TITLE = 'later';
 const DEFAULT_MAIN_TITLE = 'now';
@@ -46,8 +47,11 @@ const MAX_SECTIONS = 15;
 const MAX_BACKLOG_TASKS = 200;
 const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
 const MAX_DONE_TASKS = 10;
+const PUBLIC_PERIODIC_SYNC_MS = 5_000; //5_000
+const PRIVATE_PERIODIC_SYNC_MS = 15_000; //15_000
 const PREMIUM_UPGRADE_PROMPT_DELAY_MS = 60_000; // 1 minute
 const PREMIUM_UPGRADE_PROMPT_LAST_SHOWN_KEY = 'splendide_premium_upgrade_prompt_last_shown_day';
+const PRIVATE_WELCOME_DIALOG_PENDING_KEY = 'splendide_private_welcome_dialog_pending';
 
 let premiumUpgradePromptShownThisAppLoad = false;
 
@@ -75,6 +79,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly shareMenuOpen = signal(false);
   protected readonly shareToastVisible = signal(false);
   protected readonly premiumUpgradePromptOpen = signal(false);
+  protected readonly infoDialog = signal<InfoDialogKind | null>(null);
   protected readonly isPublicPage = computed(() => this.publicPageId() !== null);
 
   // ─── Sections ───────────────────────────────────────────
@@ -190,6 +195,8 @@ export class HomeComponent implements OnDestroy {
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
   private shareToastTimer: ReturnType<typeof setTimeout> | null = null;
   private premiumUpgradePromptTimer: ReturnType<typeof setTimeout> | null = null;
+  private firstVisitCoachMarksPending = false;
+  private coachMarksScheduled = false;
   private horizontalScrollGuardFrame: number | null = null;
   private horizontalScrollLocks: Array<{
     target: Window | HTMLElement;
@@ -205,6 +212,16 @@ export class HomeComponent implements OnDestroy {
   @HostListener('document:keydown', ['$event'])
   protected handleDocumentKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || event.repeat || event.isComposing) return;
+    if (this.infoDialog()) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.closeInfoDialog();
+        return;
+      }
+      if (event.key === 'Tab' || this.isInteractiveTarget(event.target)) return;
+      event.preventDefault();
+      return;
+    }
     if (this.premiumUpgradePromptOpen()) {
       if (event.key === 'Tab' || this.isInteractiveTarget(event.target)) return;
       event.preventDefault();
@@ -298,10 +315,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.syncIntervalId !== null) {
-      clearInterval(this.syncIntervalId);
-      this.syncIntervalId = null;
-    }
+    this.stopPeriodicSync();
     if (this.shareToastTimer !== null) {
       clearTimeout(this.shareToastTimer);
       this.shareToastTimer = null;
@@ -348,10 +362,10 @@ export class HomeComponent implements OnDestroy {
       this.startPeriodicSync();
     }
 
-    if (shouldShowCoachMarks) {
-      this.scheduleCoachMarks();
-    }
     this.schedulePremiumUpgradePrompt();
+    this.firstVisitCoachMarksPending = shouldShowCoachMarks;
+    this.showPendingPrivateWelcomeDialog();
+    this.maybeScheduleFirstVisitCoachMarks();
   }
 
   private async initPublicPage(publicId: string): Promise<void> {
@@ -365,6 +379,7 @@ export class HomeComponent implements OnDestroy {
       this.activeSectionId.set(section.id);
       this.currentList.set('main');
       this.clearKeyboardFocus('main');
+      this.startPeriodicSync();
     } catch {
       this.sections.set([]);
       this.activeSectionId.set(null);
@@ -391,10 +406,14 @@ export class HomeComponent implements OnDestroy {
   }
 
   private startPeriodicSync(): void {
-    if (this.isPublicPage()) return;
-    if (this.syncIntervalId !== null) return;
+    this.stopPeriodicSync();
+    const intervalMs = this.isPublicPage() ? PUBLIC_PERIODIC_SYNC_MS : PRIVATE_PERIODIC_SYNC_MS;
     this.syncIntervalId = setInterval(async () => {
       if (this.shouldSkipPeriodicSync()) return;
+      if (this.isPublicPage()) {
+        await this.doPublicPeriodicSync();
+        return;
+      }
       if (this.auth.isLoggedIn()) {
         await this.auth.fetchUser();
       }
@@ -403,7 +422,13 @@ export class HomeComponent implements OnDestroy {
       if (this.auth.isLoggedIn() && this.auth.isPremium()) {
         await this.doPeriodicSync();
       }
-    }, 5_000);
+    }, intervalMs);
+  }
+
+  private stopPeriodicSync(): void {
+    if (this.syncIntervalId === null) return;
+    clearInterval(this.syncIntervalId);
+    this.syncIntervalId = null;
   }
 
   private async doPeriodicSync(): Promise<void> {
@@ -428,8 +453,27 @@ export class HomeComponent implements OnDestroy {
     } catch { /* silently fail */ }
   }
 
+  private async doPublicPeriodicSync(): Promise<void> {
+    const publicId = this.publicPageId();
+    if (!publicId || this.publicLoadFailed() || this.shouldSkipPeriodicSync()) return;
+
+    try {
+      const lists = await this.publicSync.syncPublicLists(publicId);
+      if (this.shouldSkipPeriodicSync()) return;
+      for (const list of lists) {
+        await this.publicSync.syncPublicListItems(publicId, list.id);
+        if (this.shouldSkipPeriodicSync()) return;
+      }
+      const overflowListIds = this.enforceDoneTaskLimit(publicId);
+      for (const listId of overflowListIds) {
+        await this.publicSync.syncPublicListItems(publicId, listId);
+      }
+      this.refreshSectionsFromStorage();
+    } catch { /* silently fail */ }
+  }
+
   private shouldSkipPeriodicSync(): boolean {
-    return this.isPublicPage() || this.isEditing() || this.dragging();
+    return this.isEditing() || this.dragging();
   }
 
   private schedulePremiumUpgradePrompt(): void {
@@ -484,6 +528,38 @@ export class HomeComponent implements OnDestroy {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     return `${now.getFullYear()}-${month}-${day}`;
+  }
+
+  private markPrivateWelcomeDialogPending(): void {
+    try {
+      sessionStorage.setItem(PRIVATE_WELCOME_DIALOG_PENDING_KEY, '1');
+    } catch {
+      // Ignore storage errors; navigation should still work.
+    }
+    try {
+      localStorage.setItem(PRIVATE_WELCOME_DIALOG_PENDING_KEY, '1');
+    } catch {
+      // Ignore storage errors; navigation should still work.
+    }
+  }
+
+  private showPendingPrivateWelcomeDialog(): void {
+    let hasPendingDialog = false;
+    try {
+      hasPendingDialog = sessionStorage.getItem(PRIVATE_WELCOME_DIALOG_PENDING_KEY) === '1';
+      sessionStorage.removeItem(PRIVATE_WELCOME_DIALOG_PENDING_KEY);
+    } catch {
+      // If session storage is unavailable, fall back to local storage.
+    }
+    try {
+      hasPendingDialog = localStorage.getItem(PRIVATE_WELCOME_DIALOG_PENDING_KEY) === '1' || hasPendingDialog;
+      localStorage.removeItem(PRIVATE_WELCOME_DIALOG_PENDING_KEY);
+    } catch {
+      // If local storage is unavailable, rely on the session storage result.
+    }
+    if (hasPendingDialog) {
+      this.infoDialog.set('private-welcome');
+    }
   }
 
   private async doSyncSection(sectionId: string): Promise<void> {
@@ -561,14 +637,35 @@ export class HomeComponent implements OnDestroy {
     this.sections.set(this.storage.loadSections());
   }
 
+  private maybeScheduleFirstVisitCoachMarks(): void {
+    if (
+      !this.firstVisitCoachMarksPending ||
+      this.coachMarksScheduled ||
+      this.infoDialog() !== null ||
+      this.isPublicPage()
+    ) return;
+
+    this.firstVisitCoachMarksPending = false;
+    this.scheduleCoachMarks();
+  }
+
   private scheduleCoachMarks(): void {
+    if (this.coachMarksScheduled) return;
+    this.coachMarksScheduled = true;
     afterNextRender(() => {
-      window.setTimeout(() => this.startCoachMarks(), 350);
+      window.setTimeout(() => {
+        this.coachMarksScheduled = false;
+        if (this.infoDialog() !== null) {
+          this.firstVisitCoachMarksPending = true;
+          return;
+        }
+        this.startCoachMarks();
+      }, 350);
     }, { injector: this.injector });
   }
 
   private startCoachMarks(): void {
-    if (this.isPublicPage() || this.isEditing()) return;
+    if (this.isPublicPage() || this.isEditing() || this.infoDialog() !== null || this.premiumUpgradePromptOpen()) return;
 
     const mainListTarget = document.querySelector<HTMLElement>('.my-primary-list-container');
     const secondaryListTarget = document.querySelector<HTMLElement>('.my-secondary-list-container');
@@ -1313,6 +1410,25 @@ export class HomeComponent implements OnDestroy {
 
   protected closeSectionMenu(): void {
     this.sectionMenuOpen.set(false);
+  }
+
+  protected openSharedPageInfo(): void {
+    this.shareMenuOpen.set(false);
+    this.infoDialog.set('shared-page');
+  }
+
+  protected openPrivateWelcomeInfo(): void {
+    this.menuOpen.set(false);
+    this.infoDialog.set('private-welcome');
+  }
+
+  protected closeInfoDialog(): void {
+    this.infoDialog.set(null);
+    this.maybeScheduleFirstVisitCoachMarks();
+  }
+
+  protected openPrivateSplendide(): void {
+    this.markPrivateWelcomeDialogPending();
   }
 
   protected startAddingSectionFromMenu(): void {

@@ -37,9 +37,11 @@ export interface StoredSection {
 }
 
 export interface Partition {
+  syncGeneration: number;
   sectionOrderRevision: number;
   sectionBaseOrderRevision: number;
   sectionOrderDirty?: boolean;
+  cloudReplacePending?: boolean;
   sections: StoredSection[];
 }
 
@@ -49,11 +51,13 @@ export interface OrderSyncPayload {
 }
 
 export interface SectionsSyncResponse {
+  syncGeneration?: number;
   sectionOrderRevision: number;
   sections: StoredSection[];
 }
 
 export interface ItemsSyncResponse {
+  syncGeneration?: number;
   itemsOrderRevision: number;
   items: StoredItem[];
 }
@@ -274,14 +278,16 @@ function normalizeSection(
 function normalizePartition(value: unknown): Partition {
   const timestamp = nowIso();
   if (!isRecord(value) || !Array.isArray(value['sections'])) {
-    return { sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
+    return { syncGeneration: 0, sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
   }
   const sectionOrderRevision = revision(value['sectionOrderRevision']);
 
   return {
+    syncGeneration: revision(value['syncGeneration']),
     sectionOrderRevision,
     sectionBaseOrderRevision: revision(value['sectionBaseOrderRevision'] ?? sectionOrderRevision),
     ...(value['sectionOrderDirty'] === true ? { sectionOrderDirty: true } : {}),
+    ...(value['cloudReplacePending'] === true ? { cloudReplacePending: true } : {}),
     sections: value['sections']
       .map((section, index) => normalizeSection(section as LegacySection, index, timestamp))
       .sort((a, b) => a.position - b.position),
@@ -295,6 +301,7 @@ function createDefaultPartition(): Partition {
   const secondaryTaskId = generateId();
 
   return {
+    syncGeneration: 0,
     sectionOrderRevision: 0,
     sectionBaseOrderRevision: 0,
     sections: [
@@ -485,7 +492,7 @@ export class StorageService {
 
     if (partition) return partition;
 
-    return { sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
+    return { syncGeneration: 0, sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
   }
 
   save(partition: Partition): void {
@@ -504,6 +511,30 @@ export class StorageService {
 
   loadAllSectionsForSync(): StoredSection[] {
     return this.load().sections;
+  }
+
+  getSyncGeneration(): number {
+    return this.load().syncGeneration;
+  }
+
+  isCloudReplacePending(): boolean {
+    return this.load().cloudReplacePending === true;
+  }
+
+  markCloudReplacePending(serverGeneration: number): void {
+    const partition = this.load();
+    if (!partition.cloudReplacePending) {
+      partition.syncGeneration = Math.max(partition.syncGeneration, serverGeneration) + 1;
+    }
+    partition.cloudReplacePending = true;
+    this.save(partition);
+  }
+
+  acceptServerSyncGeneration(syncGeneration: number): void {
+    const partition = this.load();
+    partition.syncGeneration = syncGeneration;
+    delete partition.cloudReplacePending;
+    this.save(partition);
   }
 
   saveSections(sections: StoredSection[], options?: { markOrderDirty?: boolean }): void {
@@ -586,7 +617,7 @@ export class StorageService {
       : partition.sectionOrderRevision;
   }
 
-  applySyncedSections(response: SectionsSyncResponse): boolean {
+  applySyncedSections(response: SectionsSyncResponse, options?: { replaceLocal?: boolean }): boolean {
     const synced = response.sections;
     const partition = this.load();
     const existingMap = new Map(partition.sections.map((section) => [section.id, section]));
@@ -595,7 +626,7 @@ export class StorageService {
     const remoteIds = new Set(synced.map((section) => section.id));
     const merged = synced.map((section) => {
       const existing = existingMap.get(section.id);
-      if (existing && !shouldAcceptRemote(section, existing)) {
+      if (!options?.replaceLocal && existing && !shouldAcceptRemote(section, existing)) {
         return { ...existing, position: section.position };
       }
 
@@ -606,19 +637,21 @@ export class StorageService {
         metadataLastModifiedAt: section.metadataLastModifiedAt,
         serverRevision: section.serverRevision,
         ...(section.deleted ? { deleted: true } : {}),
-        lists: existing?.lists ?? section.lists ?? [],
+        lists: section.lists ?? (options?.replaceLocal ? [] : existing?.lists ?? []),
       };
     });
 
-    for (const section of partition.sections) {
-      if (!remoteIds.has(section.id) && section.dirty && !section.deleted) {
-        if (section.created || section.serverRevision === 0) {
-          merged.push(section);
-        } else {
-          const cloned = cloneSectionForUser(section);
-          cloned.position = merged.length;
-          merged.push(cloned);
-          rebasedLocalSections = true;
+    if (!options?.replaceLocal) {
+      for (const section of partition.sections) {
+        if (!remoteIds.has(section.id) && section.dirty && !section.deleted) {
+          if (section.created || section.serverRevision === 0) {
+            merged.push(section);
+          } else {
+            const cloned = cloneSectionForUser(section);
+            cloned.position = merged.length;
+            merged.push(cloned);
+            rebasedLocalSections = true;
+          }
         }
       }
     }
@@ -628,6 +661,7 @@ export class StorageService {
     });
 
     const nextPartition: Partition = {
+      syncGeneration: response.syncGeneration ?? partition.syncGeneration,
       sectionOrderRevision: response.sectionOrderRevision,
       sectionBaseOrderRevision: response.sectionOrderRevision,
       sections: merged,
@@ -699,7 +733,7 @@ export class StorageService {
         itemsBaseOrderRevision: existing?.itemsBaseOrderRevision ?? list.itemsOrderRevision,
         ...(existing?.itemsOrderDirty ? { itemsOrderDirty: true } : {}),
         isBacklog: list.isBacklog,
-        items: existing?.items ?? list.items ?? [],
+        items: list.items ?? existing?.items ?? [],
       };
     });
 
@@ -866,11 +900,13 @@ export class StorageService {
 
   copyAnonymousToUser(userId: string): void {
     const source = this.readPartition(ANONYMOUS_KEY) ?? {
+      syncGeneration: 0,
       sectionOrderRevision: 0,
       sectionBaseOrderRevision: 0,
       sections: [],
     };
     const partition: Partition = {
+      syncGeneration: 0,
       sectionOrderRevision: 0,
       sectionBaseOrderRevision: 0,
       sections: source.sections

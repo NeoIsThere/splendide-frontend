@@ -92,6 +92,7 @@ export class PremiumActivationService implements OnDestroy {
     this.syncInProgress = true;
     try {
       this.storage.setActivePartition(userId);
+      this.storage.markCloudReplacePending(this.auth.user()?.syncGeneration ?? 0);
       const sections = await this.sync.syncSections();
       for (const section of sections) {
         const lists = await this.sync.syncSectionLists(section.id);

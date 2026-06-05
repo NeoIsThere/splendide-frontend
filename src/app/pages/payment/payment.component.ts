@@ -428,6 +428,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
 
   private async syncSignedInPartition(): Promise<void> {
     this.ensureSignedInPartition();
+    this.storage.markCloudReplacePending(this.auth.user()?.syncGeneration ?? 0);
     const sections = await this.sync.syncSections();
     for (const section of sections) {
       const lists = await this.sync.syncSectionLists(section.id);

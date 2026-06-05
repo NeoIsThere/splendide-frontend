@@ -7,71 +7,71 @@
         splendide.<sup>shared</sup>
       </a>
     } @else {
-      <div class="my-left logo">splendide. </div>
+      <div class="my-left logo">splendide.</div>
     }
     <div class="my-title"></div>
     <div>
       <div class="my-buttons">
         @if (!isPublicPage()) {
-        <div class="user-menu-wrapper">
-          <button
-            class="icon-btn"
-            (click)="toggleMenu()"
-            aria-label="user menu"
-            [attr.aria-expanded]="menuOpen()"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+          <div class="user-menu-wrapper">
+            <button
+              class="icon-btn"
+              (click)="toggleMenu()"
+              aria-label="user menu"
+              [attr.aria-expanded]="menuOpen()"
             >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </button>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </button>
 
-          @if (menuOpen() && auth.isLoggedIn()) {
-            <div class="user-menu-backdrop" (click)="toggleMenu()"></div>
-            <div class="user-menu">
-              <p class="user-menu-email">{{ auth.user()?.email }}</p>
-              @if (auth.isPremium()) {
-                <p class="user-menu-badge">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polygon
-                      points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                    />
-                  </svg>
-                  premium
-                </p>
-              } @else {
-                <p class="user-menu-badge">free</p>
-              }
-              @if (auth.isPremium()) {
-                <button class="user-menu-item" (click)="manageSubscription()">
-                  manage subscription
-                </button>
-              }
-              <button class="user-menu-item" (click)="openSettings()">settings</button>
-              <button class="user-menu-item" (click)="signOut()">sign out</button>
-            </div>
-          }
-        </div>
+            @if (menuOpen() && auth.isLoggedIn()) {
+              <div class="user-menu-backdrop" (click)="toggleMenu()"></div>
+              <div class="user-menu">
+                <p class="user-menu-email">{{ auth.user()?.email }}</p>
+                @if (auth.isPremium()) {
+                  <p class="user-menu-badge">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polygon
+                        points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                      />
+                    </svg>
+                    premium
+                  </p>
+                } @else {
+                  <p class="user-menu-badge">free</p>
+                }
+                @if (auth.isPremium()) {
+                  <button class="user-menu-item" (click)="manageSubscription()">
+                    manage subscription
+                  </button>
+                }
+                <button class="user-menu-item" (click)="openSettings()">settings</button>
+                <button class="user-menu-item" (click)="signOut()">sign out</button>
+              </div>
+            }
+          </div>
         }
 
         <button
@@ -117,6 +117,31 @@
             </svg>
           }
         </button>
+        @if (!isPublicPage()) {
+          <button
+            class="icon-btn"
+            type="button"
+            (click)="openPrivateWelcomeInfo()"
+            aria-label="about splendide"
+          >
+            <svg
+              class="private-question-icon"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.1 9a3 3 0 1 1 5.1 2.1c-.9.8-1.2 1.2-1.2 2.4" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </button>
+        }
         <div class="my-upgrade-desktop">
           @if (!isPublicPage() && auth.isLoggedIn() && !auth.isPremium()) {
             <a class="upgrade-link" routerLink="/payment" aria-label="upgrade to premium"
@@ -142,32 +167,14 @@
       <p>public pages are removed after six months without activity</p>
     </main>
   } @else {
-
-  @if (isPublicPage()) {
-    <div class="public-toolbar">
-      <a class="private-space-btn" routerLink="/">
-        <svg
-          class="public-action-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-        private tasks
-      </a>
-      <div class="public-share-wrapper" data-public-share>
-        <button
-          class="public-share-btn"
-          (click)="toggleShareMenu()"
-          aria-label="share public section"
-          [attr.aria-expanded]="shareMenuOpen()"
+    @if (isPublicPage()) {
+      <div class="public-toolbar">
+        <a
+          class="private-space-btn"
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          (click)="openPrivateSplendide()"
         >
           <svg
             class="public-action-icon"
@@ -181,39 +188,69 @@
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
-            <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+            <polyline points="15 18 9 12 15 6" />
           </svg>
-          share
-        </button>
-        @if (shareMenuOpen()) {
-          <div class="public-share-popover">
-            <p class="public-share-title">share this page</p>
-            <p class="public-share-copy">anyone with the link can collaborate. private tasks are not shared</p>
-            <div class="public-share-link-row">
-              <input class="public-share-link" type="text" [value]="publicShareUrl()" readonly aria-label="public section link" />
-              <button class="public-copy-btn" (click)="copyPublicLink()">copy</button>
+          open work organizer
+        </a>
+        <div class="public-share-wrapper" data-public-share>
+          <button
+            class="public-share-btn"
+            (click)="toggleShareMenu()"
+            aria-label="share public section"
+            [attr.aria-expanded]="shareMenuOpen()"
+          >
+            <svg
+              class="public-action-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+              <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+            </svg>
+            share
+          </button>
+          @if (shareMenuOpen()) {
+            <div class="public-share-popover">
+              <p class="public-share-title">Share this page</p>
+              <p class="public-share-copy">
+                Anyone with the link can collaborate. Private tasks are not shared.
+              </p>
+              <div class="public-share-link-row">
+                <input
+                  class="public-share-link"
+                  type="text"
+                  [value]="publicShareUrl()"
+                  readonly
+                  aria-label="public section link"
+                />
+                <button class="public-copy-btn" (click)="copyPublicLink()">copy</button>
+              </div>
+              @if (shareToastVisible()) {
+                <span class="public-share-toast" aria-live="polite">link copied</span>
+              }
             </div>
-            @if (shareToastVisible()) {
-              <span class="public-share-toast" aria-live="polite">link copied</span>
-            }
-
-          </div>
-        }
-      </div>
-     </div>
-  } @else {
-
-  <div class="section-nav-mobile">
-    <div class="section-nav-left">
-      @if (showPrevArrow()) {
-        <button class="section-nav-arrow" (click)="goToPrevSection()" aria-label="previous section">
+          }
+        </div>
+        <button
+          class="public-info-btn"
+          type="button"
+          (click)="openSharedPageInfo()"
+          aria-label="what is splendide shared"
+        >
           <svg
-            width="20"
-            height="20"
+            class="public-action-icon public-question-icon"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -222,681 +259,118 @@
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <polyline points="15 18 9 12 15 6" />
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.1 9a3 3 0 1 1 5.1 2.1c-.9.8-1.2 1.2-1.2 2.4" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
         </button>
-      }
-    </div>
-    <div class="section-nav-center">
-      @if (addingSectionTitle() !== null) {
-        <input
-          class="section-add-input"
-          [value]="addingSectionTitle()"
-          (input)="onAddSectionInput($event)"
-          (keydown)="handleAddSectionKeydown($event)"
-          (blur)="confirmAddSection()"
-          placeholder="page name"
-        />
-      } @else if (editingSectionId() === activeSectionId()) {
-        <input
-          class="section-tab-input"
-          [attr.data-edit-section]="activeSectionId()"
-          [value]="activeSection()?.title"
-          (blur)="saveSectionEdit(activeSectionId()!, $event)"
-          (keydown)="handleSectionEditKeydown(activeSectionId()!, $event)"
-        />
-      } @else {
-        <button
-          class="section-nav-title"
-          [class.keyboard-focused]="isTabsFocused()"
-          [attr.data-keyboard-section]="activeSectionId()"
-          (click)="startEditingSection(activeSectionId()!)"
-        >
-          {{ activeSection()?.title }}
-        </button>
-      }
-    </div>
-    <div class="section-nav-right">
-      <div class="section-nav-right-inner">
-        <div class="section-menu-wrapper" data-confirm-delete-section>
-          <button
-            class="section-menu-trigger"
-            (click)="toggleSectionMenu()"
-            aria-label="tab actions"
-            data-coach-create-section
-            [attr.aria-expanded]="sectionMenuOpen()"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+        
+      </div>
+    } @else {
+      <div class="section-nav-mobile">
+        <div class="section-nav-left">
+          @if (showPrevArrow()) {
+            <button
+              class="section-nav-arrow"
+              (click)="goToPrevSection()"
+              aria-label="previous section"
             >
-              <circle cx="5" cy="12" r="1" />
-              <circle cx="12" cy="12" r="1" />
-              <circle cx="19" cy="12" r="1" />
-            </svg>
-          </button>
-          @if (sectionMenuOpen()) {
-            <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
-            <div class="section-menu">
-              <button
-                class="section-menu-item section-menu-item-icon"
-                (click)="startAddingSectionFromMenu()"
-                [disabled]="!canAddSection()"
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
               >
-                <span class="section-menu-plus" aria-hidden="true">+</span>
-                <span>add tab</span>
-              </button>
-              <button class="section-menu-item section-menu-item-icon" (click)="createPublicSection()">
-                <span class="section-menu-plus" aria-hidden="true">+</span>
-                <span>shared page</span>
-              </button>
-              @if (sections().length > 1) {
-                <button class="section-menu-item section-menu-item-icon danger" (click)="startDeletingActiveSectionFromMenu()">
-                  <svg
-                    class="section-menu-icon"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
-                    <path d="M9 6V4h6v2" />
-                  </svg>
-                  <span>delete tab</span>
-                </button>
-              }
-            </div>
-          }
-          @if (confirmingDeleteSectionId() === activeSectionId()) {
-            <div
-              class="section-menu-backdrop"
-              data-confirm-delete-section
-              (click)="cancelDeleteSection()"
-            ></div>
-            <div
-              class="section-delete-popover"
-              data-confirm-delete-section
-              role="dialog"
-              aria-modal="true"
-              aria-label="confirm delete tab"
-            >
-              <div class="section-delete-actions">
-                <button
-                  class="clear-yes"
-                  [class.keyboard-focused]="isSectionDeleteOptionFocused('delete')"
-                  (click)="confirmDeleteSection()"
-                >delete</button>
-                <button
-                  class="clear-no"
-                  [class.keyboard-focused]="isSectionDeleteOptionFocused('cancel')"
-                  (click)="cancelDeleteSection()"
-                >cancel</button>
-              </div>
-            </div>
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
           }
         </div>
-      </div>
-      <div class="section-nav-right-inner">
-        @if (showNextArrow()) {
-          <button class="section-nav-arrow" (click)="goToNextSection()" aria-label="next section">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+        <div class="section-nav-center">
+          @if (addingSectionTitle() !== null) {
+            <input
+              class="section-add-input"
+              [value]="addingSectionTitle()"
+              (input)="onAddSectionInput($event)"
+              (keydown)="handleAddSectionKeydown($event)"
+              (blur)="confirmAddSection()"
+              placeholder="page name"
+            />
+          } @else if (editingSectionId() === activeSectionId()) {
+            <input
+              class="section-tab-input"
+              [attr.data-edit-section]="activeSectionId()"
+              [value]="activeSection()?.title"
+              (blur)="saveSectionEdit(activeSectionId()!, $event)"
+              (keydown)="handleSectionEditKeydown(activeSectionId()!, $event)"
+            />
+          } @else {
+            <button
+              class="section-nav-title"
+              [class.keyboard-focused]="isTabsFocused()"
+              [attr.data-keyboard-section]="activeSectionId()"
+              (click)="startEditingSection(activeSectionId()!)"
             >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-        }
-      </div>
-    </div>
-  </div>
-  <!-- ═══ Section Tabs (desktop) ═══ -->
-  <div class="section-tabs-row">
-    <div
-      class="section-tabs"
-      cdkDropList
-      cdkDropListOrientation="horizontal"
-      (cdkDropListDropped)="dropSection($any($event))"
-    >
-      @for (sec of sections(); track sec.id) {
-        <div
-          class="section-tab"
-          [class.active]="activeSectionId() === sec.id"
-          [class.keyboard-focused]="isSectionKeyboardFocused(sec.id)"
-          [attr.data-keyboard-section]="sec.id"
-        >
-          <div
-            class="section-tab-surface"
-            cdkDrag
-            [cdkDragData]="sec"
-            [cdkDragStartDelay]="dragDelay()"
-            (cdkDragStarted)="setDragging(true)"
-            (cdkDragEnded)="setDragging(false)"
-          >
-            <div class="section-tab-placeholder" *cdkDragPlaceholder></div>
-            @if (editingSectionId() === sec.id) {
-              <input
-                class="section-tab-input"
-                [attr.data-edit-section]="sec.id"
-                [value]="sec.title"
-                (blur)="saveSectionEdit(sec.id, $event)"
-                (keydown)="handleSectionEditKeydown(sec.id, $event)"
-              />
-            } @else {
+              {{ activeSection()?.title }}
+            </button>
+          }
+        </div>
+        <div class="section-nav-right">
+          <div class="section-nav-right-inner">
+            <div class="section-menu-wrapper" data-confirm-delete-section>
               <button
-                class="section-tab-btn"
-                (click)="selectSection(sec.id); focusTabsForKeyboard()"
-                (dblclick)="startEditingSection(sec.id)"
-              >
-                {{ sec.title }}
-              </button>
-            }
-          </div>
-          <div class="section-tab-actions" data-confirm-delete-section>
-            @if (confirmingDeleteSectionId() === sec.id) {
-              <div class="clear-confirm">
-                <button
-                  class="clear-yes"
-                  [class.keyboard-focused]="isSectionDeleteOptionFocused('delete')"
-                  (click)="confirmDeleteSection()"
-                >delete</button>
-                <button
-                  class="clear-no"
-                  [class.keyboard-focused]="isSectionDeleteOptionFocused('cancel')"
-                  (click)="cancelDeleteSection()"
-                >cancel</button>
-              </div>
-            } @else if (sections().length > 1) {
-              <button
-                class="icon-btn-sm remove-btn remove-btn-section"
-                (click)="startDeleteSection(sec.id)"
-                aria-label="delete section"
+                class="section-menu-trigger"
+                (click)="toggleSectionMenu()"
+                aria-label="tab actions"
+                data-coach-create-section
+                [attr.aria-expanded]="sectionMenuOpen()"
               >
                 <svg
-                  width="16"
-                  height="16"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="2.2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   aria-hidden="true"
                 >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
+                  <circle cx="5" cy="12" r="1" />
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="19" cy="12" r="1" />
                 </svg>
               </button>
-            }
-          </div>
-        </div>
-      }
-
-      @if (canAddSection()) {
-        @if (addingSectionTitle() !== null) {
-          <div class="section-tab section-tab-draft">
-            <div class="section-tab-surface section-tab-static">
-              <input
-                class="section-add-input section-add-input-tab"
-                [value]="addingSectionTitle()"
-                (input)="onAddSectionInput($event)"
-                (keydown)="handleAddSectionKeydown($event)"
-                (blur)="confirmAddSection()"
-                placeholder="page name"
-              />
-            </div>
-            <div class="section-tab-actions"></div>
-          </div>
-        }
-
-        <div class="section-tab section-tab-add">
-          <div class="section-tab-surface section-tab-static">
-            <button
-              class="section-tab-btn section-tab-add-btn"
-              (click)="startAddingSection()"
-              [disabled]="addingSectionTitle() !== null"
-              aria-label="add section"
-              data-coach-create-section
-            >
-              +
-            </button>
-          </div>
-          <div class="section-tab-actions"></div>
-        </div>
-      }
-
-    </div>
-
-    <div class="section-tabs-actions">
-      <div class="section-menu-wrapper section-public-menu">
-        <button
-          class="section-menu-trigger"
-          (click)="toggleSectionMenu()"
-          aria-label="section actions"
-          [attr.aria-expanded]="sectionMenuOpen()"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="5" r="1" />
-            <circle cx="12" cy="12" r="1" />
-            <circle cx="12" cy="19" r="1" />
-          </svg>
-        </button>
-        @if (sectionMenuOpen()) {
-          <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
-          <div class="section-menu">
-            <button class="section-menu-item section-menu-item-icon" (click)="createPublicSection()">
-              <span class="section-menu-plus" aria-hidden="true">+</span>
-              <span>shared page</span>
-            </button>
-          </div>
-        }
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ Lists ═══ -->
-  }
-
-  <div class="lists" cdkScrollable>
-
-    <!-- ═══ Main Section ═══ -->
-    <div class="my-list-col main-section" #mainSection>
-      <div class="my-primary-list-container">
-        @if (editingMainTitle()) {
-          <input
-            class="list-title-input main-title-input"
-            type="text"
-            [value]="mainTitle()"
-            (blur)="saveMainTitle($event)"
-            (keydown)="handleMainTitleKeydown($event)"
-            aria-label="edit list title"
-            maxlength="40"
-          />
-        } @else {
-          <h2 class="section-title main-list-title" (click)="startEditingMainTitle()">
-            {{ mainTitle() }}
-          </h2>
-        }
-        <p class="counter" [class.counter-invisible]="taskCount() === 0 || completedCount() === 0">
-          {{ completedCount() }} / {{ taskCount() }}
-        </p>
-
-        <!-- Main drop zone (drag-drop) -->
-        <div
-          class="main-drop-zone"
-          cdkDropList
-          id="mainDropList"
-          #mainList="cdkDropList"
-          [cdkDropListData]="tasks()"
-          [cdkDropListConnectedTo]="mainDropListConnections()"
-          [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
-          [cdkDropListAutoScrollStep]="dragAutoScrollStep"
-          cdkDropListElementContainer=".task-list"
-          (cdkDropListDropped)="dropMainTask($any($event))"
-        >
-        <!-- Add task form -->
-        @if (adding()) {
-          <div class="add-form" (focusout)="onAddFormFocusOut($event)">
-            <input
-              class="input-minimal"
-              type="text"
-              placeholder="task"
-              [value]="newTaskText()"
-              (input)="onNewTaskInput($event)"
-              (keydown)="handleAddKeydown($event)"
-              autofocus
-              aria-label="new task"
-              maxlength="120"
-            />
-            @for (sub of newSubtasks(); track $index) {
-              <div class="subtask-input-row">
-                <input
-                  class="input-minimal input-sub"
-                  type="text"
-                  placeholder="subtask"
-                  [value]="sub"
-                  (input)="updateNewSubtask($index, $event)"
-                  (keydown)="handleAddKeydown($event)"
-                  aria-label="subtask"
-                  maxlength="120"
-                />
-                <button
-                  class="icon-btn-sm"
-                  (click)="removeSubtaskField($index)"
-                  aria-label="remove subtask field"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-            }
-            <div class="form-actions">
-              @if (newSubtasks().length < 10) {
-                <button
-                  class="add-subtask-btn add-subtask-btn-form"
-                  (click)="addSubtaskField()"
-                  aria-label="add subtask field"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  subtask
-                </button>
-              }
-            </div>
-          </div>
-        } @else if (canAdd()) {
-          <div
-            class="add-placeholder"
-            [class.keyboard-focused]="isAddPlaceholderFocused('main')"
-            data-keyboard-list="main"
-            (click)="startAdding()"
-            (keydown.enter)="startAdding()"
-            role="button"
-            tabindex="0"
-            aria-label="add a task"
-          >
-            <svg
-              class="add-placeholder-icon"
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span class="add-placeholder-text">task</span>
-          </div>
-        }
-        <!-- Task list -->
-        <div
-          class="task-list"
-          role="list"
-          aria-label="tasks"
-        >
-          @for (task of tasks(); track task.id) {
-            <div
-              class="task-item"
-              [class.done]="task.done"
-              [class.keyboard-focused]="isTaskFocused('main', task.id)"
-              data-keyboard-list="main"
-              [attr.data-keyboard-task]="task.id"
-              cdkDrag
-              [cdkDragDisabled]="isEditing()"
-              [cdkDragStartDelay]="dragDelay()"
-              (cdkDragStarted)="setDragging(true)"
-              (cdkDragMoved)="handleTaskDragMoved($any($event))"
-              (cdkDragEnded)="setDragging(false)"
-              (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
-              role="listitem"
-            >
-              <ng-template cdkDragPreview [matchSize]="true">
-                <div class="task-drag-preview-card">
-                  <div class="task-drag-preview-main">
-                    <span class="task-drag-preview-check" aria-hidden="true"></span>
-                    <span class="task-drag-preview-text">{{ task.text }}</span>
-                  </div>
-                  @if (task.subtasks.length > 0) {
-                    <div class="task-drag-preview-subtasks">
-                      {{ task.subtasks.length }} subtask{{ task.subtasks.length === 1 ? '' : 's' }}
-                    </div>
-                  }
-                </div>
-              </ng-template>
-              <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
-              <div class="task-main">
-                <button
-                  class="check-btn"
-                  [class.checked]="task.done"
-                  (click)="toggleTask(task.id)"
-                  (mousedown)="$event.stopPropagation()"
-                  [attr.aria-label]="
-                    (task.done ? 'mark incomplete: ' : 'mark complete: ') + task.text
-                  "
-                >
-                  @if (task.done) {
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  }
-                </button>
-
-                @if (editingTaskId() === task.id) {
-                  <input
-                    class="edit-input"
-                    type="text"
-                    [value]="task.text"
-                    [attr.data-edit-id]="'task-' + task.id"
-                    (blur)="saveTaskEdit(task.id, $event)"
-                    (keydown)="handleTaskEditKeydown(task.id, $event)"
-                    aria-label="edit task"
-                    maxlength="120"
-                  />
-                } @else {
-                  <span
-                    class="task-text"
-                    [class.struck]="task.done"
-                    (click)="startEditingTask(task.id)"
-                  >
-                    @for (segment of linkSegments(task.text); track $index) {
-                      @if (segment.href; as href) {
-                        <a
-                          class="task-link"
-                          [href]="href"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          (pointerdown)="$event.stopPropagation()"
-                          (click)="openTaskLink($event, href)"
-                          [textContent]="segment.text"
-                        ></a>
-                      } @else {
-                        <span [textContent]="segment.text"></span>
-                      }
-                    }
-                  </span>
-                }
-
-                <button
-                  class="icon-btn-sm remove-btn"
-                  (click)="removeTask(task.id)"
-                  [attr.aria-label]="'remove: ' + task.text"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-
-                <!-- Mobile 3-dot menu -->
-                <div class="task-dots-wrapper mobile-only" data-task-menu>
+              @if (sectionMenuOpen()) {
+                <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
+                <div class="section-menu">
                   <button
-                    class="icon-btn-sm task-dots-btn"
-                    (click)="toggleTaskMenu(task.id, $event)"
-                    [attr.aria-label]="'options for: ' + task.text"
-                  >&#8226;&#8226;&#8226;</button>
-                  @if (taskMenuOpenId() === task.id) {
-                    <div class="task-dots-menu">
-                      @if (!isPublicPage()) {
-                        <button
-                          class="task-dots-item"
-                          (click)="moveToBacklog(task.id); taskMenuOpenId.set(null)"
-                        >move to {{ secondaryTitle() }}</button>
-                      }
-                      <button
-                        class="task-dots-item task-dots-item-danger"
-                        (click)="removeTask(task.id)"
-                      >delete</button>
-                    </div>
-                  }
-                </div>
-              </div>
-
-              <!-- Subtasks -->
-              <div
-                class="subtask-list"
-                cdkDropList
-                [cdkDropListData]="task.subtasks"
-                (cdkDropListDropped)="dropSubtask(task.id, $any($event))"
-              >
-                @for (sub of task.subtasks; track sub.id) {
-                  <div
-                    class="subtask-row"
-                    cdkDrag
-                    [cdkDragStartDelay]="dragDelay()"
-                    (cdkDragStarted)="setDragging(true)"
-                    (cdkDragEnded)="setDragging(false)"
+                    class="section-menu-item section-menu-item-icon"
+                    (click)="startAddingSectionFromMenu()"
+                    [disabled]="!canAddSection()"
                   >
+                    <span class="section-menu-plus" aria-hidden="true">+</span>
+                    <span>add tab</span>
+                  </button>
+                  <button
+                    class="section-menu-item section-menu-item-icon"
+                    (click)="createPublicSection()"
+                  >
+                    <span class="section-menu-plus" aria-hidden="true">+</span>
+                    <span>shared page</span>
+                  </button>
+                  @if (sections().length > 1) {
                     <button
-                      class="check-btn check-btn-sub"
-                      [class.checked]="sub.done"
-                      (click)="toggleSubtask(task.id, sub.id)"
-                      (mousedown)="$event.stopPropagation()"
-                      [attr.aria-label]="
-                        (sub.done ? 'mark incomplete: ' : 'mark complete: ') + sub.text
-                      "
-                    >
-                      @if (sub.done) {
-                        <svg
-                          width="8"
-                          height="8"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="3"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          aria-hidden="true"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      }
-                    </button>
-
-                    @if (
-                      editingSubtask()?.taskId === task.id && editingSubtask()?.subtaskId === sub.id
-                    ) {
-                      <input
-                        class="edit-input edit-input-sub"
-                        type="text"
-                        [value]="sub.text"
-                        [attr.data-edit-id]="'sub-' + sub.id"
-                        (blur)="saveSubtaskEdit(task.id, sub.id, $event)"
-                        (keydown)="handleSubtaskEditKeydown(task.id, sub.id, $event)"
-                        aria-label="edit subtask"
-                        maxlength="120"
-                      />
-                    } @else {
-                      <span
-                        class="subtask-text"
-                        [class.struck]="sub.done"
-                        (pointerdown)="$event.stopPropagation()"
-                        (click)="startEditingSubtask(task.id, sub.id)"
-                      >
-                        @for (segment of linkSegments(sub.text); track $index) {
-                          @if (segment.href; as href) {
-                            <a
-                              class="task-link"
-                              [href]="href"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              (pointerdown)="$event.stopPropagation()"
-                              (click)="openTaskLink($event, href)"
-                              [textContent]="segment.text"
-                            ></a>
-                          } @else {
-                            <span [textContent]="segment.text"></span>
-                          }
-                        }
-                      </span>
-                    }
-
-                    <button
-                      class="icon-btn-sm remove-btn"
-                      (click)="removeSubtask(task.id, sub.id)"
-                      [attr.aria-label]="'remove subtask: ' + sub.text"
+                      class="section-menu-item section-menu-item-icon danger"
+                      (click)="startDeletingActiveSectionFromMenu()"
                     >
                       <svg
+                        class="section-menu-icon"
                         width="14"
                         height="14"
                         viewBox="0 0 24 24"
@@ -907,167 +381,144 @@
                         stroke-linejoin="round"
                         aria-hidden="true"
                       >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                        <path d="M9 6V4h6v2" />
                       </svg>
+                      <span>delete tab</span>
                     </button>
-                  </div>
-                }
-              </div>
-
-              <!-- Inline add subtask input -->
-              @if (addingSubtaskToId() === task.id) {
-                <div class="subtask-row">
-                  <input
-                    class="edit-input edit-input-sub"
-                    type="text"
-                    placeholder="subtask"
-                    data-inline-subtask
-                    [value]="newInlineSubtaskText()"
-                    (input)="onInlineSubtaskInput($event)"
-                    (keydown)="handleInlineSubtaskKeydown(task.id, $event)"
-                    (blur)="confirmAddSubtask(task.id)"
-                    aria-label="new subtask"
-                    maxlength="120"
-                  />
+                  }
                 </div>
               }
-
-              <!-- Add subtask button -->
-              @if (task.subtasks.length < 10 && addingSubtaskToId() !== task.id) {
-                <button
-                  class="add-subtask-btn"
-                  (click)="startAddingSubtask(task.id)"
-                  aria-label="add subtask"
+              @if (confirmingDeleteSectionId() === activeSectionId()) {
+                <div
+                  class="section-menu-backdrop"
+                  data-confirm-delete-section
+                  (click)="cancelDeleteSection()"
+                ></div>
+                <div
+                  class="section-delete-popover"
+                  data-confirm-delete-section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="confirm delete tab"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  subtask
-                </button>
+                  <div class="section-delete-actions">
+                    <button
+                      class="clear-yes"
+                      [class.keyboard-focused]="isSectionDeleteOptionFocused('delete')"
+                      (click)="confirmDeleteSection()"
+                    >
+                      delete
+                    </button>
+                    <button
+                      class="clear-no"
+                      [class.keyboard-focused]="isSectionDeleteOptionFocused('cancel')"
+                      (click)="cancelDeleteSection()"
+                    >
+                      cancel
+                    </button>
+                  </div>
+                </div>
               }
             </div>
-          } @empty {
-            <!-- empty -->
-          }
-        </div>
-        </div><!-- /.main-drop-zone -->
-
-        @if (taskCount() > 0) {
-          @if (confirmingClear()) {
-            <div class="clear-confirm" data-confirm-clear>
-              <span class="clear-confirm-label">delete:</span>
-              @if (completedCount() > 0 && completedCount() < taskCount()) {
-                <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">done only</button>
-              }
-              <button class="clear-yes" (click)="confirmClear()">all</button>
-              <button class="clear-no" (click)="cancelClear()">cancel</button>
-            </div>
-          } @else {
-            <div class="clear-actions" data-confirm-clear>
-              <button class="clear-btn" (click)="startClear()" aria-label="clear the list">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                  <path d="M9 6V4h6v2" />
+          </div>
+          <div class="section-nav-right-inner">
+            @if (showNextArrow()) {
+              <button
+                class="section-nav-arrow"
+                (click)="goToNextSection()"
+                aria-label="next section"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="9 18 15 12 9 6" />
                 </svg>
               </button>
-            </div>
-          }
-        }
-
-      </div>
-    </div>
-
-    <!-- ═══ Secondary Section ═══ -->
-    @if (!isPublicPage()) {
-    <div class="my-list-col secondary-section" #secondarySection>
-      <div class="my-secondary-list-container">
-        <div class="sec-header">
-          @if (editingSecondaryTitle()) {
-            <input
-              class="list-title-input sec-title-input"
-              type="text"
-              [value]="secondaryTitle()"
-              (blur)="saveSecondaryTitle($event)"
-              (keydown)="handleSecondaryTitleKeydown($event)"
-              autofocus
-              aria-label="edit list title"
-              maxlength="40"
-            />
-          } @else {
-            <h2 class="section-title" (click)="startEditingSecondaryTitle()">
-              {{ secondaryTitle() }}
-            </h2>
-          }
+            }
+          </div>
         </div>
-
-        <p
-          class="counter counter-sec"
-          [class.counter-invisible]="secondaryCount() === 0 || secondaryCompletedCount() === 0"
-        >
-          {{ secondaryCompletedCount() }} / {{ secondaryCount() }}
-        </p>
-
+      </div>
+      <!-- ═══ Section Tabs (desktop) ═══ -->
+      <div class="section-tabs-row">
         <div
-          class="sec-drop-zone"
+          class="section-tabs"
           cdkDropList
-          id="secondaryDropList"
-          #secList="cdkDropList"
-          [cdkDropListData]="secondaryTasks()"
-          [cdkDropListConnectedTo]="secondaryDropListConnections()"
-          [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
-          [cdkDropListAutoScrollStep]="dragAutoScrollStep"
-          cdkDropListElementContainer=".task-list"
-          (cdkDropListDropped)="dropSecondaryTask($any($event))"
+          cdkDropListOrientation="horizontal"
+          (cdkDropListDropped)="dropSection($any($event))"
         >
-        @if (secondaryVisible()) {
-          @if (addingSecondary()) {
-            <div class="add-form add-form-sec" (focusout)="onSecAddFormFocusOut($event)">
-              <input
-                class="input-minimal input-sec"
-                type="text"
-                placeholder="task"
-                [value]="newSecondaryText()"
-                (input)="onNewSecondaryInput($event)"
-                (keydown)="handleSecondaryKeydown($event)"
-                autofocus
-                aria-label="new secondary task"
-                maxlength="120"
-              />
-              @for (sub of newSecondarySubtasks(); track $index) {
-                <div class="subtask-input-row">
+          @for (sec of sections(); track sec.id) {
+            <div
+              class="section-tab"
+              [class.active]="activeSectionId() === sec.id"
+              [class.keyboard-focused]="isSectionKeyboardFocused(sec.id)"
+              [attr.data-keyboard-section]="sec.id"
+            >
+              <div
+                class="section-tab-surface"
+                cdkDrag
+                [cdkDragData]="sec"
+                [cdkDragStartDelay]="dragDelay()"
+                (cdkDragStarted)="setDragging(true)"
+                (cdkDragEnded)="setDragging(false)"
+              >
+                <div class="section-tab-placeholder" *cdkDragPlaceholder></div>
+                @if (editingSectionId() === sec.id) {
                   <input
-                    class="input-minimal input-sub"
-                    type="text"
-                    placeholder="subtask"
-                    [value]="sub"
-                    (input)="updateNewSecSubtask($index, $event)"
-                    (keydown)="handleSecondaryKeydown($event)"
-                    aria-label="subtask"
-                    maxlength="120"
+                    class="section-tab-input"
+                    [attr.data-edit-section]="sec.id"
+                    [value]="sec.title"
+                    (blur)="saveSectionEdit(sec.id, $event)"
+                    (keydown)="handleSectionEditKeydown(sec.id, $event)"
                   />
+                } @else {
                   <button
-                    class="icon-btn-sm"
-                    (click)="removeSecSubtaskField($index)"
-                    aria-label="remove subtask field"
+                    class="section-tab-btn"
+                    (click)="selectSection(sec.id); focusTabsForKeyboard()"
+                    (dblclick)="startEditingSection(sec.id)"
+                  >
+                    {{ sec.title }}
+                  </button>
+                }
+              </div>
+              <div class="section-tab-actions" data-confirm-delete-section>
+                @if (confirmingDeleteSectionId() === sec.id) {
+                  <div class="clear-confirm">
+                    <button
+                      class="clear-yes"
+                      [class.keyboard-focused]="isSectionDeleteOptionFocused('delete')"
+                      (click)="confirmDeleteSection()"
+                    >
+                      delete
+                    </button>
+                    <button
+                      class="clear-no"
+                      [class.keyboard-focused]="isSectionDeleteOptionFocused('cancel')"
+                      (click)="cancelDeleteSection()"
+                    >
+                      cancel
+                    </button>
+                  </div>
+                } @else if (sections().length > 1) {
+                  <button
+                    class="icon-btn-sm remove-btn remove-btn-section"
+                    (click)="startDeleteSection(sec.id)"
+                    aria-label="delete section"
                   >
                     <svg
-                      width="14"
-                      height="14"
+                      width="16"
+                      height="16"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -1080,232 +531,278 @@
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </button>
-                </div>
-              }
-              <div class="form-actions">
-                @if (newSecondarySubtasks().length < 10) {
-                  <button
-                    class="add-subtask-btn add-subtask-btn-form"
-                    (click)="addSecSubtaskField()"
-                    aria-label="add subtask field"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    subtask
-                  </button>
                 }
               </div>
             </div>
-          } @else if (canAddSecondary()) {
-            <div
-              class="add-placeholder add-placeholder-sec"
-              [class.keyboard-focused]="isAddPlaceholderFocused('secondary')"
-              data-keyboard-list="secondary"
-              (click)="startAddingSecondary()"
-              (keydown.enter)="startAddingSecondary()"
-              role="button"
-              tabindex="0"
-              aria-label="add a task"
+          }
+
+          @if (canAddSection()) {
+            @if (addingSectionTitle() !== null) {
+              <div class="section-tab section-tab-draft">
+                <div class="section-tab-surface section-tab-static">
+                  <input
+                    class="section-add-input section-add-input-tab"
+                    [value]="addingSectionTitle()"
+                    (input)="onAddSectionInput($event)"
+                    (keydown)="handleAddSectionKeydown($event)"
+                    (blur)="confirmAddSection()"
+                    placeholder="page name"
+                  />
+                </div>
+                <div class="section-tab-actions"></div>
+              </div>
+            }
+
+            <div class="section-tab section-tab-add">
+              <div class="section-tab-surface section-tab-static">
+                <button
+                  class="section-tab-btn section-tab-add-btn"
+                  (click)="startAddingSection()"
+                  [disabled]="addingSectionTitle() !== null"
+                  aria-label="add section"
+                  data-coach-create-section
+                >
+                  +
+                </button>
+              </div>
+              <div class="section-tab-actions"></div>
+            </div>
+          }
+        </div>
+
+        <div class="section-tabs-actions">
+          <div class="section-menu-wrapper section-public-menu">
+            <button
+              class="section-menu-trigger"
+              (click)="toggleSectionMenu()"
+              aria-label="section actions"
+              [attr.aria-expanded]="sectionMenuOpen()"
             >
               <svg
-                class="add-placeholder-icon add-placeholder-icon-sec"
-                width="12"
-                height="12"
+                width="18"
+                height="18"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="2.2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
+                <circle cx="12" cy="5" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="12" cy="19" r="1" />
               </svg>
-              <span class="add-placeholder-text add-placeholder-text-sec">task</span>
-            </div>
+            </button>
+            @if (sectionMenuOpen()) {
+              <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
+              <div class="section-menu">
+                <button
+                  class="section-menu-item section-menu-item-icon"
+                  (click)="createPublicSection()"
+                >
+                  <span class="section-menu-plus" aria-hidden="true">+</span>
+                  <span>shared page</span>
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Lists ═══ -->
+    }
+
+    <div class="lists" cdkScrollable>
+      <!-- ═══ Main Section ═══ -->
+      <div class="my-list-col main-section" #mainSection>
+        <div class="my-primary-list-container">
+          @if (editingMainTitle()) {
+            <input
+              class="list-title-input main-title-input"
+              type="text"
+              [value]="mainTitle()"
+              (blur)="saveMainTitle($event)"
+              (keydown)="handleMainTitleKeydown($event)"
+              aria-label="edit list title"
+              maxlength="40"
+            />
+          } @else {
+            <h2 class="section-title main-list-title" (click)="startEditingMainTitle()">
+              {{ mainTitle() }}
+            </h2>
           }
-        }
-        <div
-          class="task-list"
-          role="list"
-          aria-label="secondary tasks"
-        >
-          @for (task of secondaryTasks(); track task.id) {
-            <div
-              class="sec-task-item"
-              [class.done]="task.done"
-              [class.keyboard-focused]="isTaskFocused('secondary', task.id)"
-              data-keyboard-list="secondary"
-              [attr.data-keyboard-task]="task.id"
-              cdkDrag
-              [cdkDragDisabled]="isEditing()"
-              [cdkDragStartDelay]="dragDelay()"
-              (cdkDragStarted)="setDragging(true)"
-              (cdkDragMoved)="handleTaskDragMoved($any($event))"
-              (cdkDragEnded)="setDragging(false)"
-              (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
-              role="listitem"
-            >
-              <ng-template cdkDragPreview [matchSize]="true">
-                <div class="task-drag-preview-card task-drag-preview-card-sec">
-                  <div class="task-drag-preview-main">
-                    <span class="task-drag-preview-check" aria-hidden="true"></span>
-                    <span class="task-drag-preview-text">{{ task.text }}</span>
-                  </div>
-                  @if (task.subtasks.length > 0) {
-                    <div class="task-drag-preview-subtasks">
-                      {{ task.subtasks.length }} subtask{{ task.subtasks.length === 1 ? '' : 's' }}
-                    </div>
-                  }
-                </div>
-              </ng-template>
-              <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
-              <div class="sec-task-main">
-                <button
-                  class="check-btn check-btn-sub"
-                  [class.checked]="task.done"
-                  (click)="toggleSecondaryTask(task.id)"
-                  (mousedown)="$event.stopPropagation()"
-                  [attr.aria-label]="
-                    (task.done ? 'mark incomplete: ' : 'mark complete: ') + task.text
-                  "
-                >
-                  @if (task.done) {
-                    <svg
-                      width="8"
-                      height="8"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
+          <p
+            class="counter"
+            [class.counter-invisible]="taskCount() === 0 || completedCount() === 0"
+          >
+            {{ completedCount() }} / {{ taskCount() }}
+          </p>
+
+          <!-- Main drop zone (drag-drop) -->
+          <div
+            class="main-drop-zone"
+            cdkDropList
+            id="mainDropList"
+            #mainList="cdkDropList"
+            [cdkDropListData]="tasks()"
+            [cdkDropListConnectedTo]="mainDropListConnections()"
+            [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
+            [cdkDropListAutoScrollStep]="dragAutoScrollStep"
+            cdkDropListElementContainer=".task-list"
+            (cdkDropListDropped)="dropMainTask($any($event))"
+          >
+            <!-- Add task form -->
+            @if (adding()) {
+              <div class="add-form" (focusout)="onAddFormFocusOut($event)">
+                <input
+                  class="input-minimal"
+                  type="text"
+                  placeholder="task"
+                  [value]="newTaskText()"
+                  (input)="onNewTaskInput($event)"
+                  (keydown)="handleAddKeydown($event)"
+                  autofocus
+                  aria-label="new task"
+                  maxlength="120"
+                />
+                @for (sub of newSubtasks(); track $index) {
+                  <div class="subtask-input-row">
+                    <input
+                      class="input-minimal input-sub"
+                      type="text"
+                      placeholder="subtask"
+                      [value]="sub"
+                      (input)="updateNewSubtask($index, $event)"
+                      (keydown)="handleAddKeydown($event)"
+                      aria-label="subtask"
+                      maxlength="120"
+                    />
+                    <button
+                      class="icon-btn-sm"
+                      (click)="removeSubtaskField($index)"
+                      aria-label="remove subtask field"
                     >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  }
-                </button>
-
-                @if (editingSecondaryId() === task.id) {
-                  <input
-                    class="edit-input edit-input-sec"
-                    type="text"
-                    [value]="task.text"
-                    [attr.data-edit-id]="'sec-' + task.id"
-                    (blur)="saveSecondaryEdit(task.id, $event)"
-                    (keydown)="handleSecondaryEditKeydown(task.id, $event)"
-                    aria-label="edit task"
-                    maxlength="120"
-                  />
-                } @else {
-                  <span
-                    class="sec-task-text"
-                    [class.struck]="task.done"
-                    (click)="startEditingSecondary(task.id)"
-                  >
-                    @for (segment of linkSegments(task.text); track $index) {
-                      @if (segment.href; as href) {
-                        <a
-                          class="task-link"
-                          [href]="href"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          (pointerdown)="$event.stopPropagation()"
-                          (click)="openTaskLink($event, href)"
-                          [textContent]="segment.text"
-                        ></a>
-                      } @else {
-                        <span [textContent]="segment.text"></span>
-                      }
-                    }
-                  </span>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
                 }
-
-                <button
-                  class="icon-btn-sm remove-btn"
-                  (click)="removeSecondaryTask(task.id)"
-                  [attr.aria-label]="'remove: ' + task.text"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-
-                <!-- Mobile 3-dot menu -->
-                <div class="task-dots-wrapper mobile-only" data-sec-task-menu>
-                  <button
-                    class="icon-btn-sm task-dots-btn"
-                    (click)="toggleSecTaskMenu(task.id, $event)"
-                    [attr.aria-label]="'options for: ' + task.text"
-                  >&#8226;&#8226;&#8226;</button>
-                  @if (secTaskMenuOpenId() === task.id) {
-                    <div class="task-dots-menu task-dots-menu-left">
-                      <button
-                        class="task-dots-item"
-                        (click)="moveToMain(task.id); secTaskMenuOpenId.set(null)"
-                      >move to {{ mainTitle() }}</button>
-                      <button
-                        class="task-dots-item task-dots-item-danger"
-                        (click)="removeSecondaryTask(task.id)"
-                      >delete</button>
-                    </div>
+                <div class="form-actions">
+                  @if (newSubtasks().length < 10) {
+                    <button
+                      class="add-subtask-btn add-subtask-btn-form"
+                      (click)="addSubtaskField()"
+                      aria-label="add subtask field"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      subtask
+                    </button>
                   }
                 </div>
               </div>
-
-              <!-- Subtasks -->
+            } @else if (canAdd()) {
               <div
-                class="subtask-list"
-                cdkDropList
-                [cdkDropListData]="task.subtasks"
-                (cdkDropListDropped)="dropSecSubtask(task.id, $any($event))"
+                class="add-placeholder"
+                [class.keyboard-focused]="isAddPlaceholderFocused('main')"
+                data-keyboard-list="main"
+                (click)="startAdding()"
+                (keydown.enter)="startAdding()"
+                role="button"
+                tabindex="0"
+                aria-label="add a task"
               >
-                @for (sub of task.subtasks; track sub.id) {
-                  <div
-                    class="subtask-row"
-                    cdkDrag
-                    [cdkDragStartDelay]="dragDelay()"
-                    (cdkDragStarted)="setDragging(true)"
-                    (cdkDragEnded)="setDragging(false)"
-                  >
+                <svg
+                  class="add-placeholder-icon"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span class="add-placeholder-text">task</span>
+              </div>
+            }
+            <!-- Task list -->
+            <div class="task-list" role="list" aria-label="tasks">
+              @for (task of tasks(); track task.id) {
+                <div
+                  class="task-item"
+                  [class.done]="task.done"
+                  [class.keyboard-focused]="isTaskFocused('main', task.id)"
+                  data-keyboard-list="main"
+                  [attr.data-keyboard-task]="task.id"
+                  cdkDrag
+                  [cdkDragDisabled]="isEditing()"
+                  [cdkDragStartDelay]="dragDelay()"
+                  (cdkDragStarted)="setDragging(true)"
+                  (cdkDragMoved)="handleTaskDragMoved($any($event))"
+                  (cdkDragEnded)="setDragging(false)"
+                  (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
+                  role="listitem"
+                >
+                  <ng-template cdkDragPreview [matchSize]="true">
+                    <div class="task-drag-preview-card">
+                      <div class="task-drag-preview-main">
+                        <span class="task-drag-preview-check" aria-hidden="true"></span>
+                        <span class="task-drag-preview-text">{{ task.text }}</span>
+                      </div>
+                      @if (task.subtasks.length > 0) {
+                        <div class="task-drag-preview-subtasks">
+                          {{ task.subtasks.length }} subtask{{
+                            task.subtasks.length === 1 ? '' : 's'
+                          }}
+                        </div>
+                      }
+                    </div>
+                  </ng-template>
+                  <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
+                  <div class="task-main">
                     <button
-                      class="check-btn check-btn-sub"
-                      [class.checked]="sub.done"
-                      (click)="toggleSecSubtask(task.id, sub.id)"
+                      class="check-btn"
+                      [class.checked]="task.done"
+                      (click)="toggleTask(task.id)"
                       (mousedown)="$event.stopPropagation()"
                       [attr.aria-label]="
-                        (sub.done ? 'mark incomplete: ' : 'mark complete: ') + sub.text
+                        (task.done ? 'mark incomplete: ' : 'mark complete: ') + task.text
                       "
                     >
-                      @if (sub.done) {
+                      @if (task.done) {
                         <svg
-                          width="8"
-                          height="8"
+                          width="10"
+                          height="10"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -1319,28 +816,24 @@
                       }
                     </button>
 
-                    @if (
-                      editingSecSubtask()?.taskId === task.id &&
-                      editingSecSubtask()?.subtaskId === sub.id
-                    ) {
+                    @if (editingTaskId() === task.id) {
                       <input
-                        class="edit-input edit-input-sub"
+                        class="edit-input"
                         type="text"
-                        [value]="sub.text"
-                        [attr.data-edit-id]="'secsub-' + sub.id"
-                        (blur)="saveSecSubtaskEdit(task.id, sub.id, $event)"
-                        (keydown)="handleSecSubtaskEditKeydown(task.id, sub.id, $event)"
-                        aria-label="edit subtask"
+                        [value]="task.text"
+                        [attr.data-edit-id]="'task-' + task.id"
+                        (blur)="saveTaskEdit(task.id, $event)"
+                        (keydown)="handleTaskEditKeydown(task.id, $event)"
+                        aria-label="edit task"
                         maxlength="120"
                       />
                     } @else {
                       <span
-                        class="subtask-text"
-                        [class.struck]="sub.done"
-                        (pointerdown)="$event.stopPropagation()"
-                        (click)="startEditingSecSubtask(task.id, sub.id)"
+                        class="task-text"
+                        [class.struck]="task.done"
+                        (click)="startEditingTask(task.id)"
                       >
-                        @for (segment of linkSegments(sub.text); track $index) {
+                        @for (segment of linkSegments(task.text); track $index) {
                           @if (segment.href; as href) {
                             <a
                               class="task-link"
@@ -1360,12 +853,12 @@
 
                     <button
                       class="icon-btn-sm remove-btn"
-                      (click)="removeSecSubtask(task.id, sub.id)"
-                      [attr.aria-label]="'remove subtask: ' + sub.text"
+                      (click)="removeTask(task.id)"
+                      [attr.aria-label]="'remove: ' + task.text"
                     >
                       <svg
-                        width="14"
-                        height="14"
+                        width="16"
+                        height="16"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -1378,143 +871,62 @@
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
                     </button>
-                  </div>
-                }
-              </div>
 
-              <!-- Inline add subtask input -->
-              @if (addingSecSubtaskToId() === task.id) {
-                <div class="subtask-row">
-                  <input
-                    class="edit-input edit-input-sub"
-                    type="text"
-                    placeholder="subtask"
-                    data-inline-sec-subtask
-                    [value]="newInlineSecSubtaskText()"
-                    (input)="onInlineSecSubtaskInput($event)"
-                    (keydown)="handleInlineSecSubtaskKeydown(task.id, $event)"
-                    (blur)="confirmAddSecSubtask(task.id)"
-                    aria-label="new subtask"
-                    maxlength="120"
-                  />
-                </div>
-              }
-
-              <!-- Add subtask button -->
-              @if (task.subtasks.length < 10 && addingSecSubtaskToId() !== task.id) {
-                <button
-                  class="add-subtask-btn"
-                  (click)="startAddingSecSubtask(task.id)"
-                  aria-label="add subtask"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  subtask
-                </button>
-              }
-            </div>
-          } @empty {
-            <!-- empty -->
-          }
-        </div>
-        </div><!-- /.sec-drop-zone -->
-
-        @if (secondaryVisible() && secondaryCount() > 0) {
-          @if (confirmingSecondaryClear()) {
-            <div class="clear-confirm" data-confirm-secondary-clear>
-              <span class="clear-confirm-label">delete:</span>
-              @if (secondaryCompletedCount() > 0 && secondaryCompletedCount() < secondaryCount()) {
-                <button class="clear-yes" (click)="clearDoneSecondary(); cancelSecondaryClear()">done only</button>
-              }
-              <button class="clear-yes" (click)="confirmSecondaryClear()">all</button>
-              <button class="clear-no" (click)="cancelSecondaryClear()">cancel</button>
-            </div>
-          } @else {
-            <div class="clear-actions" data-confirm-secondary-clear>
-              <button class="clear-btn" (click)="startSecondaryClear()" aria-label="clear the list">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                  <path d="M9 6V4h6v2" />
-                </svg>
-              </button>
-            </div>
-          }
-        }
-      </div>
-    </div>
-    }
-
-    @if (doneTaskCount() > 0) {
-      <div class="my-list-col my-last-list-col">
-        <div class="my-tertiary-list-container">
-          <h2
-            class="section-title done-list-title"
-            title="done tasks are deleted automatically"
-          >done</h2>
-          <div class="done-list" role="list" aria-label="done tasks">
-            @for (task of doneTasks(); track task.id) {
-              <div class="done-task-item" role="listitem">
-                <button
-                  class="check-btn checked"
-                  (click)="restoreDoneTask(task)"
-                  [attr.aria-label]="'mark incomplete: ' + task.text"
-                >
-                  <svg
-                    width="8"
-                    height="8"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </button>
-                <div class="done-task-body">
-                  <span class="done-task-text">
-                    @for (segment of linkSegments(task.text); track $index) {
-                      @if (segment.href; as href) {
-                        <a
-                          class="task-link"
-                          [href]="href"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          (pointerdown)="$event.stopPropagation()"
-                          (click)="openTaskLink($event, href)"
-                          [textContent]="segment.text"
-                        ></a>
-                      } @else {
-                        <span [textContent]="segment.text"></span>
-                      }
-                    }
-                  </span>
-                  @if (task.subtasks.length > 0) {
-                    <div class="done-subtask-list" role="list" aria-label="done subtasks">
-                      @for (sub of task.subtasks; track sub.id) {
-                        <div class="done-subtask-row" role="listitem">
+                    <!-- Mobile 3-dot menu -->
+                    <div class="task-dots-wrapper mobile-only" data-task-menu>
+                      <button
+                        class="icon-btn-sm task-dots-btn"
+                        (click)="toggleTaskMenu(task.id, $event)"
+                        [attr.aria-label]="'options for: ' + task.text"
+                      >
+                        &#8226;&#8226;&#8226;
+                      </button>
+                      @if (taskMenuOpenId() === task.id) {
+                        <div class="task-dots-menu">
+                          @if (!isPublicPage()) {
+                            <button
+                              class="task-dots-item"
+                              (click)="moveToBacklog(task.id); taskMenuOpenId.set(null)"
+                            >
+                              move to {{ secondaryTitle() }}
+                            </button>
+                          }
                           <button
-                            class="check-btn check-btn-sub checked done-subtask-check"
-                            (click)="restoreDoneSubtask(task, sub.id)"
-                            [attr.aria-label]="'mark incomplete: ' + sub.text"
+                            class="task-dots-item task-dots-item-danger"
+                            (click)="removeTask(task.id)"
                           >
+                            delete
+                          </button>
+                        </div>
+                      }
+                    </div>
+                  </div>
+
+                  <!-- Subtasks -->
+                  <div
+                    class="subtask-list"
+                    cdkDropList
+                    [cdkDropListData]="task.subtasks"
+                    (cdkDropListDropped)="dropSubtask(task.id, $any($event))"
+                  >
+                    @for (sub of task.subtasks; track sub.id) {
+                      <div
+                        class="subtask-row"
+                        cdkDrag
+                        [cdkDragStartDelay]="dragDelay()"
+                        (cdkDragStarted)="setDragging(true)"
+                        (cdkDragEnded)="setDragging(false)"
+                      >
+                        <button
+                          class="check-btn check-btn-sub"
+                          [class.checked]="sub.done"
+                          (click)="toggleSubtask(task.id, sub.id)"
+                          (mousedown)="$event.stopPropagation()"
+                          [attr.aria-label]="
+                            (sub.done ? 'mark incomplete: ' : 'mark complete: ') + sub.text
+                          "
+                        >
+                          @if (sub.done) {
                             <svg
                               width="8"
                               height="8"
@@ -1528,8 +940,30 @@
                             >
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
-                          </button>
-                          <span class="done-subtask-text" [class.struck]="sub.done">
+                          }
+                        </button>
+
+                        @if (
+                          editingSubtask()?.taskId === task.id &&
+                          editingSubtask()?.subtaskId === sub.id
+                        ) {
+                          <input
+                            class="edit-input edit-input-sub"
+                            type="text"
+                            [value]="sub.text"
+                            [attr.data-edit-id]="'sub-' + sub.id"
+                            (blur)="saveSubtaskEdit(task.id, sub.id, $event)"
+                            (keydown)="handleSubtaskEditKeydown(task.id, sub.id, $event)"
+                            aria-label="edit subtask"
+                            maxlength="120"
+                          />
+                        } @else {
+                          <span
+                            class="subtask-text"
+                            [class.struck]="sub.done"
+                            (pointerdown)="$event.stopPropagation()"
+                            (click)="startEditingSubtask(task.id, sub.id)"
+                          >
                             @for (segment of linkSegments(sub.text); track $index) {
                               @if (segment.href; as href) {
                                 <a
@@ -1546,18 +980,787 @@
                               }
                             }
                           </span>
+                        }
+
+                        <button
+                          class="icon-btn-sm remove-btn"
+                          (click)="removeSubtask(task.id, sub.id)"
+                          [attr.aria-label]="'remove subtask: ' + sub.text"
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Inline add subtask input -->
+                  @if (addingSubtaskToId() === task.id) {
+                    <div class="subtask-row">
+                      <input
+                        class="edit-input edit-input-sub"
+                        type="text"
+                        placeholder="subtask"
+                        data-inline-subtask
+                        [value]="newInlineSubtaskText()"
+                        (input)="onInlineSubtaskInput($event)"
+                        (keydown)="handleInlineSubtaskKeydown(task.id, $event)"
+                        (blur)="confirmAddSubtask(task.id)"
+                        aria-label="new subtask"
+                        maxlength="120"
+                      />
+                    </div>
+                  }
+
+                  <!-- Add subtask button -->
+                  @if (task.subtasks.length < 10 && addingSubtaskToId() !== task.id) {
+                    <button
+                      class="add-subtask-btn"
+                      (click)="startAddingSubtask(task.id)"
+                      aria-label="add subtask"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      subtask
+                    </button>
+                  }
+                </div>
+              } @empty {
+                <!-- empty -->
+              }
+            </div>
+          </div>
+          <!-- /.main-drop-zone -->
+
+          @if (taskCount() > 0) {
+            @if (confirmingClear()) {
+              <div class="clear-confirm" data-confirm-clear>
+                <span class="clear-confirm-label">delete:</span>
+                @if (completedCount() > 0 && completedCount() < taskCount()) {
+                  <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">
+                    done only
+                  </button>
+                }
+                <button class="clear-yes" (click)="confirmClear()">all</button>
+                <button class="clear-no" (click)="cancelClear()">cancel</button>
+              </div>
+            } @else {
+              <div class="clear-actions" data-confirm-clear>
+                <button class="clear-btn" (click)="startClear()" aria-label="clear the list">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M9 6V4h6v2" />
+                  </svg>
+                </button>
+              </div>
+            }
+          }
+        </div>
+      </div>
+
+      <!-- ═══ Secondary Section ═══ -->
+      @if (!isPublicPage()) {
+        <div class="my-list-col secondary-section" #secondarySection>
+          <div class="my-secondary-list-container">
+            <div class="sec-header">
+              @if (editingSecondaryTitle()) {
+                <input
+                  class="list-title-input sec-title-input"
+                  type="text"
+                  [value]="secondaryTitle()"
+                  (blur)="saveSecondaryTitle($event)"
+                  (keydown)="handleSecondaryTitleKeydown($event)"
+                  autofocus
+                  aria-label="edit list title"
+                  maxlength="40"
+                />
+              } @else {
+                <h2 class="section-title" (click)="startEditingSecondaryTitle()">
+                  {{ secondaryTitle() }}
+                </h2>
+              }
+            </div>
+
+            <p
+              class="counter counter-sec"
+              [class.counter-invisible]="secondaryCount() === 0 || secondaryCompletedCount() === 0"
+            >
+              {{ secondaryCompletedCount() }} / {{ secondaryCount() }}
+            </p>
+
+            <div
+              class="sec-drop-zone"
+              cdkDropList
+              id="secondaryDropList"
+              #secList="cdkDropList"
+              [cdkDropListData]="secondaryTasks()"
+              [cdkDropListConnectedTo]="secondaryDropListConnections()"
+              [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
+              [cdkDropListAutoScrollStep]="dragAutoScrollStep"
+              cdkDropListElementContainer=".task-list"
+              (cdkDropListDropped)="dropSecondaryTask($any($event))"
+            >
+              @if (secondaryVisible()) {
+                @if (addingSecondary()) {
+                  <div class="add-form add-form-sec" (focusout)="onSecAddFormFocusOut($event)">
+                    <input
+                      class="input-minimal input-sec"
+                      type="text"
+                      placeholder="task"
+                      [value]="newSecondaryText()"
+                      (input)="onNewSecondaryInput($event)"
+                      (keydown)="handleSecondaryKeydown($event)"
+                      autofocus
+                      aria-label="new secondary task"
+                      maxlength="120"
+                    />
+                    @for (sub of newSecondarySubtasks(); track $index) {
+                      <div class="subtask-input-row">
+                        <input
+                          class="input-minimal input-sub"
+                          type="text"
+                          placeholder="subtask"
+                          [value]="sub"
+                          (input)="updateNewSecSubtask($index, $event)"
+                          (keydown)="handleSecondaryKeydown($event)"
+                          aria-label="subtask"
+                          maxlength="120"
+                        />
+                        <button
+                          class="icon-btn-sm"
+                          (click)="removeSecSubtaskField($index)"
+                          aria-label="remove subtask field"
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
+                    }
+                    <div class="form-actions">
+                      @if (newSecondarySubtasks().length < 10) {
+                        <button
+                          class="add-subtask-btn add-subtask-btn-form"
+                          (click)="addSecSubtaskField()"
+                          aria-label="add subtask field"
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                          subtask
+                        </button>
+                      }
+                    </div>
+                  </div>
+                } @else if (canAddSecondary()) {
+                  <div
+                    class="add-placeholder add-placeholder-sec"
+                    [class.keyboard-focused]="isAddPlaceholderFocused('secondary')"
+                    data-keyboard-list="secondary"
+                    (click)="startAddingSecondary()"
+                    (keydown.enter)="startAddingSecondary()"
+                    role="button"
+                    tabindex="0"
+                    aria-label="add a task"
+                  >
+                    <svg
+                      class="add-placeholder-icon add-placeholder-icon-sec"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    <span class="add-placeholder-text add-placeholder-text-sec">task</span>
+                  </div>
+                }
+              }
+              <div class="task-list" role="list" aria-label="secondary tasks">
+                @for (task of secondaryTasks(); track task.id) {
+                  <div
+                    class="sec-task-item"
+                    [class.done]="task.done"
+                    [class.keyboard-focused]="isTaskFocused('secondary', task.id)"
+                    data-keyboard-list="secondary"
+                    [attr.data-keyboard-task]="task.id"
+                    cdkDrag
+                    [cdkDragDisabled]="isEditing()"
+                    [cdkDragStartDelay]="dragDelay()"
+                    (cdkDragStarted)="setDragging(true)"
+                    (cdkDragMoved)="handleTaskDragMoved($any($event))"
+                    (cdkDragEnded)="setDragging(false)"
+                    (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
+                    role="listitem"
+                  >
+                    <ng-template cdkDragPreview [matchSize]="true">
+                      <div class="task-drag-preview-card task-drag-preview-card-sec">
+                        <div class="task-drag-preview-main">
+                          <span class="task-drag-preview-check" aria-hidden="true"></span>
+                          <span class="task-drag-preview-text">{{ task.text }}</span>
+                        </div>
+                        @if (task.subtasks.length > 0) {
+                          <div class="task-drag-preview-subtasks">
+                            {{ task.subtasks.length }} subtask{{
+                              task.subtasks.length === 1 ? '' : 's'
+                            }}
+                          </div>
+                        }
+                      </div>
+                    </ng-template>
+                    <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
+                    <div class="sec-task-main">
+                      <button
+                        class="check-btn check-btn-sub"
+                        [class.checked]="task.done"
+                        (click)="toggleSecondaryTask(task.id)"
+                        (mousedown)="$event.stopPropagation()"
+                        [attr.aria-label]="
+                          (task.done ? 'mark incomplete: ' : 'mark complete: ') + task.text
+                        "
+                      >
+                        @if (task.done) {
+                          <svg
+                            width="8"
+                            height="8"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        }
+                      </button>
+
+                      @if (editingSecondaryId() === task.id) {
+                        <input
+                          class="edit-input edit-input-sec"
+                          type="text"
+                          [value]="task.text"
+                          [attr.data-edit-id]="'sec-' + task.id"
+                          (blur)="saveSecondaryEdit(task.id, $event)"
+                          (keydown)="handleSecondaryEditKeydown(task.id, $event)"
+                          aria-label="edit task"
+                          maxlength="120"
+                        />
+                      } @else {
+                        <span
+                          class="sec-task-text"
+                          [class.struck]="task.done"
+                          (click)="startEditingSecondary(task.id)"
+                        >
+                          @for (segment of linkSegments(task.text); track $index) {
+                            @if (segment.href; as href) {
+                              <a
+                                class="task-link"
+                                [href]="href"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                (pointerdown)="$event.stopPropagation()"
+                                (click)="openTaskLink($event, href)"
+                                [textContent]="segment.text"
+                              ></a>
+                            } @else {
+                              <span [textContent]="segment.text"></span>
+                            }
+                          }
+                        </span>
+                      }
+
+                      <button
+                        class="icon-btn-sm remove-btn"
+                        (click)="removeSecondaryTask(task.id)"
+                        [attr.aria-label]="'remove: ' + task.text"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+
+                      <!-- Mobile 3-dot menu -->
+                      <div class="task-dots-wrapper mobile-only" data-sec-task-menu>
+                        <button
+                          class="icon-btn-sm task-dots-btn"
+                          (click)="toggleSecTaskMenu(task.id, $event)"
+                          [attr.aria-label]="'options for: ' + task.text"
+                        >
+                          &#8226;&#8226;&#8226;
+                        </button>
+                        @if (secTaskMenuOpenId() === task.id) {
+                          <div class="task-dots-menu task-dots-menu-left">
+                            <button
+                              class="task-dots-item"
+                              (click)="moveToMain(task.id); secTaskMenuOpenId.set(null)"
+                            >
+                              move to {{ mainTitle() }}
+                            </button>
+                            <button
+                              class="task-dots-item task-dots-item-danger"
+                              (click)="removeSecondaryTask(task.id)"
+                            >
+                              delete
+                            </button>
+                          </div>
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Subtasks -->
+                    <div
+                      class="subtask-list"
+                      cdkDropList
+                      [cdkDropListData]="task.subtasks"
+                      (cdkDropListDropped)="dropSecSubtask(task.id, $any($event))"
+                    >
+                      @for (sub of task.subtasks; track sub.id) {
+                        <div
+                          class="subtask-row"
+                          cdkDrag
+                          [cdkDragStartDelay]="dragDelay()"
+                          (cdkDragStarted)="setDragging(true)"
+                          (cdkDragEnded)="setDragging(false)"
+                        >
+                          <button
+                            class="check-btn check-btn-sub"
+                            [class.checked]="sub.done"
+                            (click)="toggleSecSubtask(task.id, sub.id)"
+                            (mousedown)="$event.stopPropagation()"
+                            [attr.aria-label]="
+                              (sub.done ? 'mark incomplete: ' : 'mark complete: ') + sub.text
+                            "
+                          >
+                            @if (sub.done) {
+                              <svg
+                                width="8"
+                                height="8"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="3"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                              >
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            }
+                          </button>
+
+                          @if (
+                            editingSecSubtask()?.taskId === task.id &&
+                            editingSecSubtask()?.subtaskId === sub.id
+                          ) {
+                            <input
+                              class="edit-input edit-input-sub"
+                              type="text"
+                              [value]="sub.text"
+                              [attr.data-edit-id]="'secsub-' + sub.id"
+                              (blur)="saveSecSubtaskEdit(task.id, sub.id, $event)"
+                              (keydown)="handleSecSubtaskEditKeydown(task.id, sub.id, $event)"
+                              aria-label="edit subtask"
+                              maxlength="120"
+                            />
+                          } @else {
+                            <span
+                              class="subtask-text"
+                              [class.struck]="sub.done"
+                              (pointerdown)="$event.stopPropagation()"
+                              (click)="startEditingSecSubtask(task.id, sub.id)"
+                            >
+                              @for (segment of linkSegments(sub.text); track $index) {
+                                @if (segment.href; as href) {
+                                  <a
+                                    class="task-link"
+                                    [href]="href"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    (pointerdown)="$event.stopPropagation()"
+                                    (click)="openTaskLink($event, href)"
+                                    [textContent]="segment.text"
+                                  ></a>
+                                } @else {
+                                  <span [textContent]="segment.text"></span>
+                                }
+                              }
+                            </span>
+                          }
+
+                          <button
+                            class="icon-btn-sm remove-btn"
+                            (click)="removeSecSubtask(task.id, sub.id)"
+                            [attr.aria-label]="'remove subtask: ' + sub.text"
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              aria-hidden="true"
+                            >
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
                         </div>
                       }
                     </div>
-                  }
-                </div>
+
+                    <!-- Inline add subtask input -->
+                    @if (addingSecSubtaskToId() === task.id) {
+                      <div class="subtask-row">
+                        <input
+                          class="edit-input edit-input-sub"
+                          type="text"
+                          placeholder="subtask"
+                          data-inline-sec-subtask
+                          [value]="newInlineSecSubtaskText()"
+                          (input)="onInlineSecSubtaskInput($event)"
+                          (keydown)="handleInlineSecSubtaskKeydown(task.id, $event)"
+                          (blur)="confirmAddSecSubtask(task.id)"
+                          aria-label="new subtask"
+                          maxlength="120"
+                        />
+                      </div>
+                    }
+
+                    <!-- Add subtask button -->
+                    @if (task.subtasks.length < 10 && addingSecSubtaskToId() !== task.id) {
+                      <button
+                        class="add-subtask-btn"
+                        (click)="startAddingSecSubtask(task.id)"
+                        aria-label="add subtask"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        subtask
+                      </button>
+                    }
+                  </div>
+                } @empty {
+                  <!-- empty -->
+                }
               </div>
+            </div>
+            <!-- /.sec-drop-zone -->
+
+            @if (secondaryVisible() && secondaryCount() > 0) {
+              @if (confirmingSecondaryClear()) {
+                <div class="clear-confirm" data-confirm-secondary-clear>
+                  <span class="clear-confirm-label">delete:</span>
+                  @if (
+                    secondaryCompletedCount() > 0 && secondaryCompletedCount() < secondaryCount()
+                  ) {
+                    <button
+                      class="clear-yes"
+                      (click)="clearDoneSecondary(); cancelSecondaryClear()"
+                    >
+                      done only
+                    </button>
+                  }
+                  <button class="clear-yes" (click)="confirmSecondaryClear()">all</button>
+                  <button class="clear-no" (click)="cancelSecondaryClear()">cancel</button>
+                </div>
+              } @else {
+                <div class="clear-actions" data-confirm-secondary-clear>
+                  <button
+                    class="clear-btn"
+                    (click)="startSecondaryClear()"
+                    aria-label="clear the list"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4h6v2" />
+                    </svg>
+                  </button>
+                </div>
+              }
             }
           </div>
         </div>
-      </div>
-    }
-  </div>
+      }
+
+      @if (doneTaskCount() > 0) {
+        <div class="my-list-col my-last-list-col">
+          <div class="my-tertiary-list-container">
+            <h2 class="section-title done-list-title" title="done tasks are deleted automatically">
+              done
+            </h2>
+            <div class="done-list" role="list" aria-label="done tasks">
+              @for (task of doneTasks(); track task.id) {
+                <div class="done-task-item" role="listitem">
+                  <button
+                    class="check-btn checked"
+                    (click)="restoreDoneTask(task)"
+                    [attr.aria-label]="'mark incomplete: ' + task.text"
+                  >
+                    <svg
+                      width="8"
+                      height="8"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </button>
+                  <div class="done-task-body">
+                    <span class="done-task-text">
+                      @for (segment of linkSegments(task.text); track $index) {
+                        @if (segment.href; as href) {
+                          <a
+                            class="task-link"
+                            [href]="href"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            (pointerdown)="$event.stopPropagation()"
+                            (click)="openTaskLink($event, href)"
+                            [textContent]="segment.text"
+                          ></a>
+                        } @else {
+                          <span [textContent]="segment.text"></span>
+                        }
+                      }
+                    </span>
+                    @if (task.subtasks.length > 0) {
+                      <div class="done-subtask-list" role="list" aria-label="done subtasks">
+                        @for (sub of task.subtasks; track sub.id) {
+                          <div class="done-subtask-row" role="listitem">
+                            <button
+                              class="check-btn check-btn-sub checked done-subtask-check"
+                              (click)="restoreDoneSubtask(task, sub.id)"
+                              [attr.aria-label]="'mark incomplete: ' + sub.text"
+                            >
+                              <svg
+                                width="8"
+                                height="8"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="3"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                              >
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            </button>
+                            <span class="done-subtask-text" [class.struck]="sub.done">
+                              @for (segment of linkSegments(sub.text); track $index) {
+                                @if (segment.href; as href) {
+                                  <a
+                                    class="task-link"
+                                    [href]="href"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    (pointerdown)="$event.stopPropagation()"
+                                    (click)="openTaskLink($event, href)"
+                                    [textContent]="segment.text"
+                                  ></a>
+                                } @else {
+                                  <span [textContent]="segment.text"></span>
+                                }
+                              }
+                            </span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (infoDialog()) {
+    <div class="splendide-info-backdrop" (click)="closeInfoDialog()" aria-hidden="true"></div>
+    <section
+      class="splendide-info-dialog"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-labelledby]="
+        infoDialog() === 'private-welcome' ? 'private-welcome-title' : 'shared-page-info-title'
+      "
+      [attr.aria-describedby]="
+        infoDialog() === 'private-welcome'
+          ? 'private-welcome-description'
+          : 'shared-page-info-description'
+      "
+    >
+      <button
+        class="icon-btn-sm splendide-info-close"
+        type="button"
+        (click)="closeInfoDialog()"
+        aria-label="close dialog"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+
+      @if (infoDialog() === 'private-welcome') {
+        <h2 class="splendide-info-title private-info-title" id="private-welcome-title">
+          splendide.
+        </h2>
+        <p class="splendide-info-description">
+          Minimalist work organizer built for people who want less noise.
+        </p>
+        <p></p>
+        <p class="splendide-info-description">
+          You are in your personal space. Only you can access it.
+        </p>
+      } @else {
+        <h2 class="splendide-info-title shared-info-title" id="shared-page-info-title">
+          <span class="shared-wordmark shared-dialog-wordmark logo-shared"
+            >splendide.<sup>shared</sup></span
+          >
+        </h2>
+        <div class="splendide-info-description" id="shared-page-info-description">
+          <p>You are viewing a shared list. Anyone with the link can edit it.</p>
+          <p>
+            You can also access
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              (click)="openPrivateSplendide()"
+            >Splendide Work Organizer</a>
+            for your private use.
+          </p>
+        </div>
+      }
+
+      <button class="splendide-info-primary" type="button" (click)="closeInfoDialog()">
+        Got it
+      </button>
+    </section>
   }
 
   @if (premiumUpgradePromptOpen()) {
@@ -1592,10 +1795,10 @@
       </button>
       <h2 class="premium-upgrade-title" id="premium-upgrade-title">Upgrade for cloud save</h2>
       <p class="premium-upgrade-description" id="premium-upgrade-description">
-         Keep your tasks saved in the cloud and synced across all your devices
+        Keep your tasks saved in the cloud and synced across all your devices
       </p>
       <button class="auth-btn premium-upgrade-button" type="button" (click)="goToPremiumUpgrade()">
-        Upgrade 
+        Upgrade
       </button>
     </section>
   }

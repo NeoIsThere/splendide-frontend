@@ -11,6 +11,7 @@ export interface User {
   name: string | null;
   isPremium: boolean;
   hasPassword: boolean;
+  syncGeneration: number;
 }
 
 interface AuthResponse {
@@ -168,9 +169,9 @@ export class AuthService {
     const url = sessionId
       ? `${this.apiUrl}/payment/status?session_id=${encodeURIComponent(sessionId)}`
       : `${this.apiUrl}/payment/status`;
-    const res = await firstValueFrom(this.http.get<{ isPremium: boolean }>(url));
+    const res = await firstValueFrom(this.http.get<{ isPremium: boolean; syncGeneration?: number }>(url));
     const isPremium = res.isPremium;
-    this._user.update(u => u ? { ...u, isPremium } : u);
+    this._user.update(u => u ? { ...u, isPremium, syncGeneration: res.syncGeneration ?? u.syncGeneration ?? 0 } : u);
     const user = this._user();
     if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
     return isPremium;
@@ -212,7 +213,8 @@ export class AuthService {
   private loadUser(): User | null {
     try {
       const raw = localStorage.getItem('splendide_user');
-      return raw ? JSON.parse(raw) : null;
+      const parsed = raw ? JSON.parse(raw) as User : null;
+      return parsed ? { ...parsed, syncGeneration: parsed.syncGeneration ?? 0 } : null;
     } catch { return null; }
   }
 }
