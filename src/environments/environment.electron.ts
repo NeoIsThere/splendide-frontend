@@ -4,4 +4,4 @@ export const environment = {
   isElectron: true,
 };
 
-export const APP_VERSION = 'v1.0.4';
+export const APP_VERSION = 'v1.0.7';
