@@ -48,34 +48,100 @@ import { openExternalUrl } from '../../utils/external-link';
                   <p class="settings-error" role="alert">{{ pwError() }}</p>
                 }
                 <label class="auth-label" for="currentPassword">current password</label>
-                <input
-                  id="currentPassword"
-                  class="auth-input"
-                  type="password"
-                  formControlName="currentPassword"
-                  autocomplete="current-password"
-                />
+                <div class="auth-password-field">
+                  <input
+                    id="currentPassword"
+                    class="auth-input"
+                    [type]="currentPasswordVisible() ? 'text' : 'password'"
+                    formControlName="currentPassword"
+                    autocomplete="current-password"
+                  />
+                  <button
+                    class="auth-password-toggle"
+                    type="button"
+                    [attr.aria-label]="currentPasswordVisible() ? 'hide password' : 'show password'"
+                    (click)="currentPasswordVisible.update(visible => !visible)"
+                  >
+                    @if (currentPasswordVisible()) {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 2l20 20" />
+                        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                        <path d="M9.9 5.1A10.6 10.6 0 0 1 12 5c5 0 9 4.5 10 7a13.1 13.1 0 0 1-2.2 3.3" />
+                        <path d="M6.6 6.6A13.3 13.3 0 0 0 2 12c1 2.5 5 7 10 7 1.6 0 3.1-.4 4.4-1" />
+                      </svg>
+                    } @else {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    }
+                  </button>
+                </div>
                 <label class="auth-label" for="newPassword">new password</label>
-                <input
-                  id="newPassword"
-                  class="auth-input"
-                  [class.auth-input--error]="pwForm.controls.newPassword.invalid && pwForm.controls.newPassword.touched"
-                  type="password"
-                  formControlName="newPassword"
-                  autocomplete="new-password"
-                />
+                <div class="auth-password-field">
+                  <input
+                    id="newPassword"
+                    class="auth-input"
+                    [class.auth-input--error]="pwForm.controls.newPassword.invalid && pwForm.controls.newPassword.touched"
+                    [type]="newPasswordVisible() ? 'text' : 'password'"
+                    formControlName="newPassword"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    class="auth-password-toggle"
+                    type="button"
+                    [attr.aria-label]="newPasswordVisible() ? 'hide password' : 'show password'"
+                    (click)="newPasswordVisible.update(visible => !visible)"
+                  >
+                    @if (newPasswordVisible()) {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 2l20 20" />
+                        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                        <path d="M9.9 5.1A10.6 10.6 0 0 1 12 5c5 0 9 4.5 10 7a13.1 13.1 0 0 1-2.2 3.3" />
+                        <path d="M6.6 6.6A13.3 13.3 0 0 0 2 12c1 2.5 5 7 10 7 1.6 0 3.1-.4 4.4-1" />
+                      </svg>
+                    } @else {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    }
+                  </button>
+                </div>
                 @if (pwForm.controls.newPassword.touched && pwForm.controls.newPassword.errors?.['minlength']) {
                   <p class="settings-field-error" role="alert">password must be at least 8 characters</p>
                 }
                 <label class="auth-label" for="confirmNewPassword">confirm new password</label>
-                <input
-                  id="confirmNewPassword"
-                  class="auth-input"
-                  [class.auth-input--error]="pwForm.controls.confirmNewPassword.touched && passwordsMismatch()"
-                  type="password"
-                  formControlName="confirmNewPassword"
-                  autocomplete="new-password"
-                />
+                <div class="auth-password-field">
+                  <input
+                    id="confirmNewPassword"
+                    class="auth-input"
+                    [class.auth-input--error]="pwForm.controls.confirmNewPassword.touched && passwordsMismatch()"
+                    [type]="confirmNewPasswordVisible() ? 'text' : 'password'"
+                    formControlName="confirmNewPassword"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    class="auth-password-toggle"
+                    type="button"
+                    [attr.aria-label]="confirmNewPasswordVisible() ? 'hide password' : 'show password'"
+                    (click)="confirmNewPasswordVisible.update(visible => !visible)"
+                  >
+                    @if (confirmNewPasswordVisible()) {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 2l20 20" />
+                        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                        <path d="M9.9 5.1A10.6 10.6 0 0 1 12 5c5 0 9 4.5 10 7a13.1 13.1 0 0 1-2.2 3.3" />
+                        <path d="M6.6 6.6A13.3 13.3 0 0 0 2 12c1 2.5 5 7 10 7 1.6 0 3.1-.4 4.4-1" />
+                      </svg>
+                    } @else {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    }
+                  </button>
+                </div>
                 @if (pwForm.controls.confirmNewPassword.touched && passwordsMismatch()) {
                   <p class="settings-field-error" role="alert">new passwords do not match</p>
                 }
@@ -300,6 +366,9 @@ export class SettingsComponent {
   protected readonly pwLoading = signal(false);
   protected readonly pwError = signal('');
   protected readonly pwSuccess = signal(false);
+  protected readonly currentPasswordVisible = signal(false);
+  protected readonly newPasswordVisible = signal(false);
+  protected readonly confirmNewPasswordVisible = signal(false);
 
   protected async submitChangePassword(): Promise<void> {
     if (this.pwForm.invalid) {

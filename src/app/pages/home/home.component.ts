@@ -206,6 +206,9 @@ export class HomeComponent implements OnDestroy {
   }> = [];
 
   constructor() {
+    if (!this.route.snapshot.paramMap.get('id')) {
+      this.showPendingPrivateWelcomeDialog();
+    }
     void this.initFromStorage();
   }
 

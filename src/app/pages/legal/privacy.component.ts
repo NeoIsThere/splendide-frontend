@@ -33,6 +33,7 @@ import { APP_VERSION } from '../../../environments/environment';
           <li><strong>Name</strong> (optional) - for personalization</li>
           <li><strong>Password hash</strong> - securely hashed, never stored in plain text</li>
           <li><strong>Google account ID</strong> - if you sign in with Google</li>
+          <li><strong>Theme preference</strong> - to apply your light or night mode preference when you sign in</li>
           <li><strong>Authentication data</strong> - access tokens stored in your browser and refresh tokens stored in secure cookies</li>
         </ul>
 

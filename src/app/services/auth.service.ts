@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { StorageService } from './storage.service';
+import { ThemeService } from './theme.service';
 
 export interface User {
   id: string;
@@ -12,6 +13,7 @@ export interface User {
   isPremium: boolean;
   hasPassword: boolean;
   syncGeneration: number;
+  darkMode: boolean | null;
 }
 
 interface AuthResponse {
@@ -25,10 +27,12 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly storage = inject(StorageService);
+  private readonly theme = inject(ThemeService);
   private readonly apiUrl = environment.apiUrl;
 
   private readonly _user = signal<User | null>(this.loadUser());
   private readonly _token = signal<string | null>(this.loadToken());
+  private themePreferenceAppliedForUserId: string | null = null;
 
   readonly user = this._user.asReadonly();
   readonly isLoggedIn = computed(() => !!this._token());
@@ -113,6 +117,7 @@ export class AuthService {
     this.storage.setActivePartition();
     this._user.set(null);
     this._token.set(null);
+    this.themePreferenceAppliedForUserId = null;
     localStorage.removeItem('splendide_token');
     localStorage.removeItem('splendide_user');
     this.router.navigate(['/']);
@@ -141,6 +146,7 @@ export class AuthService {
       const user = await firstValueFrom(this.http.get<User>(`${this.apiUrl}/user/me`));
       this._user.set(user);
       localStorage.setItem('splendide_user', JSON.stringify(user));
+      this.applyUserThemePreference(user);
       return user;
     } catch {
       // ignore — user may not be logged in
@@ -193,6 +199,7 @@ export class AuthService {
   logout(): void {
     this._user.set(null);
     this._token.set(null);
+    this.themePreferenceAppliedForUserId = null;
     localStorage.removeItem('splendide_token');
     localStorage.removeItem('splendide_user');
     this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true }).subscribe();
@@ -204,6 +211,7 @@ export class AuthService {
     this._user.set(res.user);
     localStorage.setItem('splendide_token', res.accessToken);
     localStorage.setItem('splendide_user', JSON.stringify(res.user));
+    this.applyUserThemePreference(res.user);
   }
 
   private loadToken(): string | null {
@@ -214,7 +222,25 @@ export class AuthService {
     try {
       const raw = localStorage.getItem('splendide_user');
       const parsed = raw ? JSON.parse(raw) as User : null;
-      return parsed ? { ...parsed, syncGeneration: parsed.syncGeneration ?? 0 } : null;
+      return parsed ? { ...parsed, syncGeneration: parsed.syncGeneration ?? 0, darkMode: parsed.darkMode ?? null } : null;
     } catch { return null; }
+  }
+
+  private applyUserThemePreference(user: User): void {
+    if (this.themePreferenceAppliedForUserId === user.id) return;
+    this.themePreferenceAppliedForUserId = user.id;
+
+    if (user.darkMode === null || user.darkMode === undefined) {
+      const darkMode = this.theme.dark();
+      this._user.update(current => current ? { ...current, darkMode } : current);
+      const current = this._user();
+      if (current) {
+        localStorage.setItem('splendide_user', JSON.stringify(current));
+      }
+      this.theme.saveCurrentPreferenceToAccount();
+      return;
+    }
+
+    this.theme.setDark(user.darkMode);
   }
 }
