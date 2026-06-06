@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink, Router } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -30,10 +30,27 @@ import { AuthService } from '../../services/auth.service';
             <input
               id="password"
               class="auth-input"
+              [class.auth-input--error]="form.controls.password.invalid && form.controls.password.touched"
               type="password"
               formControlName="password"
               autocomplete="new-password"
             />
+            @if (form.controls.password.touched && form.controls.password.errors?.['minlength']) {
+              <p class="auth-field-error" role="alert">password must be at least 8 characters</p>
+            }
+
+            <label class="auth-label" for="confirmPassword">confirm new password</label>
+            <input
+              id="confirmPassword"
+              class="auth-input"
+              [class.auth-input--error]="form.controls.confirmPassword.touched && passwordsMismatch()"
+              type="password"
+              formControlName="confirmPassword"
+              autocomplete="new-password"
+            />
+            @if (form.controls.confirmPassword.touched && passwordsMismatch()) {
+              <p class="auth-field-error" role="alert">new passwords do not match</p>
+            }
 
             <button class="auth-btn" type="submit" [disabled]="loading()">
               @if (loading()) { resetting } @else { reset password }
@@ -43,11 +60,21 @@ import { AuthService } from '../../services/auth.service';
       </div>
     </div>
   `,
+  styles: [`
+    .auth-field-error {
+      font-size: 0.8rem;
+      color: #e53e3e;
+      margin: -12px 0 0;
+    }
+
+    .auth-input--error {
+      border-color: #e53e3e;
+    }
+  `],
 })
 export class ResetPasswordComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
 
   protected readonly error = signal('');
@@ -57,6 +84,7 @@ export class ResetPasswordComponent implements OnInit {
 
   protected readonly form = this.fb.nonNullable.group({
     password: ['', [Validators.required, Validators.minLength(8)]],
+    confirmPassword: ['', Validators.required],
   });
 
   ngOnInit(): void {
@@ -67,7 +95,8 @@ export class ResetPasswordComponent implements OnInit {
   }
 
   protected async onSubmit(): Promise<void> {
-    if (this.form.invalid || !this.token) return;
+    this.form.markAllAsTouched();
+    if (this.form.invalid || this.passwordsMismatch() || !this.token) return;
     this.loading.set(true);
     this.error.set('');
 
@@ -79,5 +108,10 @@ export class ResetPasswordComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  protected passwordsMismatch(): boolean {
+    const { password, confirmPassword } = this.form.getRawValue();
+    return Boolean(confirmPassword) && password !== confirmPassword;
   }
 }

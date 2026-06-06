@@ -11,7 +11,7 @@ import { APP_VERSION } from '../../../environments/environment';
       <div class="legal-card">
         <a class="legal-back" routerLink="/">&larr; Back to Splendide</a>
         <h1>Privacy Policy</h1>
-        <p class="legal-updated">Last updated: May 27, 2026</p>
+        <p class="legal-updated">Last updated: June 5, 2026</p>
 
         <h2>1. Introduction</h2>
         <p>This Privacy Policy explains how Splendide ("we", "us", "our") collects, uses, stores, and shares information when you use the Service. It applies to private local use, account features, optional Premium cloud sync, and shared pages.</p>
@@ -40,7 +40,7 @@ import { APP_VERSION } from '../../../environments/environment';
         <p>If you upgrade to Premium, we additionally store:</p>
         <ul>
           <li><strong>Private synced task data</strong> - your sections, list names, tasks, subtasks, completion status, done dates, order, and sync metadata</li>
-          <li><strong>Stripe data</strong> - customer ID, subscription ID or status, billing interval, and payment status needed to manage Premium access. We do not store full card numbers; Stripe handles payment details.</li>
+          <li><strong>Stripe data</strong> - customer ID, subscription status, billing interval, and payment status needed to manage Premium access. We do not store full card numbers; Stripe handles payment details.</li>
         </ul>
 
         <h3>Technical and security data</h3>
@@ -63,7 +63,7 @@ import { APP_VERSION } from '../../../environments/environment';
           <li>Authenticate your identity and manage account sessions</li>
           <li>Operate shared pages and allow anyone with the link to collaborate</li>
           <li>Process optional Premium subscriptions through Stripe</li>
-          <li>Send verification, password reset, and service emails through Resend</li>
+          <li>Send verification, password reset, support, and service emails through Resend</li>
           <li>Prevent abuse, enforce rate limits, troubleshoot bugs, and comply with legal obligations</li>
         </ul>
 
@@ -71,7 +71,7 @@ import { APP_VERSION } from '../../../environments/environment';
         <p>We do not sell your personal data. We share data only as needed to operate the Service:</p>
         <ul>
           <li><strong>Stripe</strong> - for optional Premium subscription billing and subscription management (<a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe Privacy Policy</a>)</li>
-          <li><strong>Resend</strong> - for transactional emails such as verification and password reset messages (<a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend Privacy Policy</a>)</li>
+          <li><strong>Resend</strong> - for transactional emails such as verification and password reset messages, and for forwarding support emails to us (<a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend Privacy Policy</a>)</li>
           <li><strong>Google</strong> - if you use Google Sign-In (<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>)</li>
           <li><strong>Hosting and infrastructure providers</strong> - for database hosting, application hosting, logging, security, and network delivery</li>
           <li><strong>Legal or safety recipients</strong> - if required by law or needed to protect rights, users, or the Service</li>

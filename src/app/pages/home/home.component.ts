@@ -458,7 +458,7 @@ export class HomeComponent implements OnDestroy {
     if (!publicId || this.publicLoadFailed() || this.shouldSkipPeriodicSync()) return;
 
     try {
-      const lists = await this.publicSync.syncPublicLists(publicId);
+      const lists = (await this.publicSync.syncPublicLists(publicId)).filter(list => !list.isBacklog);
       if (this.shouldSkipPeriodicSync()) return;
       for (const list of lists) {
         await this.publicSync.syncPublicListItems(publicId, list.id);
