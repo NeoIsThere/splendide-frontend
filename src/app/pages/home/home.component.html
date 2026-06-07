@@ -389,7 +389,7 @@
                   }
                 </div>
               }
-              @if (confirmingDeleteSectionId() === activeSectionId()) {
+              @if (confirmingDeleteSectionId() !== null && confirmingDeleteSectionId() === activeSectionId()) {
                 <div
                   class="section-menu-backdrop"
                   data-confirm-delete-section
