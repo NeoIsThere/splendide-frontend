@@ -355,7 +355,7 @@ export class HomeComponent implements OnDestroy {
       shouldShowCoachMarks = this.storage.isPartitionEmpty();
     }
 
-    const loaded = this.storage.loadSections();
+    let loaded = this.storage.loadSections();
     this.sections.set(loaded);
     if (loaded.length > 0) {
       this.activeSectionId.set(loaded[0].id);
@@ -365,6 +365,11 @@ export class HomeComponent implements OnDestroy {
     if (this.auth.isLoggedIn() && this.auth.isPremium()) {
       await this.doFullSync();
     } else {
+      if (loaded.length === 0 && this.storage.ensureDefaultPartition()) {
+        loaded = this.storage.loadSections();
+        this.sections.set(loaded);
+        this.activeSectionId.set(loaded[0]?.id ?? null);
+      }
       this.ensureLocalDefaultListsForSections();
       this.startPeriodicSync();
     }

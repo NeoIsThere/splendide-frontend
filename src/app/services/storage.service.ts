@@ -469,6 +469,14 @@ export class StorageService {
     return !partition || partition.sections.filter((section) => !section.deleted).length === 0;
   }
 
+  ensureDefaultPartition(): boolean {
+    const partition = this.readPartition(this.activeKey);
+    if (partition && partition.sections.some((section) => !section.deleted)) return false;
+
+    this.save(createDefaultPartition());
+    return true;
+  }
+
   getActiveUserId(): string | undefined {
     const suffix = this.activeKey.slice(LS_PREFIX.length);
     return suffix.startsWith('nominal_') ? suffix.slice('nominal_'.length) : undefined;
