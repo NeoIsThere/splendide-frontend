@@ -50,6 +50,7 @@ const MAX_DONE_TASKS = 10;
 const PUBLIC_PERIODIC_SYNC_MS = 5_000; //5_000
 const PRIVATE_PERIODIC_SYNC_MS = 15_000; //15_000
 const PREMIUM_UPGRADE_PROMPT_DELAY_MS = 60_000; // 1 minute
+const MOBILE_TOUCH_DRAG_START_DELAY_MS = 220;
 const PREMIUM_UPGRADE_PROMPT_LAST_SHOWN_KEY = 'splendide_premium_upgrade_prompt_last_shown_day';
 const PRIVATE_WELCOME_DIALOG_PENDING_KEY = 'splendide_private_welcome_dialog_pending';
 
@@ -185,7 +186,10 @@ export class HomeComponent implements OnDestroy {
 
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragging = signal(false);
-  protected readonly dragDelay = computed(() => ({ touch: 0, mouse: 0 }));
+  protected readonly dragDelay = computed(() => ({
+    touch: this.isMobile() ? MOBILE_TOUCH_DRAG_START_DELAY_MS : 0,
+    mouse: 0,
+  }));
   protected readonly dragAutoScrollDisabled = false;
   protected readonly dragAutoScrollStep = 24;
   protected readonly activeSectionIndex = computed(() => this.sections().findIndex(s => s.id === this.activeSectionId()));
