@@ -593,8 +593,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   z-index: 95;
 
   @media (max-width: 768px) {
-    right: 0;
-    left: auto;
+    position: fixed;
+    top: 104px;
+    right: 16px;
+    left: 16px;
+    width: auto;
     transform: none;
   }
 }
