@@ -86,6 +86,7 @@ export class SyncService {
 
   private buildCloudReplaceSections() {
     return this.storage.loadAllSectionsForSync()
+      .filter(section => !section.sharedAccess)
       .filter(section => !section.deleted)
       .sort((left, right) => left.position - right.position)
       .map((section, sectionIndex) => ({
@@ -119,6 +120,36 @@ export class SyncService {
               })),
           })),
       }));
+  }
+
+  private shareTokenForAnonymousSection(sectionId: string): string | null {
+    if (this.storage.getActiveUserId()) return null;
+    const token = this.storage.getSection(sectionId)?.shareToken;
+    return token && token.length > 0 ? token : null;
+  }
+
+  async loadSharedSection(shareToken: string): Promise<StoredSection> {
+    const section = await firstValueFrom(
+      this.http.get<StoredSection>(`${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}`),
+    );
+    this.storage.upsertSectionSnapshot(section);
+    return this.storage.getSection(section.id) ?? section;
+  }
+
+  async enableSectionSharing(sectionId: string): Promise<StoredSection> {
+    const section = await firstValueFrom(
+      this.http.post<StoredSection>(`${this.apiUrl}/sections/${encodeURIComponent(sectionId)}/share`, {}),
+    );
+    this.storage.upsertSectionSnapshot(section);
+    return this.storage.getSection(section.id) ?? section;
+  }
+
+  async disableSectionSharing(sectionId: string): Promise<StoredSection> {
+    const section = await firstValueFrom(
+      this.http.delete<StoredSection>(`${this.apiUrl}/sections/${encodeURIComponent(sectionId)}/share`),
+    );
+    this.storage.upsertSectionSnapshot(section);
+    return this.storage.getSection(section.id) ?? section;
   }
 
   async syncSections(): Promise<StoredSection[]> {
@@ -196,11 +227,16 @@ export class SyncService {
       ...(list.dirty ? { dirty: true } : {}),
     }));
 
+    const shareToken = this.shareTokenForAnonymousSection(sectionId);
     const response = await firstValueFrom(
       this.http.post<StoredList[] | SectionsSyncResponse>(
-        `${this.apiUrl}/sections/${sectionId}/sync`,
+        shareToken
+          ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/sync`
+          : `${this.apiUrl}/sections/${sectionId}/sync`,
         payload,
-        { observe: 'response', headers: this.syncHeaders() },
+        shareToken
+          ? { observe: 'response' }
+          : { observe: 'response', headers: this.syncHeaders() },
       ),
     );
     if (this.applySnapshotIfPresent(response)) {
@@ -237,11 +273,16 @@ export class SyncService {
       ...(order ? { order } : {}),
     };
 
+    const shareToken = this.shareTokenForAnonymousSection(sectionId);
     const response = await firstValueFrom(
       this.http.post<ItemsSyncResponse | SectionsSyncResponse>(
-        `${this.apiUrl}/sections/${sectionId}/lists/${listId}/sync`,
+        shareToken
+          ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/lists/${listId}/sync`
+          : `${this.apiUrl}/sections/${sectionId}/lists/${listId}/sync`,
         payload,
-        { observe: 'response', headers: this.syncHeaders() },
+        shareToken
+          ? { observe: 'response' }
+          : { observe: 'response', headers: this.syncHeaders() },
       ),
     );
     if (this.applySnapshotIfPresent(response)) {
@@ -305,14 +346,19 @@ export class SyncService {
   }
 
   async reorderItems(sectionId: string, listId: string, items: { id: string; position: number }[]): Promise<OrderSyncResponse> {
+    const shareToken = this.shareTokenForAnonymousSection(sectionId);
     const response = await firstValueFrom(
       this.http.patch<OrderSyncResponse | SectionsSyncResponse>(
-        `${this.apiUrl}/sections/${sectionId}/lists/${listId}/reorder`,
+        shareToken
+          ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/lists/${listId}/reorder`
+          : `${this.apiUrl}/sections/${sectionId}/lists/${listId}/reorder`,
         {
           baseOrderRevision: this.storage.getListBaseOrderRevision(sectionId, listId),
           items,
         },
-        { observe: 'response', headers: this.syncHeaders() },
+        shareToken
+          ? { observe: 'response' }
+          : { observe: 'response', headers: this.syncHeaders() },
       ),
     );
     if (this.applySnapshotIfPresent(response)) return this.localItemOrderResponse(sectionId, listId);

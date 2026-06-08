@@ -55,7 +55,7 @@ export class AuthService {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-email`, { token }, { withCredentials: true }));
     this.setSession(res);
     if (res.isNewUser) {
-      this.storage.copyAnonymousToUser(res.user.id);
+      await this.copyAnonymousToNewUser(res.user.id);
     }
   }
 
@@ -74,7 +74,7 @@ export class AuthService {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google`, { idToken }, { withCredentials: true }));
     this.setSession(res);
     if (res.isNewUser) {
-      this.storage.copyAnonymousToUser(res.user.id);
+      await this.copyAnonymousToNewUser(res.user.id);
     }
     return { isNewUser: res.isNewUser ?? false };
   }
@@ -89,7 +89,7 @@ export class AuthService {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google/oauth`, oauth, { withCredentials: true }));
     this.setSession(res);
     if (res.isNewUser) {
-      this.storage.copyAnonymousToUser(res.user.id);
+      await this.copyAnonymousToNewUser(res.user.id);
     }
     return { isNewUser: res.isNewUser ?? false };
   }
@@ -212,6 +212,10 @@ export class AuthService {
     localStorage.setItem('splendide_token', res.accessToken);
     localStorage.setItem('splendide_user', JSON.stringify(res.user));
     this.applyUserThemePreference(res.user);
+  }
+
+  private async copyAnonymousToNewUser(userId: string): Promise<void> {
+    this.storage.copyAnonymousToUser(userId);
   }
 
   private loadToken(): string | null {

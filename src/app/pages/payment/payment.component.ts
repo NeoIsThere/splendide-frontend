@@ -301,9 +301,9 @@ function guessCurrency(): string {
           <p class="result-text">no worries - you can upgrade anytime</p>
           <a class="result-link" routerLink="/">back to tasks</a>
         } @else {
-          <h2 class="title">Upgrade for cloud save</h2>
+          <h2 class="title">Upgrade to premium</h2>
           <p class="description">
-            Keep your tasks saved in the cloud and synced across all your devices
+            Up to 50 pages and 200 tasks per list.
           </p>
 
           @if (availableBillingIntervals().length > 1) {
@@ -356,7 +356,7 @@ function guessCurrency(): string {
           <a class="back" routerLink="/">maybe later</a>
 
           @if (!showCodeInput()) {
-            <button class="code-link" (click)="showCodeInput.set(true)">i have a code</button>
+            <button class="code-link" (click)="showCodeInput.set(true)">I have a code</button>
           } @else {
             <div class="code-form">
               <input

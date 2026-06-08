@@ -25,10 +25,10 @@ import { openExternalUrl } from '../../utils/external-link';
         @if (!auth.isPremium()) {
           <section class="settings-section">
             <div class="settings-section-header">
-              <h3 class="settings-section-title">save your pages and access them everywhere</h3>
+              <h3 class="settings-section-title">Save your pages and access them everywhere</h3>
             </div>
             <button class="settings-btn settings-btn--accent" (click)="goPremium()">
-              upgrade to premium ✦
+              Upgrade to premium ✦
             </button>
           </section>
         }
@@ -37,7 +37,7 @@ import { openExternalUrl } from '../../utils/external-link';
         @if (auth.user()?.hasPassword) {
           <section class="settings-section">
             <div class="settings-section-header">
-              <h3 class="settings-section-title">change password</h3>
+              <h3 class="settings-section-title">Change password</h3>
             </div>
 
             @if (pwSuccess()) {
@@ -146,7 +146,7 @@ import { openExternalUrl } from '../../utils/external-link';
                   <p class="settings-field-error" role="alert">new passwords do not match</p>
                 }
                 <button class="settings-btn settings-btn--primary" type="submit" [disabled]="pwLoading()">
-                  {{ pwLoading() ? 'saving' : 'save password' }}
+                  {{ pwLoading() ? 'saving' : 'Save password' }}
                 </button>
               </form>
             }
@@ -156,19 +156,19 @@ import { openExternalUrl } from '../../utils/external-link';
         <!-- ── Delete Account ───────────────────────────── -->
         <section class="settings-section settings-section--danger">
           <div class="settings-section-header">
-            <h3 class="settings-section-title settings-section-title--danger">delete account</h3>
+            <h3 class="settings-section-title settings-section-title--danger">Delete account</h3>
             <p class="settings-section-desc">
               @if (auth.isPremium()) {
-                cancel your subscription before deleting your account
+                Cancel your subscription before deleting your account
               } @else {
-                permanently delete your account and all data. this cannot be undone
+                Permanently delete your account and all data. This cannot be undone
               }
             </p>
           </div>
 
           @if (auth.isPremium()) {
             <button class="settings-btn settings-btn--primary" [disabled]="subscriptionLoading()" (click)="manageSubscription()">
-              {{ subscriptionLoading() ? 'opening' : 'manage subscription' }}
+              {{ subscriptionLoading() ? 'Opening' : 'Manage Subscription' }}
             </button>
             @if (deleteError()) {
               <p class="settings-error" role="alert">{{ deleteError() }}</p>

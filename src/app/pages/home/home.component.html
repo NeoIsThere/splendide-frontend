@@ -1,4 +1,4 @@
-<div class="layout" [class.public-layout]="isPublicPage()">
+<div class="layout">
   <!-- ═══ Top bar ═══ -->
 
   <div class="my-top-bar">
@@ -66,6 +66,8 @@
                   <button class="user-menu-item" (click)="manageSubscription()">
                     manage subscription
                   </button>
+                } @else {
+                  <button class="user-menu-item" (click)="goToPremiumUpgrade()">upgrade</button>
                 }
                 <button class="user-menu-item" (click)="openSettings()">settings</button>
                 <button class="user-menu-item" (click)="signOut()">sign out</button>
@@ -142,65 +144,56 @@
             </svg>
           </button>
         }
-        <div class="my-upgrade-desktop">
-          @if (!isPublicPage() && auth.isLoggedIn() && !auth.isPremium()) {
-            <a class="upgrade-link" routerLink="/payment" aria-label="upgrade to premium"
-              >upgrade ✦</a
-            >
-          }
-        </div>
       </div>
     </div>
   </div>
   <div class="my-below-top-bar">
-    <div class="my-upgrade-mobile">
-      @if (!isPublicPage() && auth.isLoggedIn() && !auth.isPremium()) {
-        <a class="upgrade-link" routerLink="/payment" aria-label="upgrade to premium">upgrade</a>
-      }
-    </div>
-  </div>
-
-  <!-- ═══ Section Nav (mobile) ═══ -->
-  @if (publicLoadFailed()) {
-    <main class="public-expired" aria-live="polite">
-      <h1>this public page has expired</h1>
-      <p>public pages are removed after six months without activity</p>
-    </main>
-  } @else {
-    @if (isPublicPage()) {
-      <div class="public-toolbar">
-        <a
-          class="private-space-btn"
-          href="/"
-          target="_blank"
-          rel="noopener noreferrer"
-          (click)="openPrivateSplendide()"
-        >
-          <svg
-            class="public-action-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          open work organizer
-        </a>
-        <div class="public-share-wrapper" data-public-share>
+    @if (!isPublicPage()) {
+      <div class="section-share-wrapper" data-public-share data-coach-share>
+        @if (activeSectionIsOwner()) {
+          <label class="share-toggle-row share-toggle-control">
+            <input
+              class="share-toggle-input"
+              type="checkbox"
+              role="switch"
+              [checked]="activeSection()?.isShared === true"
+              (change)="setActiveSectionSharing($event)"
+              aria-label="toggle page sharing"
+            />
+            <span class="share-toggle-track" aria-hidden="true">
+              <span class="share-toggle-thumb"></span>
+            </span>
+            <span class="share-toggle-label">share</span>
+            <span class="share-toggle-icon-wrap" aria-hidden="true">
+              <svg
+                class="share-trigger-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+                <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+              </svg>
+            </span>
+          </label>
+        } @else if (activeSection()?.isShared && shareSectionUrl()) {
           <button
-            class="public-share-btn"
+            class="open-shared-btn section-share-trigger"
+            type="button"
             (click)="toggleShareMenu()"
-            aria-label="share public section"
+            aria-label="share page"
             [attr.aria-expanded]="shareMenuOpen()"
           >
             <svg
-              class="public-action-icon"
+              class="share-trigger-icon"
               width="14"
               height="14"
               viewBox="0 0 24 24"
@@ -219,51 +212,46 @@
             </svg>
             share
           </button>
-          @if (shareMenuOpen()) {
-            <div class="public-share-popover">
-              <p class="public-share-title">Share this page</p>
-              <p class="public-share-copy">Anyone with the link can collaborate to this page.</p>
+        }
+        @if (shareMenuOpen()) {
+          <div class="public-share-popover section-share-popover">
+            @if (shareDialogMode() === 'disabled') {
+              <p class="public-share-title">sharing off</p>
+              <p class="public-share-copy">nobody has access to this page anymore</p>
+            } @else if (activeSection()?.isShared && shareSectionUrl()) {
+              <p class="public-share-title">share this page</p>
+              <p class="public-share-copy">anyone with the link can edit this page</p>
               <div class="public-share-link-row">
                 <input
                   class="public-share-link"
                   type="text"
-                  [value]="publicShareUrl()"
+                  [value]="shareSectionUrl()"
                   readonly
-                  aria-label="public section link"
+                  aria-label="shared page link"
                 />
-                <button class="public-copy-btn" (click)="copyPublicLink()">copy</button>
+                <button class="public-copy-btn" (click)="copySectionShareLink()">copy</button>
               </div>
-              @if (shareToastVisible()) {
-                <span class="public-share-toast" aria-live="polite">link copied</span>
-              }
-            </div>
-          }
-        </div>
-        <button
-          class="public-info-btn"
-          type="button"
-          (click)="openSharedPageInfo()"
-          aria-label="what is splendide shared"
-        >
-          <svg
-            class="public-action-icon public-question-icon"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.1 9a3 3 0 1 1 5.1 2.1c-.9.8-1.2 1.2-1.2 2.4" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        </button>
+            } @else {
+              <p class="public-share-title">not shared</p>
+            }
+            @if (shareToastVisible()) {
+              <span class="public-share-toast" aria-live="polite">link copied</span>
+            }
+          </div>
+        }
       </div>
-    } @else {
+    }
+  </div>
+
+  <!-- ═══ Section Nav (mobile) ═══ -->
+  @if (publicLoadFailed()) {
+    <main class="public-expired" aria-live="polite">
+      <h1>this shared page is not available</h1>
+      <p>the owner may have disabled sharing or deleted the page</p>
+      <a class="splendide-info-primary public-expired-link" routerLink="/"> go to splendide </a>
+    </main>
+  } @else {
+    @if (!isPublicPage()) {
       <div class="section-nav-mobile">
         <div class="section-nav-left">
           @if (showPrevArrow()) {
@@ -313,7 +301,20 @@
               [attr.data-keyboard-section]="activeSectionId()"
               (click)="startEditingSection(activeSectionId()!)"
             >
-              {{ activeSection()?.title }}
+              <span class="section-tab-label">{{ activeSection()?.title }}</span>
+              @if (activeSection()?.isShared) {
+                <span class="section-shared-indicator" aria-label="shared page">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"
+                    />
+                    <path d="M20 3v4" />
+                    <path d="M22 5h-4" />
+                    <path d="M4 17v2" />
+                    <path d="M5 18H3" />
+                  </svg>
+                </span>
+              }
             </button>
           }
         </div>
@@ -349,19 +350,11 @@
                   <button
                     class="section-menu-item section-menu-item-icon"
                     (click)="startAddingSectionFromMenu()"
-                    [disabled]="!canAddSection()"
                   >
                     <span class="section-menu-plus" aria-hidden="true">+</span>
-                    <span>add tab</span>
+                    <span>add page</span>
                   </button>
-                  <button
-                    class="section-menu-item section-menu-item-icon"
-                    (click)="createPublicSection()"
-                  >
-                    <span class="section-menu-plus" aria-hidden="true">+</span>
-                    <span>shared page</span>
-                  </button>
-                  @if (sections().length > 1) {
+                  @if (canDeleteSection(activeSection())) {
                     <button
                       class="section-menu-item section-menu-item-icon danger"
                       (click)="startDeletingActiveSectionFromMenu()"
@@ -389,7 +382,10 @@
                   }
                 </div>
               }
-              @if (confirmingDeleteSectionId() !== null && confirmingDeleteSectionId() === activeSectionId()) {
+              @if (
+                confirmingDeleteSectionId() !== null &&
+                confirmingDeleteSectionId() === activeSectionId()
+              ) {
                 <div
                   class="section-menu-backdrop"
                   data-confirm-delete-section
@@ -485,7 +481,20 @@
                     (click)="selectSection(sec.id); focusTabsForKeyboard()"
                     (dblclick)="startEditingSection(sec.id)"
                   >
-                    {{ sec.title }}
+                    <span class="section-tab-label">{{ sec.title }}</span>
+                    @if (sec.isShared) {
+                      <span class="section-shared-indicator" aria-label="shared page">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"
+                          />
+                          <path d="M20 3v4" />
+                          <path d="M22 5h-4" />
+                          <path d="M4 17v2" />
+                          <path d="M5 18H3" />
+                        </svg>
+                      </span>
+                    }
                   </button>
                 }
               </div>
@@ -507,7 +516,7 @@
                       cancel
                     </button>
                   </div>
-                } @else if (sections().length > 1) {
+                } @else if (canDeleteSection(sec)) {
                   <button
                     class="icon-btn-sm remove-btn remove-btn-section"
                     (click)="startDeleteSection(sec.id)"
@@ -533,76 +542,35 @@
             </div>
           }
 
-          @if (canAddSection()) {
-            @if (addingSectionTitle() !== null) {
-              <div class="section-tab section-tab-draft">
-                <div class="section-tab-surface section-tab-static">
-                  <input
-                    class="section-add-input section-add-input-tab"
-                    [value]="addingSectionTitle()"
-                    (input)="onAddSectionInput($event)"
-                    (keydown)="handleAddSectionKeydown($event)"
-                    (blur)="confirmAddSection()"
-                    placeholder="page name"
-                  />
-                </div>
-                <div class="section-tab-actions"></div>
-              </div>
-            }
-
-            <div class="section-tab section-tab-add">
+          @if (addingSectionTitle() !== null) {
+            <div class="section-tab section-tab-draft">
               <div class="section-tab-surface section-tab-static">
-                <button
-                  class="section-tab-btn section-tab-add-btn"
-                  (click)="startAddingSection()"
-                  [disabled]="addingSectionTitle() !== null"
-                  aria-label="add section"
-                  data-coach-create-section
-                >
-                  +
-                </button>
+                <input
+                  class="section-add-input section-add-input-tab"
+                  [value]="addingSectionTitle()"
+                  (input)="onAddSectionInput($event)"
+                  (keydown)="handleAddSectionKeydown($event)"
+                  (blur)="confirmAddSection()"
+                  placeholder="page name"
+                />
               </div>
               <div class="section-tab-actions"></div>
             </div>
           }
-        </div>
 
-        <div class="section-tabs-actions">
-          <div class="section-menu-wrapper section-public-menu">
-            <button
-              class="section-menu-trigger"
-              (click)="toggleSectionMenu()"
-              aria-label="section actions"
-              [attr.aria-expanded]="sectionMenuOpen()"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
+          <div class="section-tab section-tab-add">
+            <div class="section-tab-surface section-tab-static">
+              <button
+                class="section-tab-btn section-tab-add-btn"
+                (click)="startAddingSection()"
+                [disabled]="addingSectionTitle() !== null"
+                aria-label="add section"
+                data-coach-create-section
               >
-                <circle cx="12" cy="5" r="1" />
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="12" cy="19" r="1" />
-              </svg>
-            </button>
-            @if (sectionMenuOpen()) {
-              <div class="section-menu-backdrop" (click)="closeSectionMenu()"></div>
-              <div class="section-menu">
-                <button
-                  class="section-menu-item section-menu-item-icon"
-                  (click)="createPublicSection()"
-                >
-                  <span class="section-menu-plus" aria-hidden="true">+</span>
-                  <span>shared page</span>
-                </button>
-              </div>
-            }
+                +
+              </button>
+            </div>
+            <div class="section-tab-actions"></div>
           </div>
         </div>
       </div>
@@ -723,7 +691,7 @@
                   }
                 </div>
               </div>
-            } @else if (canAdd()) {
+            } @else if (showMainAddPlaceholder()) {
               <div
                 class="add-placeholder"
                 [class.keyboard-focused]="isAddPlaceholderFocused('main')"
@@ -1208,7 +1176,7 @@
                       }
                     </div>
                   </div>
-                } @else if (canAddSecondary()) {
+                } @else if (showSecondaryAddPlaceholder()) {
                   <div
                     class="add-placeholder add-placeholder-sec"
                     [class.keyboard-focused]="isAddPlaceholderFocused('secondary')"
@@ -1724,29 +1692,11 @@
 
       @if (infoDialog() === 'private-welcome') {
         <h2 class="splendide-info-title private-info-title" id="private-welcome-title">
-          Welcome
+          splendide.
         </h2>
-        <p class="splendide-info-description">You are now in Splendide work organizer.</p>
-        
-        <div class="private-info-tip">
-          <svg
-            class="private-info-tip-icon"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="5" y="11" width="14" height="10" rx="2" />
-            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            <circle cx="12" cy="16" r="1" />
-          </svg>
-          <p>These pages are not shared. Only you can access them.</p>
-        </div>
+        <p class="splendide-info-description">Splendide is a minimalist work organizer.</p>
+        <p></p>
+        <p class="splendide-info-description">Built for people who want less noise.</p>
       } @else {
         <h2 class="splendide-info-title shared-info-title" id="shared-page-info-title">
           <span class="shared-wordmark shared-dialog-wordmark logo-shared"
@@ -1801,12 +1751,12 @@
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
-      <h2 class="premium-upgrade-title" id="premium-upgrade-title">Upgrade for cloud save</h2>
+      <h2 class="premium-upgrade-title" id="premium-upgrade-title">upgrade to premium</h2>
       <p class="premium-upgrade-description" id="premium-upgrade-description">
-        Keep your tasks saved in the cloud and synced across all your devices
+        {{ premiumUpgradePromptDescription() }}
       </p>
       <button class="auth-btn premium-upgrade-button" type="button" (click)="goToPremiumUpgrade()">
-        Upgrade
+        upgrade
       </button>
     </section>
   }

@@ -7,7 +7,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent),
   },
   {
-    path: 'public/:id',
+    path: 'share/:token',
     loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent),
   },
   {

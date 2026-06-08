@@ -26,10 +26,14 @@ export interface StoredList {
 
 export interface StoredSection {
   id: string;
+  ownerId?: string;
   title: string;
   position: number;
   metadataLastModifiedAt: string;
   serverRevision: number;
+  isShared?: boolean;
+  shareToken?: string;
+  sharedAccess?: boolean;
   deleted?: boolean;
   created?: boolean;
   dirty?: boolean;
@@ -79,7 +83,6 @@ type LegacyList = Partial<StoredList> & {
 
 const LS_PREFIX = 'splendide_v2_';
 const ANONYMOUS_KEY = `${LS_PREFIX}anonymous`;
-const PUBLIC_KEY_PREFIX = `${LS_PREFIX}public_`;
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -264,10 +267,14 @@ function normalizeSection(
 
   return {
     id: String(value.id ?? generateId()),
+    ...(typeof value.ownerId === 'string' && value.ownerId.length > 0 ? { ownerId: value.ownerId } : {}),
     title: String(value.title ?? 'my tasks'),
     position: Number(value.position ?? index),
     metadataLastModifiedAt: timestamp,
     serverRevision: revision(value.serverRevision),
+    ...(value.isShared === true ? { isShared: true } : {}),
+    ...(typeof value.shareToken === 'string' && value.shareToken.length > 0 ? { shareToken: value.shareToken } : {}),
+    ...(value.sharedAccess === true ? { sharedAccess: true } : {}),
     ...(value.deleted === true ? { deleted: true } : {}),
     ...(value.created === true || value.isNew === true ? { created: true } : {}),
     ...(value.dirty === true ? { dirty: true } : {}),
@@ -277,7 +284,11 @@ function normalizeSection(
 
 function normalizePartition(value: unknown): Partition {
   const timestamp = nowIso();
-  if (!isRecord(value) || !Array.isArray(value['sections'])) {
+  if (!isRecord(value)) {
+    return { syncGeneration: 0, sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
+  }
+
+  if (!Array.isArray(value['sections'])) {
     return { syncGeneration: 0, sectionOrderRevision: 0, sectionBaseOrderRevision: 0, sections: [] };
   }
   const sectionOrderRevision = revision(value['sectionOrderRevision']);
@@ -394,6 +405,19 @@ function cloneListForUser(list: StoredList): StoredList {
 }
 
 function cloneSectionForUser(section: StoredSection): StoredSection {
+  if (section.sharedAccess || section.ownerId) {
+    return {
+      ...section,
+      created: false,
+      dirty: false,
+      lists: section.lists.map((list) => ({
+        ...list,
+        dirty: false,
+        items: list.items.map((item) => ({ ...item, dirty: false, created: false })),
+      })),
+    };
+  }
+
   return {
     id: generateId(),
     title: section.title,
@@ -414,10 +438,6 @@ export class StorageService {
 
   private buildKey(userId?: string): string {
     return userId ? `${LS_PREFIX}nominal_${userId}` : ANONYMOUS_KEY;
-  }
-
-  private buildPublicKey(publicId: string): string {
-    return `${PUBLIC_KEY_PREFIX}${publicId}`;
   }
 
   private legacyUserKeys(userId: string): string[] {
@@ -460,10 +480,6 @@ export class StorageService {
     if (userId) this.migrateLegacyUserPartition(userId);
   }
 
-  setActivePublicPartition(publicId: string): void {
-    this.activeKey = this.buildPublicKey(publicId);
-  }
-
   isPartitionEmpty(userId?: string): boolean {
     const partition = this.readPartition(this.buildKey(userId));
     return !partition || partition.sections.filter((section) => !section.deleted).length === 0;
@@ -473,7 +489,8 @@ export class StorageService {
     const partition = this.readPartition(this.activeKey);
     if (partition && partition.sections.some((section) => !section.deleted)) return false;
 
-    this.save(createDefaultPartition());
+    const created = createDefaultPartition();
+    this.save(created);
     return true;
   }
 
@@ -482,15 +499,9 @@ export class StorageService {
     return suffix.startsWith('nominal_') ? suffix.slice('nominal_'.length) : undefined;
   }
 
-  getActivePublicId(): string | undefined {
-    if (!this.activeKey.startsWith(PUBLIC_KEY_PREFIX)) return undefined;
-    const publicId = this.activeKey.slice(PUBLIC_KEY_PREFIX.length);
-    return publicId.length > 0 ? publicId : undefined;
-  }
-
   load(): Partition {
     const partition = this.readPartition(this.activeKey);
-    if (!this.getActiveUserId() && !this.getActivePublicId()) {
+    if (!this.getActiveUserId()) {
       if (!partition || partition.sections.filter((section) => !section.deleted).length === 0) {
         const created = createDefaultPartition();
         this.save(created);
@@ -594,6 +605,23 @@ export class StorageService {
     this.save(partition);
   }
 
+  upsertSectionSnapshot(section: StoredSection): void {
+    const partition = this.load();
+    const index = partition.sections.findIndex((existing) => existing.id === section.id);
+    if (index >= 0) {
+      partition.sections[index] = {
+        ...section,
+        position: partition.sections[index].position,
+      };
+    } else {
+      const nextPosition = partition.sections
+        .filter((existing) => !existing.deleted)
+        .reduce((max, existing) => Math.max(max, existing.position), -1) + 1;
+      partition.sections.push({ ...section, position: nextPosition });
+    }
+    this.save(partition);
+  }
+
   removeSection(sectionId: string): void {
     const partition = this.load();
     const section = partition.sections.find((existing) => existing.id === sectionId);
@@ -640,10 +668,14 @@ export class StorageService {
 
       return {
         id: section.id,
+        ...(section.ownerId ? { ownerId: section.ownerId } : {}),
         title: section.title,
         position: section.position,
         metadataLastModifiedAt: section.metadataLastModifiedAt,
         serverRevision: section.serverRevision,
+        ...(section.isShared ? { isShared: true } : {}),
+        ...(section.shareToken ? { shareToken: section.shareToken } : {}),
+        ...(section.sharedAccess ? { sharedAccess: true } : {}),
         ...(section.deleted ? { deleted: true } : {}),
         lists: section.lists ?? (options?.replaceLocal ? [] : existing?.lists ?? []),
       };
@@ -950,6 +982,23 @@ export class StorageService {
       return raw ? normalizePartition(JSON.parse(raw)) : null;
     } catch {
       return null;
+    }
+  }
+
+  private readPrivatePartition(key: string): Partition {
+    return this.readPartition(key) ?? {
+      syncGeneration: 0,
+      sectionOrderRevision: 0,
+      sectionBaseOrderRevision: 0,
+      sections: [],
+    };
+  }
+
+  private writePartition(key: string, partition: Partition): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(normalizePartition(partition)));
+    } catch {
+      // Ignore quota errors.
     }
   }
 
