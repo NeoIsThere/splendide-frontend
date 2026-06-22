@@ -655,7 +655,6 @@ export class HomeComponent implements OnDestroy {
         element: mainListTarget,
         popover: {
           title: 'Focus on what matters now',
-          description: "Add tasks you're working on here",
           side: 'right',
           align: 'start',
         },
@@ -664,7 +663,6 @@ export class HomeComponent implements OnDestroy {
         element: secondaryListTarget,
         popover: {
           title: 'Keep the rest for later',
-          description: "Store ideas here",
           side: 'right',
           align: 'start',
         },
@@ -681,7 +679,6 @@ export class HomeComponent implements OnDestroy {
         element: createSectionTarget,
         popover: {
           title: 'Add a new page',
-          description: "Use pages to organize work in different areas",
           side: 'bottom',
           align: 'start',
         },
@@ -693,7 +690,6 @@ export class HomeComponent implements OnDestroy {
         element: shareTarget,
         popover: {
           title: 'Share a page',
-          description: 'Create a link when you need to collaborate',
           side: 'bottom',
           align: 'start',
         },

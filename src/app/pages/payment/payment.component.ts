@@ -94,6 +94,15 @@ function guessCurrency(): string {
       line-height: 1.6;
       margin: 0 0 24px;
     }
+    .support-note {
+      margin: 28px 0 0;
+      padding: 12px;
+      border: 1px dashed var(--border, #ddd);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
     .billing-toggle {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -303,7 +312,7 @@ function guessCurrency(): string {
         } @else {
           <h2 class="title">Upgrade to premium</h2>
           <p class="description">
-            Up to 50 pages and 200 tasks per list.
+            Unlimited number of tasks and pages.
           </p>
 
           @if (availableBillingIntervals().length > 1) {
@@ -371,6 +380,10 @@ function guessCurrency(): string {
               <button class="code-btn" (click)="redeemCode()" [disabled]="codeLoading() || !codeValue().trim()">redeem</button>
             </div>
           }
+
+          <p class="support-note">
+            Your subscription supports the development of the upcoming mobile app.
+          </p>
         }
       </div>
     </div>
