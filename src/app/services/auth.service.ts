@@ -175,9 +175,9 @@ export class AuthService {
     const url = sessionId
       ? `${this.apiUrl}/payment/status?session_id=${encodeURIComponent(sessionId)}`
       : `${this.apiUrl}/payment/status`;
-    const res = await firstValueFrom(this.http.get<{ isPremium: boolean; syncGeneration?: number }>(url));
+    const res = await firstValueFrom(this.http.get<{ isPremium: boolean }>(url));
     const isPremium = res.isPremium;
-    this._user.update(u => u ? { ...u, isPremium, syncGeneration: res.syncGeneration ?? u.syncGeneration ?? 0 } : u);
+    this._user.update(u => u ? { ...u, isPremium } : u);
     const user = this._user();
     if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
     return isPremium;

@@ -14,7 +14,8 @@ import { APP_VERSION } from '../../../environments/environment';
         <p class="legal-updated">Last updated: June 5, 2026</p>
 
         <h2>1. Introduction</h2>
-        <p>This Privacy Policy explains how Splendide ("we", "us", "our") collects, uses, stores, and shares information when you use the Service. It applies to private local use, account features, optional Premium cloud sync, and shared pages.</p>
+        <p>This Privacy Policy explains how Splendide ("we", "us", "our") collects, uses, stores, and shares information when you use the Service. It applies to private local use, account sync features, and shared pages.</p>
+        <p>It also explains optional Premium subscriptions.</p>
 
         <h2>2. Data Controller</h2>
         <p>Splendide is the data controller for personal data processed through the Service. For privacy requests or controller contact details, contact <strong>privacy&#64;email.splendide.app</strong>.</p>
@@ -34,13 +35,13 @@ import { APP_VERSION } from '../../../environments/environment';
           <li><strong>Password hash</strong> - securely hashed, never stored in plain text</li>
           <li><strong>Google account ID</strong> - if you sign in with Google</li>
           <li><strong>Theme preference</strong> - to apply your light or night mode preference when you sign in</li>
+          <li><strong>Private synced task data</strong> - your sections, list names, tasks, subtasks, completion status, done dates, order, and sync metadata</li>
           <li><strong>Authentication data</strong> - access tokens stored in your browser and refresh tokens stored in secure cookies</li>
         </ul>
 
         <h3>Premium users</h3>
-        <p>If you upgrade to Premium, we additionally store:</p>
+        <p>If you upgrade to Premium, we additionally process billing and subscription information:</p>
         <ul>
-          <li><strong>Private synced task data</strong> - your sections, list names, tasks, subtasks, completion status, done dates, order, and sync metadata</li>
           <li><strong>Stripe data</strong> - customer ID, subscription status, billing interval, and payment status needed to manage Premium access. We do not store full card numbers; Stripe handles payment details.</li>
         </ul>
 
@@ -52,7 +53,7 @@ import { APP_VERSION } from '../../../environments/environment';
 
         <h2>5. Legal Basis for Processing (GDPR)</h2>
         <ul>
-          <li><strong>Contract performance</strong> - to provide accounts, authentication, Premium sync, shared pages, and support</li>
+          <li><strong>Contract performance</strong> - to provide accounts, authentication, account sync, shared pages, paid subscriptions, and support</li>
           <li><strong>Legitimate interests</strong> - to maintain security, prevent abuse, debug issues, and improve reliability</li>
           <li><strong>Legal obligations</strong> - to keep records required by tax, accounting, payment, or consumer protection laws</li>
           <li><strong>Consent</strong> - where required by law or for optional features that rely on consent</li>

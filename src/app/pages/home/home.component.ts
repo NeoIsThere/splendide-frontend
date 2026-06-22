@@ -1,6 +1,5 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy, HostListener } from '@angular/core';
-import { CdkDragDrop, CdkDrag, CdkDragMove, CdkDropList, CdkDragPlaceholder, CdkDragPreview, moveItemInArray } from '@angular/cdk/drag-drop';
-import { CdkScrollable } from '@angular/cdk/scrolling';
+import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder, moveItemInArray } from '@angular/cdk/drag-drop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { driver, type DriveStep } from 'driver.js';
@@ -37,21 +36,57 @@ interface TextSegment {
 }
 
 type TaskListKind = 'main' | 'secondary';
+
+interface TaskDropTarget {
+  list: TaskListKind;
+  dropZone: HTMLElement;
+  taskSelector: string;
+}
+
+interface PendingTaskDrag {
+  sourceList: TaskListKind;
+  sourceIndex: number;
+  task: Task;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  previewWidth: number;
+  previewHeight: number;
+  element: HTMLElement;
+}
+
+interface TaskDragState {
+  sourceList: TaskListKind;
+  sourceIndex: number;
+  targetList: TaskListKind;
+  targetIndex: number;
+  task: Task;
+  pointerId: number;
+  pointerOffsetX: number;
+  pointerOffsetY: number;
+  previewX: number;
+  previewY: number;
+  previewWidth: number;
+  previewHeight: number;
+}
 type KeyboardZone = 'tabs' | TaskListKind;
 type SectionDeleteOption = 'delete' | 'cancel';
 type InfoDialogKind = 'shared-page' | 'private-welcome';
+type InfoDialogView = 'about' | 'shortcuts';
 type ShareDialogMode = 'enabled' | 'disabled' | 'viewer';
 
 const DEFAULT_BACKLOG_TITLE = 'later';
 const DEFAULT_MAIN_TITLE = 'now';
-const MAX_SECTIONS = 15;
+const MAX_SECTIONS = 100;
 const MAX_FREE_SECTIONS = 2;
 const MAX_FREE_TASKS_PER_OWNED_LIST = 15;
-const MAX_BACKLOG_TASKS = 200;
+const MAX_BACKLOG_TASKS = 500;
 const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
 const MAX_DONE_TASKS = 10;
-const PUBLIC_PERIODIC_SYNC_MS = 15_000;
-const PRIVATE_PERIODIC_SYNC_MS = 15_000; //15_000
+const PUBLIC_PERIODIC_SYNC_MS = 10_000;
+const PRIVATE_PERIODIC_SYNC_MS = 10_000;
 const MOBILE_TOUCH_DRAG_START_DELAY_MS = 220;
 const PRIVATE_WELCOME_DIALOG_PENDING_KEY = 'splendide_private_welcome_dialog_pending';
 
@@ -60,7 +95,7 @@ const PRIVATE_WELCOME_DIALOG_PENDING_KEY = 'splendide_private_welcome_dialog_pen
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, CdkDragPreview, CdkScrollable, RouterLink],
+  imports: [CdkDrag, CdkDropList, CdkDragPlaceholder, RouterLink],
 })
 export class HomeComponent implements OnDestroy {
   private readonly urlPattern = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
@@ -80,6 +115,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly premiumUpgradePromptOpen = signal(false);
   protected readonly premiumUpgradePromptDescription = signal('create more pages for larger work sessions');
   protected readonly infoDialog = signal<InfoDialogKind | null>(null);
+  protected readonly infoDialogView = signal<InfoDialogView>('about');
   protected readonly isPublicPage = computed(() => false);
 
   // ─── Sections ───────────────────────────────────────────
@@ -185,17 +221,14 @@ export class HomeComponent implements OnDestroy {
   protected readonly secondaryCompletedCount = computed(() => this.secondaryTasks().filter(t => t.done).length);
   protected readonly canAddSecondary = computed(() => this.canAddTaskToList('secondary'));
   protected readonly showSecondaryAddPlaceholder = computed(() => this.canAddSecondary() || this.freeOwnedTaskLimitApplies());
-  protected readonly mainDropListConnections = computed<string[]>(() => ['secondaryDropList']);
-  protected readonly secondaryDropListConnections = computed<string[]>(() => ['mainDropList']);
 
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragging = signal(false);
+  protected readonly taskDragState = signal<TaskDragState | null>(null);
   protected readonly dragDelay = computed(() => ({
     touch: this.isMobile() ? MOBILE_TOUCH_DRAG_START_DELAY_MS : 0,
     mouse: 0,
   }));
-  protected readonly dragAutoScrollDisabled = false;
-  protected readonly dragAutoScrollStep = 24;
   protected readonly activeSectionIndex = computed(() => this.sections().findIndex(s => s.id === this.activeSectionId()));
   protected readonly showPrevArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() > 0);
   protected readonly showNextArrow = computed(() => this.sections().length > 1 && this.activeSectionIndex() < this.sections().length - 1);
@@ -213,6 +246,13 @@ export class HomeComponent implements OnDestroy {
   private firstVisitCoachMarksPending = false;
   private coachMarksScheduled = false;
   private horizontalScrollGuardFrame: number | null = null;
+  private taskAutoScrollFrame: number | null = null;
+  private taskLayoutAnimationFrame: number | null = null;
+  private taskLayoutAnimationCleanupTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingTaskDrag: PendingTaskDrag | null = null;
+  private activeTaskDragElement: HTMLElement | null = null;
+  private suppressNextTaskClick = false;
+  private suppressTaskClickTimer: ReturnType<typeof setTimeout> | null = null;
   private horizontalScrollLocks: Array<{
     target: Window | HTMLElement;
     scrollBy: typeof window.scrollBy;
@@ -242,6 +282,11 @@ export class HomeComponent implements OnDestroy {
     }
     if (this.premiumUpgradePromptOpen()) {
       if (event.key === 'Tab' || this.isInteractiveTarget(event.target)) return;
+      event.preventDefault();
+      return;
+    }
+    if (this.taskDragState()) {
+      if (event.key === 'Escape') this.cancelTaskPointerDrag();
       event.preventDefault();
       return;
     }
@@ -297,6 +342,18 @@ export class HomeComponent implements OnDestroy {
 
   @HostListener('document:click', ['$event'])
   protected handleDocumentClick(event: MouseEvent): void {
+    if (this.suppressNextTaskClick) {
+      this.suppressNextTaskClick = false;
+      if (this.suppressTaskClickTimer !== null) {
+        clearTimeout(this.suppressTaskClickTimer);
+        this.suppressTaskClickTimer = null;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
+
     const target = event.target as HTMLElement;
 
     if (this.confirmingClear() && !target.closest('[data-confirm-clear]')) {
@@ -319,6 +376,21 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
+  @HostListener('document:pointermove', ['$event'])
+  protected handleDocumentPointerMove(event: PointerEvent): void {
+    this.handleTaskPointerMove(event);
+  }
+
+  @HostListener('document:pointerup', ['$event'])
+  protected handleDocumentPointerUp(event: PointerEvent): void {
+    this.finishTaskPointerDrag(event);
+  }
+
+  @HostListener('document:pointercancel', ['$event'])
+  protected handleDocumentPointerCancel(event: PointerEvent): void {
+    this.cancelTaskPointerDrag(event);
+  }
+
   @HostListener('window:resize')
   protected handleWindowResize(): void {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -338,8 +410,13 @@ export class HomeComponent implements OnDestroy {
       clearTimeout(this.shareToastTimer);
       this.shareToastTimer = null;
     }
+    if (this.suppressTaskClickTimer !== null) {
+      clearTimeout(this.suppressTaskClickTimer);
+      this.suppressTaskClickTimer = null;
+    }
     this.stopHorizontalScrollGuard();
     this.unlockHorizontalDragScroll();
+    this.cancelTaskPointerDrag();
   }
 
   private async initFromStorage(): Promise<void> {
@@ -530,6 +607,7 @@ export class HomeComponent implements OnDestroy {
       // If local storage is unavailable, rely on the session storage result.
     }
     if (hasPendingDialog) {
+      this.infoDialogView.set('about');
       this.infoDialog.set('private-welcome');
     }
   }
@@ -719,6 +797,402 @@ export class HomeComponent implements OnDestroy {
     } else {
       this.stopHorizontalScrollGuard();
       this.unlockHorizontalDragScroll();
+    }
+  }
+
+  protected beginTaskPointerDrag(
+    event: PointerEvent,
+    sourceList: TaskListKind,
+    task: Task,
+    sourceIndex: number,
+  ): void {
+    if (this.isEditing()) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (this.isTaskDragIgnoredTarget(event.target)) return;
+
+    const element = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    if (!element) return;
+
+    event.preventDefault();
+    this.clearTextSelection();
+
+    const rect = element.getBoundingClientRect();
+    this.pendingTaskDrag = {
+      sourceList,
+      sourceIndex,
+      task,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      previewWidth: rect.width,
+      previewHeight: rect.height,
+      element,
+    };
+    this.activeTaskDragElement = element;
+    this.setActiveKeyboardTask(sourceList, task.id);
+    this.taskMenuOpenId.set(null);
+    this.secTaskMenuOpenId.set(null);
+  }
+
+  protected handleTaskDragScroll(): void {
+    const drag = this.taskDragState();
+    if (!drag) return;
+    this.updateTaskDragForPoint(this.currentTaskDragPoint(drag));
+  }
+
+  protected showTaskDragPlaceholder(list: TaskListKind, index: number): boolean {
+    const drag = this.taskDragState();
+    if (!drag || drag.targetList !== list) return false;
+
+    const renderedIndex =
+      drag.targetList === drag.sourceList && drag.targetIndex > drag.sourceIndex
+        ? drag.targetIndex + 1
+        : drag.targetIndex;
+    return renderedIndex === index;
+  }
+
+  protected isTaskDragSource(list: TaskListKind, taskId: string): boolean {
+    const drag = this.taskDragState();
+    return drag?.sourceList === list && drag.task.id === taskId;
+  }
+
+  protected taskDragPlaceholderHeight(): number {
+    return Math.max(36, this.taskDragState()?.previewHeight ?? 46);
+  }
+
+  protected taskDragPreviewTransform(): string {
+    const drag = this.taskDragState();
+    return drag ? `translate3d(${drag.previewX}px, ${drag.previewY}px, 0)` : '';
+  }
+
+  private handleTaskPointerMove(event: PointerEvent): void {
+    const drag = this.taskDragState();
+    const pending = this.pendingTaskDrag;
+    const pointerId = drag?.pointerId ?? pending?.pointerId;
+    if (pointerId === undefined || event.pointerId !== pointerId) return;
+
+    if (!drag) {
+      if (!pending) return;
+      const distance = Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY);
+      const threshold = event.pointerType === 'touch' ? 8 : 4;
+      if (distance < threshold) return;
+      this.startTaskPointerDrag(pending, { x: event.clientX, y: event.clientY });
+    } else {
+      this.updateTaskDragForPoint({ x: event.clientX, y: event.clientY });
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  private finishTaskPointerDrag(event: PointerEvent): void {
+    const drag = this.taskDragState();
+    const pending = this.pendingTaskDrag;
+    const pointerId = drag?.pointerId ?? pending?.pointerId;
+    if (pointerId === undefined || event.pointerId !== pointerId) return;
+
+    if (!drag) {
+      this.clearTaskPointerDrag();
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.updateTaskDragForPoint({ x: event.clientX, y: event.clientY }, false);
+    const finalDrag = this.taskDragState();
+    const previousRects = this.captureTaskLayoutRects();
+    if (finalDrag) this.commitTaskDrag(finalDrag);
+    this.clearTaskPointerDrag();
+    this.animateTaskLayoutChange(previousRects);
+    this.suppressTaskClickOnce();
+  }
+
+  private cancelTaskPointerDrag(event?: PointerEvent): void {
+    const drag = this.taskDragState();
+    const pending = this.pendingTaskDrag;
+    const pointerId = drag?.pointerId ?? pending?.pointerId;
+    if (event && pointerId !== undefined && event.pointerId !== pointerId) return;
+    if (event) event.preventDefault();
+    this.clearTaskPointerDrag();
+  }
+
+  private startTaskPointerDrag(pending: PendingTaskDrag, clientPoint: { x: number; y: number }): void {
+    this.suppressTaskClickOnce();
+    this.taskDragState.set({
+      sourceList: pending.sourceList,
+      sourceIndex: pending.sourceIndex,
+      targetList: pending.sourceList,
+      targetIndex: pending.sourceIndex,
+      task: pending.task,
+      pointerId: pending.pointerId,
+      pointerOffsetX: pending.offsetX,
+      pointerOffsetY: pending.offsetY,
+      previewX: clientPoint.x - pending.offsetX,
+      previewY: clientPoint.y - pending.offsetY,
+      previewWidth: pending.previewWidth,
+      previewHeight: pending.previewHeight,
+    });
+    this.setDragging(true);
+    this.updateTaskDragForPoint(clientPoint);
+    this.startTaskAutoScrollLoop();
+  }
+
+  private updateTaskDragForPoint(clientPoint: { x: number; y: number }, allowAutoScroll = true): void {
+    const drag = this.taskDragState();
+    if (!drag) return;
+
+    const target = this.taskDropTargetFromClientPoint(clientPoint);
+    let targetList = drag.targetList;
+    let targetIndex = drag.targetIndex;
+
+    if (target) {
+      if (allowAutoScroll) this.scrollTaskDropTargetNearEdge(target.dropZone, clientPoint);
+      targetList = target.list;
+      targetIndex = this.taskDropIndexFromClientPoint(
+        target.dropZone,
+        target.taskSelector,
+        clientPoint,
+        targetIndex,
+        this.activeTaskDragElement,
+      );
+    }
+
+    const previousRects =
+      targetList !== drag.targetList || targetIndex !== drag.targetIndex
+        ? this.captureTaskLayoutRects()
+        : null;
+
+    this.taskDragState.set({
+      ...drag,
+      targetList,
+      targetIndex,
+      previewX: clientPoint.x - drag.pointerOffsetX,
+      previewY: clientPoint.y - drag.pointerOffsetY,
+    });
+    if (previousRects) this.animateTaskLayoutChange(previousRects);
+    this.clearTextSelection();
+
+    if (!this.isMobile()) this.resetHorizontalListScroll();
+  }
+
+  private startTaskAutoScrollLoop(): void {
+    if (typeof window === 'undefined' || this.taskAutoScrollFrame !== null) return;
+
+    const tick = () => {
+      const drag = this.taskDragState();
+      if (!drag) {
+        this.taskAutoScrollFrame = null;
+        return;
+      }
+
+      const clientPoint = this.currentTaskDragPoint(drag);
+      const target = this.taskDropTargetFromClientPoint(clientPoint);
+      if (target && this.scrollTaskDropTargetNearEdge(target.dropZone, clientPoint)) {
+        this.updateTaskDragForPoint(clientPoint, false);
+      }
+      this.taskAutoScrollFrame = window.requestAnimationFrame(tick);
+    };
+
+    this.taskAutoScrollFrame = window.requestAnimationFrame(tick);
+  }
+
+  private stopTaskAutoScrollLoop(): void {
+    if (this.taskAutoScrollFrame === null || typeof window === 'undefined') return;
+    window.cancelAnimationFrame(this.taskAutoScrollFrame);
+    this.taskAutoScrollFrame = null;
+  }
+
+  private currentTaskDragPoint(drag: TaskDragState): { x: number; y: number } {
+    return {
+      x: drag.previewX + drag.pointerOffsetX,
+      y: drag.previewY + drag.pointerOffsetY,
+    };
+  }
+
+  private clearTaskPointerDrag(): void {
+    this.pendingTaskDrag = null;
+    this.activeTaskDragElement = null;
+    this.taskDragState.set(null);
+    this.stopTaskAutoScrollLoop();
+    this.resetTaskLayoutAnimationStyles();
+    if (this.dragging()) this.setDragging(false);
+  }
+
+  private clearTextSelection(): void {
+    if (typeof document === 'undefined') return;
+    document.getSelection()?.removeAllRanges();
+  }
+
+  private captureTaskLayoutRects(): Map<string, DOMRect> {
+    const rects = new Map<string, DOMRect>();
+    if (typeof document === 'undefined') return rects;
+
+    for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task], .sec-task-item[data-keyboard-task]')) {
+      if (element.offsetParent === null) continue;
+      const list = element.dataset['keyboardList'];
+      const taskId = element.dataset['keyboardTask'];
+      if (!taskId || (list !== 'main' && list !== 'secondary')) continue;
+      rects.set(`${list}:${taskId}`, element.getBoundingClientRect());
+    }
+
+    return rects;
+  }
+
+  private animateTaskLayoutChange(previousRects: Map<string, DOMRect>): void {
+    if (previousRects.size === 0 || typeof window === 'undefined' || typeof document === 'undefined') return;
+    this.resetTaskLayoutAnimationStyles();
+
+    this.taskLayoutAnimationFrame = window.requestAnimationFrame(() => {
+      this.taskLayoutAnimationFrame = null;
+      const animatedElements: HTMLElement[] = [];
+
+      for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task], .sec-task-item[data-keyboard-task]')) {
+        if (element.offsetParent === null) continue;
+        const list = element.dataset['keyboardList'];
+        const taskId = element.dataset['keyboardTask'];
+        const previousRect = taskId ? previousRects.get(`${list}:${taskId}`) : undefined;
+        if (!previousRect) continue;
+
+        const nextRect = element.getBoundingClientRect();
+        const deltaX = previousRect.left - nextRect.left;
+        const deltaY = previousRect.top - nextRect.top;
+        if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) continue;
+
+        element.style.transition = 'none';
+        element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+        element.style.willChange = 'transform';
+        animatedElements.push(element);
+      }
+
+      if (animatedElements.length === 0) return;
+
+      for (const element of animatedElements) element.getBoundingClientRect();
+
+      for (const element of animatedElements) {
+        element.style.transition = 'transform 180ms cubic-bezier(0.2, 0, 0.2, 1)';
+        element.style.transform = '';
+      }
+
+      this.taskLayoutAnimationCleanupTimer = setTimeout(() => {
+        this.resetTaskLayoutAnimationStyles();
+      }, 220);
+    });
+  }
+
+  private resetTaskLayoutAnimationStyles(): void {
+    if (this.taskLayoutAnimationFrame !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(this.taskLayoutAnimationFrame);
+      this.taskLayoutAnimationFrame = null;
+    }
+    if (this.taskLayoutAnimationCleanupTimer !== null) {
+      clearTimeout(this.taskLayoutAnimationCleanupTimer);
+      this.taskLayoutAnimationCleanupTimer = null;
+    }
+    if (typeof document === 'undefined') return;
+
+    for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task], .sec-task-item[data-keyboard-task]')) {
+      element.style.transition = '';
+      element.style.transform = '';
+      element.style.willChange = '';
+    }
+  }
+
+  private suppressTaskClickOnce(): void {
+    this.suppressNextTaskClick = true;
+    if (this.suppressTaskClickTimer !== null) {
+      clearTimeout(this.suppressTaskClickTimer);
+    }
+    this.suppressTaskClickTimer = setTimeout(() => {
+      this.suppressNextTaskClick = false;
+      this.suppressTaskClickTimer = null;
+    }, 350);
+  }
+
+  private scrollTaskDropTargetNearEdge(dropZone: HTMLElement, clientPoint: { x: number; y: number }): boolean {
+    const scrollTarget = this.taskScrollTargetForDropZone(dropZone);
+    if (!scrollTarget) return false;
+
+    const rect = scrollTarget.getBoundingClientRect();
+    const threshold = Math.min(90, Math.max(48, rect.height * 0.18));
+    let delta = 0;
+
+    if (clientPoint.y < rect.top + threshold) {
+      delta = -Math.ceil((1 - Math.max(0, clientPoint.y - rect.top) / threshold) * 24);
+    } else if (clientPoint.y > rect.bottom - threshold) {
+      delta = Math.ceil((1 - Math.max(0, rect.bottom - clientPoint.y) / threshold) * 24);
+    }
+
+    if (delta === 0) return false;
+    const before = scrollTarget.scrollTop;
+    scrollTarget.scrollTop += delta;
+    return scrollTarget.scrollTop !== before;
+  }
+
+  private taskScrollTargetForDropZone(dropZone: HTMLElement): HTMLElement | null {
+    if (dropZone.scrollHeight > dropZone.clientHeight + 1) return dropZone;
+
+    const lists = dropZone.closest<HTMLElement>('.lists');
+    if (lists && lists.scrollHeight > lists.clientHeight + 1) return lists;
+
+    return null;
+  }
+
+  private commitTaskDrag(drag: TaskDragState): void {
+    if (this.isEditing()) return;
+    if (drag.sourceList === drag.targetList) {
+      this.commitTaskReorder(drag);
+      return;
+    }
+    this.commitTaskMoveBetweenLists(drag);
+  }
+
+  private commitTaskReorder(drag: TaskDragState): void {
+    const section = this.activeSection();
+    const list = this.listForKind(drag.sourceList);
+    if (!section || !list) return;
+
+    const items = [...this.tasksForList(drag.sourceList)];
+    const sourceIndex = items.findIndex(task => task.id === drag.task.id);
+    if (!this.moveTaskInArray(items, sourceIndex, drag.targetIndex)) return;
+    this.reorderTasksInList(section.id, list, items);
+  }
+
+  private commitTaskMoveBetweenLists(drag: TaskDragState): void {
+    if (drag.targetList === 'main' && !this.canAdd()) {
+      this.handleTaskLimitReached();
+      return;
+    }
+    if (drag.targetList === 'secondary' && !this.canAddSecondary()) {
+      this.handleTaskLimitReached();
+      return;
+    }
+
+    const mainItems = [...this.tasks()];
+    const secItems = [...this.secondaryTasks()];
+    const sourceItems = drag.sourceList === 'main' ? mainItems : secItems;
+    const sourceIndex = sourceItems.findIndex(task => task.id === drag.task.id);
+    if (sourceIndex === -1) return;
+
+    const [task] = sourceItems.splice(sourceIndex, 1);
+
+    if (drag.targetList === 'main') {
+      if (mainItems.length >= MAX_MAIN_TASKS) {
+        const displaced = mainItems.pop();
+        if (displaced) secItems.unshift(displaced);
+      }
+
+      mainItems.splice(Math.max(0, Math.min(drag.targetIndex, mainItems.length)), 0, task);
+      this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('main'));
+    } else {
+      if (secItems.length >= MAX_BACKLOG_TASKS) {
+        const displaced = secItems.shift();
+        if (displaced) mainItems.push(displaced);
+      }
+
+      secItems.splice(Math.max(0, Math.min(drag.targetIndex, secItems.length)), 0, task);
+      this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('backlog'));
     }
   }
 
@@ -1094,11 +1568,6 @@ export class HomeComponent implements OnDestroy {
     this.reorderSubtasksInList(this.backlogList(), taskId, event.previousIndex, event.currentIndex);
   }
 
-  protected handleTaskDragMoved(_event: CdkDragMove<unknown>): void {
-    if (this.isMobile() || typeof document === 'undefined') return;
-    this.resetHorizontalListScroll();
-  }
-
   private resetHorizontalListScroll(): void {
     if (this.isMobile()) return;
     if (typeof document === 'undefined') return;
@@ -1437,11 +1906,17 @@ export class HomeComponent implements OnDestroy {
 
   protected openPrivateWelcomeInfo(): void {
     this.menuOpen.set(false);
+    this.infoDialogView.set('about');
     this.infoDialog.set('private-welcome');
+  }
+
+  protected showKeyboardShortcutsInfo(): void {
+    this.infoDialogView.set('shortcuts');
   }
 
   protected closeInfoDialog(): void {
     this.infoDialog.set(null);
+    this.infoDialogView.set('about');
     this.maybeScheduleFirstVisitCoachMarks();
   }
 
@@ -1789,6 +2264,102 @@ export class HomeComponent implements OnDestroy {
 
     this.storage.setItemsForList(sec.id, list.id, items);
     this.refreshSectionsFromStorage();
+  }
+
+  private taskDropTargetFromClientPoint(clientPoint: { x: number; y: number }): TaskDropTarget | null {
+    if (typeof document === 'undefined') return null;
+
+    const elementAtPoint = document.elementFromPoint(clientPoint.x, clientPoint.y);
+    const dropZone = elementAtPoint?.closest<HTMLElement>('.main-drop-zone, .sec-drop-zone');
+    const target = dropZone ? this.taskDropTargetFromDropZone(dropZone) : null;
+    if (target) return target;
+
+    for (const list of ['main', 'secondary'] as const) {
+      const fallbackZone = document.getElementById(list === 'main' ? 'mainDropList' : 'secondaryDropList');
+      if (!fallbackZone) continue;
+      const rect = fallbackZone.getBoundingClientRect();
+      if (
+        clientPoint.x >= rect.left &&
+        clientPoint.x <= rect.right &&
+        clientPoint.y >= rect.top &&
+        clientPoint.y <= rect.bottom
+      ) {
+        return this.taskDropTargetFromDropZone(fallbackZone);
+      }
+    }
+
+    return null;
+  }
+
+  private taskDropTargetFromDropZone(dropZone: HTMLElement): TaskDropTarget | null {
+    if (dropZone.classList.contains('main-drop-zone')) {
+      return { list: 'main', dropZone, taskSelector: '.task-list > .task-item' };
+    }
+    if (dropZone.classList.contains('sec-drop-zone')) {
+      return { list: 'secondary', dropZone, taskSelector: '.task-list > .sec-task-item' };
+    }
+    return null;
+  }
+
+  private taskDropIndexFromClientPoint(
+    dropZone: HTMLElement,
+    taskSelector: string,
+    clientPoint: { x: number; y: number },
+    fallbackIndex: number,
+    draggedElement: HTMLElement | null,
+  ): number {
+    const dropZoneRect = dropZone.getBoundingClientRect();
+    const isInsideDropZone =
+      clientPoint.x >= dropZoneRect.left &&
+      clientPoint.x <= dropZoneRect.right &&
+      clientPoint.y >= dropZoneRect.top &&
+      clientPoint.y <= dropZoneRect.bottom;
+    if (!isInsideDropZone) return fallbackIndex;
+
+    const taskList = dropZone.querySelector<HTMLElement>('.task-list');
+    if (!taskList) return fallbackIndex;
+
+    const pointerYInList = clientPoint.y - taskList.getBoundingClientRect().top;
+    const taskItems = Array.from(dropZone.querySelectorAll<HTMLElement>(taskSelector))
+      .filter(element =>
+        element !== draggedElement &&
+        element.offsetParent !== null &&
+        !element.classList.contains('cdk-drag-placeholder') &&
+        !element.classList.contains('cdk-drag-preview')
+      );
+    if (taskItems.length === 0) return 0;
+
+    for (let index = 0; index < taskItems.length; index += 1) {
+      const midpoint = this.layoutTopWithin(taskItems[index], taskList) + taskItems[index].offsetHeight / 2;
+      if (pointerYInList < midpoint) {
+        return index;
+      }
+    }
+
+    return taskItems.length;
+  }
+
+  private layoutTopWithin(element: HTMLElement, ancestor: HTMLElement): number {
+    let top = element.offsetTop;
+    let parent = element.offsetParent as HTMLElement | null;
+
+    while (parent && parent !== ancestor && ancestor.contains(parent)) {
+      top += parent.offsetTop;
+      parent = parent.offsetParent as HTMLElement | null;
+    }
+
+    return parent === ancestor ? top : element.offsetTop - ancestor.offsetTop;
+  }
+
+  private moveTaskInArray<T>(items: T[], previousIndex: number, targetIndex: number): boolean {
+    if (previousIndex < 0 || previousIndex >= items.length) return false;
+    if (previousIndex === targetIndex || (targetIndex >= items.length && previousIndex === items.length - 1)) {
+      return false;
+    }
+
+    const [item] = items.splice(previousIndex, 1);
+    items.splice(Math.max(0, Math.min(targetIndex, items.length)), 0, item);
+    return true;
   }
 
   protected readonly confirmingClear = signal(false);
@@ -2751,64 +3322,6 @@ export class HomeComponent implements OnDestroy {
   }
 
   // ─── Drag & drop: main tasks ────────────────────────────
-  protected dropMainTask(event: CdkDragDrop<unknown[]>): void {
-    if (this.isEditing()) return;
-    if (event.previousContainer === event.container) {
-      const sec = this.activeSection();
-      const ml = this.mainList();
-      if (!sec || !ml) return;
-      const items = [...this.tasks()];
-      moveItemInArray(items, event.previousIndex, event.currentIndex);
-      this.reorderTasksInList(sec.id, ml, items);
-    } else {
-      if (!this.canAdd()) {
-        this.handleTaskLimitReached();
-        return;
-      }
-      const secItems = [...this.secondaryTasks()];
-      const mainItems = [...this.tasks()];
-      const secTask = secItems[event.previousIndex]!;
-      secItems.splice(event.previousIndex, 1);
-
-      if (mainItems.length >= MAX_MAIN_TASKS) {
-        const displaced = mainItems.pop()!;
-        secItems.unshift(displaced);
-      }
-
-      mainItems.splice(event.currentIndex, 0, secTask);
-      this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('main'));
-    }
-  }
-
-  protected dropSecondaryTask(event: CdkDragDrop<unknown[]>): void {
-    if (this.isEditing()) return;
-    if (event.previousContainer === event.container) {
-      const sec = this.activeSection();
-      const bl = this.backlogList();
-      if (!sec || !bl) return;
-      const items = [...this.secondaryTasks()];
-      moveItemInArray(items, event.previousIndex, event.currentIndex);
-      this.reorderTasksInList(sec.id, bl, items);
-    } else {
-      if (!this.canAddSecondary()) {
-        this.handleTaskLimitReached();
-        return;
-      }
-      const mainItems = [...this.tasks()];
-      const secItems = [...this.secondaryTasks()];
-      const mainTask = mainItems[event.previousIndex]!;
-      mainItems.splice(event.previousIndex, 1);
-
-      if (secItems.length >= MAX_BACKLOG_TASKS) {
-        const displaced = secItems.shift()!;
-        mainItems.push(displaced);
-      }
-
-      secItems.splice(event.currentIndex, 0, mainTask);
-      this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('backlog'));
-    }
-  }
-
   // ─── Focus helper ───────────────────────────────────────
   private focusVisibleInput(selector: string, select = false): void {
     requestAnimationFrame(() => setTimeout(() => {
@@ -2966,6 +3479,14 @@ export class HomeComponent implements OnDestroy {
   private isInteractiveTarget(target: EventTarget | null): boolean {
     return target instanceof HTMLElement && Boolean(
       target.closest('input, textarea, select, button, a, [contenteditable="true"], [role="button"]')
+    );
+  }
+
+  private isTaskDragIgnoredTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && Boolean(
+      target.closest(
+        'input, textarea, select, button, a, [contenteditable="true"], .subtask-list, .subtask-row, .task-link',
+      )
     );
   }
 }

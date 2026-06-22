@@ -124,6 +124,41 @@ function sameContent(left: unknown, right: unknown): boolean {
   return stableStringify(left) === stableStringify(right);
 }
 
+function activeItemOrder(items: StoredItem[]): string[] {
+  return [...items]
+    .filter((item) => !item.deleted)
+    .sort((left, right) => left.position - right.position)
+    .map((item) => item.id);
+}
+
+function sameOrder(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+function keepLocalActiveOrder(merged: StoredItem[], localItems: StoredItem[]): StoredItem[] {
+  const pending = new Map(merged.map((item) => [item.id, item]));
+  const ordered: StoredItem[] = [];
+
+  for (const id of activeItemOrder(localItems)) {
+    const item = pending.get(id);
+    if (!item || item.deleted) continue;
+    ordered.push({ ...item, position: ordered.length });
+    pending.delete(id);
+  }
+
+  const remainingActive = [...pending.values()]
+    .filter((item) => !item.deleted)
+    .sort((left, right) => left.position - right.position);
+  ordered.push(...remainingActive.map((item, index) => ({ ...item, position: ordered.length + index })));
+
+  const deleted = [...pending.values()]
+    .filter((item) => item.deleted)
+    .sort((left, right) => left.position - right.position)
+    .map((item, index) => ({ ...item, position: ordered.length + index }));
+
+  return [...ordered, ...deleted];
+}
+
 function timestampMs(value: string | undefined): number {
   const parsed = value ? new Date(value).getTime() : Number.NaN;
   return Number.isNaN(parsed) ? 0 : parsed;
@@ -844,10 +879,14 @@ export class StorageService {
     }
 
     const items = response.items;
+    const list = this.getListsForSection(sectionId).find((existing) => existing.id === listId);
     const localItems = this.getItemsForList(sectionId, listId);
+    const shouldKeepLocalOrder =
+      list?.itemsOrderDirty === true &&
+      !sameOrder(activeItemOrder(localItems), activeItemOrder(items));
     const localById = new Map(localItems.map((item) => [item.id, item]));
     const remoteIds = new Set(items.map((item) => item.id));
-    const merged = items.map((item) => {
+    let merged = items.map((item) => {
       const local = localById.get(item.id);
       if (
         local &&
@@ -905,9 +944,30 @@ export class StorageService {
       }
     }
 
+    if (shouldKeepLocalOrder) {
+      merged = keepLocalActiveOrder(merged, localItems);
+    }
+
     this.setItemsForList(sectionId, listId, merged, { touchRevision: false });
-    this.applyListOrderRevision(sectionId, listId, response.itemsOrderRevision);
+    if (shouldKeepLocalOrder) {
+      this.rebaseDirtyListOrderRevision(sectionId, listId, response.itemsOrderRevision);
+    } else {
+      this.applyListOrderRevision(sectionId, listId, response.itemsOrderRevision);
+    }
     return true;
+  }
+
+  rebaseDirtyListOrderRevision(sectionId: string, listId: string, orderRevision: number): void {
+    const partition = this.load();
+    const list = partition.sections
+      .find((section) => section.id === sectionId)
+      ?.lists.find((existing) => existing.id === listId);
+    if (!list) return;
+
+    list.itemsOrderRevision = orderRevision;
+    list.itemsBaseOrderRevision = orderRevision;
+    list.itemsOrderDirty = true;
+    this.save(partition);
   }
 
   applyListOrderRevision(sectionId: string, listId: string, orderRevision: number): void {

@@ -1,8 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { StorageService } from '../../services/storage.service';
-import { SyncService } from '../../services/sync.service';
 import { PremiumActivationService } from '../../services/premium-activation.service';
 import { openExternalUrl } from '../../utils/external-link';
 
@@ -299,10 +297,10 @@ function guessCurrency(): string {
         @if (mode() === 'success') {
           <h2 class="result-title">welcome to premium</h2>
           @if (premiumActivationPending()) {
-            <p class="result-text">activating your subscription and syncing your tasks</p>
+            <p class="result-text">activating your subscription</p>
             <div class="price-loading"><div class="spinner"></div></div>
           } @else {
-            <p class="result-text">your subscription is active. tasks now sync across all your devices</p>
+            <p class="result-text">your subscription is active. you have more room for tasks and pages</p>
             <a class="result-link" routerLink="/" (click)="onEnjoyIt()">enjoy it</a>
           }
         } @else if (mode() === 'cancel') {
@@ -393,8 +391,6 @@ export class PaymentComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly storage = inject(StorageService);
-  private readonly sync = inject(SyncService);
   private readonly premiumActivation = inject(PremiumActivationService);
 
   protected readonly mode = signal<'upgrade' | 'success' | 'cancel'>('upgrade');
@@ -430,25 +426,6 @@ export class PaymentComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.clearPaymentPoll();
-  }
-
-  private ensureSignedInPartition(): void {
-    const userId = this.auth.user()?.id;
-    if (userId) {
-      this.storage.setActivePartition(userId);
-    }
-  }
-
-  private async syncSignedInPartition(): Promise<void> {
-    this.ensureSignedInPartition();
-    this.storage.markCloudReplacePending(this.auth.user()?.syncGeneration ?? 0);
-    const sections = await this.sync.syncSections();
-    for (const section of sections) {
-      const lists = await this.sync.syncSectionLists(section.id);
-      for (const list of lists) {
-        await this.sync.syncListItems(section.id, list.id);
-      }
-    }
   }
 
   protected onCurrencyChange(event: Event): void {
@@ -515,7 +492,6 @@ export class PaymentComponent implements OnInit, OnDestroy {
       try {
         const isPremium = await this.auth.checkPremiumStatus(this.checkoutSessionId());
         if (isPremium) {
-          await this.syncSignedInPartition();
           this.externalCheckoutPending.set(false);
           this.premiumActivationPending.set(false);
           if (options?.successModeOnActivation) {
@@ -546,7 +522,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
   }
 
   protected onEnjoyIt(): void {
-    // sync already happened in ngOnInit / redeemCode
+    // Premium status is already reflected in the auth service.
   }
 
   protected async redeemCode(): Promise<void> {
@@ -556,7 +532,6 @@ export class PaymentComponent implements OnInit, OnDestroy {
     this.error.set('');
     try {
       await this.auth.redeemVipCode(code);
-      await this.syncSignedInPartition();
       this.mode.set('success');
     } catch (e: any) {
       this.error.set(e?.error?.error ?? 'invalid or expired code');

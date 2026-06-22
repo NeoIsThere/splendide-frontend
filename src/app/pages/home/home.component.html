@@ -578,7 +578,7 @@
       <!-- ═══ Lists ═══ -->
     }
 
-    <div class="lists" cdkScrollable>
+    <div class="lists" (scroll)="handleTaskDragScroll()">
       <!-- ═══ Main Section ═══ -->
       <div class="my-list-col main-section" #mainSection>
         <div class="my-primary-list-container">
@@ -607,15 +607,8 @@
           <!-- Main drop zone (drag-drop) -->
           <div
             class="main-drop-zone"
-            cdkDropList
+            (scroll)="handleTaskDragScroll()"
             id="mainDropList"
-            #mainList="cdkDropList"
-            [cdkDropListData]="tasks()"
-            [cdkDropListConnectedTo]="mainDropListConnections()"
-            [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
-            [cdkDropListAutoScrollStep]="dragAutoScrollStep"
-            cdkDropListElementContainer=".task-list"
-            (cdkDropListDropped)="dropMainTask($any($event))"
           >
             <!-- Add task form -->
             @if (adding()) {
@@ -723,37 +716,24 @@
             <!-- Task list -->
             <div class="task-list" role="list" aria-label="tasks">
               @for (task of tasks(); track task.id) {
+                @if (showTaskDragPlaceholder('main', $index)) {
+                  <div
+                    class="task-drop-indicator"
+                    [style.height.px]="taskDragPlaceholderHeight()"
+                    aria-hidden="true"
+                  ></div>
+                }
                 <div
                   class="task-item"
                   [class.done]="task.done"
                   [class.keyboard-focused]="isTaskFocused('main', task.id)"
+                  [class.task-drag-source-hidden]="isTaskDragSource('main', task.id)"
                   data-keyboard-list="main"
                   [attr.data-keyboard-task]="task.id"
-                  cdkDrag
-                  [cdkDragDisabled]="isEditing()"
-                  [cdkDragStartDelay]="dragDelay()"
-                  (cdkDragStarted)="setDragging(true)"
-                  (cdkDragMoved)="handleTaskDragMoved($any($event))"
-                  (cdkDragEnded)="setDragging(false)"
+                  (pointerdown)="beginTaskPointerDrag($event, 'main', task, $index)"
                   (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
                   role="listitem"
                 >
-                  <ng-template cdkDragPreview [matchSize]="true">
-                    <div class="task-drag-preview-card">
-                      <div class="task-drag-preview-main">
-                        <span class="task-drag-preview-check" aria-hidden="true"></span>
-                        <span class="task-drag-preview-text">{{ task.text }}</span>
-                      </div>
-                      @if (task.subtasks.length > 0) {
-                        <div class="task-drag-preview-subtasks">
-                          {{ task.subtasks.length }} subtask{{
-                            task.subtasks.length === 1 ? '' : 's'
-                          }}
-                        </div>
-                      }
-                    </div>
-                  </ng-template>
-                  <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
                   <div class="task-main">
                     <button
                       class="check-btn"
@@ -1017,6 +997,13 @@
               } @empty {
                 <!-- empty -->
               }
+              @if (showTaskDragPlaceholder('main', tasks().length)) {
+                <div
+                  class="task-drop-indicator"
+                  [style.height.px]="taskDragPlaceholderHeight()"
+                  aria-hidden="true"
+                ></div>
+              }
             </div>
           </div>
           <!-- /.main-drop-zone -->
@@ -1092,15 +1079,8 @@
 
             <div
               class="sec-drop-zone"
-              cdkDropList
+              (scroll)="handleTaskDragScroll()"
               id="secondaryDropList"
-              #secList="cdkDropList"
-              [cdkDropListData]="secondaryTasks()"
-              [cdkDropListConnectedTo]="secondaryDropListConnections()"
-              [cdkDropListAutoScrollDisabled]="dragAutoScrollDisabled"
-              [cdkDropListAutoScrollStep]="dragAutoScrollStep"
-              cdkDropListElementContainer=".task-list"
-              (cdkDropListDropped)="dropSecondaryTask($any($event))"
             >
               @if (secondaryVisible()) {
                 @if (addingSecondary()) {
@@ -1208,37 +1188,24 @@
               }
               <div class="task-list" role="list" aria-label="secondary tasks">
                 @for (task of secondaryTasks(); track task.id) {
+                  @if (showTaskDragPlaceholder('secondary', $index)) {
+                    <div
+                      class="task-drop-indicator task-drop-indicator-sec"
+                      [style.height.px]="taskDragPlaceholderHeight()"
+                      aria-hidden="true"
+                    ></div>
+                  }
                   <div
                     class="sec-task-item"
                     [class.done]="task.done"
                     [class.keyboard-focused]="isTaskFocused('secondary', task.id)"
+                    [class.task-drag-source-hidden]="isTaskDragSource('secondary', task.id)"
                     data-keyboard-list="secondary"
                     [attr.data-keyboard-task]="task.id"
-                    cdkDrag
-                    [cdkDragDisabled]="isEditing()"
-                    [cdkDragStartDelay]="dragDelay()"
-                    (cdkDragStarted)="setDragging(true)"
-                    (cdkDragMoved)="handleTaskDragMoved($any($event))"
-                    (cdkDragEnded)="setDragging(false)"
+                    (pointerdown)="beginTaskPointerDrag($event, 'secondary', task, $index)"
                     (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
                     role="listitem"
                   >
-                    <ng-template cdkDragPreview [matchSize]="true">
-                      <div class="task-drag-preview-card task-drag-preview-card-sec">
-                        <div class="task-drag-preview-main">
-                          <span class="task-drag-preview-check" aria-hidden="true"></span>
-                          <span class="task-drag-preview-text">{{ task.text }}</span>
-                        </div>
-                        @if (task.subtasks.length > 0) {
-                          <div class="task-drag-preview-subtasks">
-                            {{ task.subtasks.length }} subtask{{
-                              task.subtasks.length === 1 ? '' : 's'
-                            }}
-                          </div>
-                        }
-                      </div>
-                    </ng-template>
-                    <div class="task-drag-placeholder" *cdkDragPlaceholder></div>
                     <div class="sec-task-main">
                       <button
                         class="check-btn check-btn-sub"
@@ -1500,6 +1467,13 @@
                 } @empty {
                   <!-- empty -->
                 }
+                @if (showTaskDragPlaceholder('secondary', secondaryTasks().length)) {
+                  <div
+                    class="task-drop-indicator task-drop-indicator-sec"
+                    [style.height.px]="taskDragPlaceholderHeight()"
+                    aria-hidden="true"
+                  ></div>
+                }
               </div>
             </div>
             <!-- /.sec-drop-zone -->
@@ -1694,9 +1668,45 @@
         <h2 class="splendide-info-title private-info-title" id="private-welcome-title">
           splendide.
         </h2>
-        <p class="splendide-info-description">Splendide is a minimalist work organizer.</p>
-        <p></p>
-        <p class="splendide-info-description">Built for people who want less noise.</p>
+        <div class="splendide-info-description" id="private-welcome-description">
+          @if (infoDialogView() === 'shortcuts') {
+            <dl class="shortcut-list">
+              <div class="shortcut-row">
+                <dt><kbd>↑</kbd><kbd>↓</kbd></dt>
+                <dd>move through pages, lists, and tasks</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>←</kbd><kbd>→</kbd></dt>
+                <dd>switch page tabs or move between lists</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Enter</kbd></dt>
+                <dd>open or save</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Tab</kbd></dt>
+                <dd>add a subtask while writing a task</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Delete</kbd></dt>
+                <dd>remove the focused task or page</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Esc</kbd></dt>
+                <dd>cancel editing or close dialogs</dd>
+              </div>
+            </dl>
+          } @else {
+            <p>Splendide is a minimalist work organizer.</p>
+            <p>Built for people who want less noise.</p>
+            <div class="private-info-tip">
+              <p>
+                A mobile app is coming. Don't hesitate to
+                <a href="mailto:support&#64;email.splendide.app">suggest new features</a>.
+              </p>
+            </div>
+          }
+        </div>
       } @else {
         <h2 class="splendide-info-title shared-info-title" id="shared-page-info-title">
           <span class="shared-wordmark shared-dialog-wordmark logo-shared"
@@ -1718,6 +1728,11 @@
       <button class="splendide-info-primary" type="button" (click)="closeInfoDialog()">
         Got it
       </button>
+      @if (infoDialog() === 'private-welcome' && infoDialogView() !== 'shortcuts') {
+        <button class="splendide-info-secondary" type="button" (click)="showKeyboardShortcutsInfo()">
+          keyboard shortcuts
+        </button>
+      }
     </section>
   }
 
@@ -1761,11 +1776,38 @@
     </section>
   }
 
+  @if (taskDragState(); as drag) {
+    <div
+      class="task-drag-floating-preview"
+      [style.width.px]="drag.previewWidth"
+      [style.height.px]="drag.previewHeight"
+      [style.transform]="taskDragPreviewTransform()"
+      aria-hidden="true"
+    >
+      <div
+        class="task-drag-preview-card"
+        [class.task-drag-preview-card-sec]="drag.sourceList === 'secondary'"
+      >
+        <div class="task-drag-preview-main">
+          <span class="task-drag-preview-check" aria-hidden="true"></span>
+          <span class="task-drag-preview-text">{{ drag.task.text }}</span>
+        </div>
+        @if (drag.task.subtasks.length > 0) {
+          <div class="task-drag-preview-subtasks">
+            {{ drag.task.subtasks.length }} subtask{{ drag.task.subtasks.length === 1 ? '' : 's' }}
+          </div>
+        }
+      </div>
+    </div>
+  }
+
   <footer class="site-footer">
     <a routerLink="/terms">terms</a>
     <span class="footer-sep">&middot;</span>
     <a routerLink="/privacy">privacy</a>
     <span class="footer-sep">&middot;</span>
     <a href="mailto:support&#64;email.splendide.app">contact us</a>
+    <span class="footer-sep">&middot;</span>
+    <a href="mailto:suggestion&#64;email.splendide.app">suggestion for us?</a>
   </footer>
 </div>

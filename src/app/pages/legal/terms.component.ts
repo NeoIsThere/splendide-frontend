@@ -17,7 +17,8 @@ import { APP_VERSION } from '../../../environments/environment';
         <p>By accessing or using Splendide ("the Service"), you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.</p>
 
         <h2>2. Description of Service</h2>
-        <p>Splendide is a task management application for organizing work sessions. You can use private local pages without payment. Optional Premium features add cloud sync for private pages. The Service also includes shared pages that can be opened and edited by anyone with the page URL.</p>
+        <p>Splendide is a task management application for organizing work sessions. You can use private local pages without payment, and account users can sync private pages across devices. The Service also includes shared pages that can be opened and edited by anyone with the page URL.</p>
+        <p>Optional Premium subscriptions add higher page and task limits and help support development.</p>
 
         <h2>3. User Accounts</h2>
         <p>Account creation is optional. If you use private pages without an account, your private task data is stored in your browser's local storage. If you create an account, you are responsible for maintaining the confidentiality of your credentials and for activity under your account.</p>

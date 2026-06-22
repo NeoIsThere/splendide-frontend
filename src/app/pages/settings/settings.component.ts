@@ -25,7 +25,7 @@ import { openExternalUrl } from '../../utils/external-link';
         @if (!auth.isPremium()) {
           <section class="settings-section">
             <div class="settings-section-header">
-              <h3 class="settings-section-title">Save your pages and access them everywhere</h3>
+              <h3 class="settings-section-title">More room for larger work sessions</h3>
             </div>
             <button class="settings-btn settings-btn--accent" (click)="goPremium()">
               Upgrade to premium ✦
