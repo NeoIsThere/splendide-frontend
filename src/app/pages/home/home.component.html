@@ -731,6 +731,7 @@
                   data-keyboard-list="main"
                   [attr.data-keyboard-task]="task.id"
                   (pointerdown)="beginTaskPointerDrag($event, 'main', task, $index)"
+                  (touchstart)="beginTaskTouchDrag($event, 'main', task, $index)"
                   (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
                   role="listitem"
                 >
@@ -1203,6 +1204,7 @@
                     data-keyboard-list="secondary"
                     [attr.data-keyboard-task]="task.id"
                     (pointerdown)="beginTaskPointerDrag($event, 'secondary', task, $index)"
+                    (touchstart)="beginTaskTouchDrag($event, 'secondary', task, $index)"
                     (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
                     role="listitem"
                   >

@@ -44,12 +44,15 @@ interface TaskDropTarget {
 }
 
 interface PendingTaskDrag {
+  inputType: 'pointer' | 'touch';
   sourceList: TaskListKind;
   sourceIndex: number;
   task: Task;
   pointerId: number;
   startX: number;
   startY: number;
+  latestX: number;
+  latestY: number;
   offsetX: number;
   offsetY: number;
   previewWidth: number;
@@ -87,7 +90,7 @@ const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
 const MAX_DONE_TASKS = 10;
 const PUBLIC_PERIODIC_SYNC_MS = 10_000;
 const PRIVATE_PERIODIC_SYNC_MS = 10_000;
-const MOBILE_TOUCH_DRAG_START_DELAY_MS = 220;
+const MOBILE_TOUCH_DRAG_START_DELAY_MS = 120;
 const PRIVATE_WELCOME_DIALOG_PENDING_KEY = 'splendide_private_welcome_dialog_pending';
 
 @Component({
@@ -249,10 +252,14 @@ export class HomeComponent implements OnDestroy {
   private taskAutoScrollFrame: number | null = null;
   private taskLayoutAnimationFrame: number | null = null;
   private taskLayoutAnimationCleanupTimer: ReturnType<typeof setTimeout> | null = null;
+  private taskTouchDragStartTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingTaskDrag: PendingTaskDrag | null = null;
   private activeTaskDragElement: HTMLElement | null = null;
   private suppressNextTaskClick = false;
   private suppressTaskClickTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly handleDocumentTouchMove = (event: TouchEvent): void => this.handleTaskTouchMove(event);
+  private readonly handleDocumentTouchEnd = (event: TouchEvent): void => this.finishTaskTouchDrag(event);
+  private readonly handleDocumentTouchCancel = (event: TouchEvent): void => this.cancelTaskTouchDrag(event);
   private horizontalScrollLocks: Array<{
     target: Window | HTMLElement;
     scrollBy: typeof window.scrollBy;
@@ -261,6 +268,7 @@ export class HomeComponent implements OnDestroy {
   }> = [];
 
   constructor() {
+    this.addTaskTouchListeners();
     if (!this.isShareRouteUrl()) {
       this.showPendingPrivateWelcomeDialog();
     }
@@ -416,6 +424,7 @@ export class HomeComponent implements OnDestroy {
     }
     this.stopHorizontalScrollGuard();
     this.unlockHorizontalDragScroll();
+    this.removeTaskTouchListeners();
     this.cancelTaskPointerDrag();
   }
 
@@ -807,6 +816,7 @@ export class HomeComponent implements OnDestroy {
     sourceIndex: number,
   ): void {
     if (this.isEditing()) return;
+    if (event.pointerType === 'touch') return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (this.isTaskDragIgnoredTarget(event.target)) return;
 
@@ -816,24 +826,87 @@ export class HomeComponent implements OnDestroy {
     event.preventDefault();
     this.clearTextSelection();
 
-    const rect = element.getBoundingClientRect();
-    this.pendingTaskDrag = {
+    this.pendingTaskDrag = this.createPendingTaskDrag(
       sourceList,
       sourceIndex,
       task,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top,
-      previewWidth: rect.width,
-      previewHeight: rect.height,
+      'pointer',
+      event.pointerId,
+      { x: event.clientX, y: event.clientY },
       element,
-    };
+    );
+    this.activeTaskDragElement = element;
+    this.captureTaskPointer(element, event.pointerId);
+    this.setActiveKeyboardTask(sourceList, task.id);
+    this.taskMenuOpenId.set(null);
+    this.secTaskMenuOpenId.set(null);
+  }
+
+  protected beginTaskTouchDrag(
+    event: TouchEvent,
+    sourceList: TaskListKind,
+    task: Task,
+    sourceIndex: number,
+  ): void {
+    if (this.isEditing()) return;
+    if (event.touches.length !== 1) return;
+    if (this.isTaskDragIgnoredTarget(event.target)) return;
+
+    const element = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    const touch = event.touches.item(0);
+    if (!element || !touch) return;
+
+    if (this.pendingTaskDrag || this.taskDragState()) this.clearTaskPointerDrag();
+
+    this.clearTextSelection();
+    const pending = this.createPendingTaskDrag(
+      sourceList,
+      sourceIndex,
+      task,
+      'touch',
+      touch.identifier,
+      { x: touch.clientX, y: touch.clientY },
+      element,
+    );
+    this.pendingTaskDrag = pending;
     this.activeTaskDragElement = element;
     this.setActiveKeyboardTask(sourceList, task.id);
     this.taskMenuOpenId.set(null);
     this.secTaskMenuOpenId.set(null);
+
+    this.clearTaskTouchDragStartTimer();
+    this.taskTouchDragStartTimer = setTimeout(() => {
+      if (this.pendingTaskDrag !== pending || this.taskDragState()) return;
+      this.startTaskPointerDrag(pending, { x: pending.latestX, y: pending.latestY });
+    }, this.isMobile() ? MOBILE_TOUCH_DRAG_START_DELAY_MS : 0);
+  }
+
+  private createPendingTaskDrag(
+    sourceList: TaskListKind,
+    sourceIndex: number,
+    task: Task,
+    inputType: PendingTaskDrag['inputType'],
+    pointerId: number,
+    clientPoint: { x: number; y: number },
+    element: HTMLElement,
+  ): PendingTaskDrag {
+    const rect = element.getBoundingClientRect();
+    return {
+      inputType,
+      sourceList,
+      sourceIndex,
+      task,
+      pointerId,
+      startX: clientPoint.x,
+      startY: clientPoint.y,
+      latestX: clientPoint.x,
+      latestY: clientPoint.y,
+      offsetX: clientPoint.x - rect.left,
+      offsetY: clientPoint.y - rect.top,
+      previewWidth: rect.width,
+      previewHeight: rect.height,
+      element,
+    };
   }
 
   protected handleTaskDragScroll(): void {
@@ -870,11 +943,14 @@ export class HomeComponent implements OnDestroy {
   private handleTaskPointerMove(event: PointerEvent): void {
     const drag = this.taskDragState();
     const pending = this.pendingTaskDrag;
+    if (pending?.inputType === 'touch') return;
     const pointerId = drag?.pointerId ?? pending?.pointerId;
     if (pointerId === undefined || event.pointerId !== pointerId) return;
 
     if (!drag) {
       if (!pending) return;
+      pending.latestX = event.clientX;
+      pending.latestY = event.clientY;
       const distance = Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY);
       const threshold = event.pointerType === 'touch' ? 8 : 4;
       if (distance < threshold) return;
@@ -890,6 +966,7 @@ export class HomeComponent implements OnDestroy {
   private finishTaskPointerDrag(event: PointerEvent): void {
     const drag = this.taskDragState();
     const pending = this.pendingTaskDrag;
+    if (pending?.inputType === 'touch') return;
     const pointerId = drag?.pointerId ?? pending?.pointerId;
     if (pointerId === undefined || event.pointerId !== pointerId) return;
 
@@ -912,6 +989,7 @@ export class HomeComponent implements OnDestroy {
   private cancelTaskPointerDrag(event?: PointerEvent): void {
     const drag = this.taskDragState();
     const pending = this.pendingTaskDrag;
+    if (event && pending?.inputType === 'touch') return;
     const pointerId = drag?.pointerId ?? pending?.pointerId;
     if (event && pointerId !== undefined && event.pointerId !== pointerId) return;
     if (event) event.preventDefault();
@@ -919,6 +997,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private startTaskPointerDrag(pending: PendingTaskDrag, clientPoint: { x: number; y: number }): void {
+    this.clearTaskTouchDragStartTimer();
     this.suppressTaskClickOnce();
     this.taskDragState.set({
       sourceList: pending.sourceList,
@@ -1012,12 +1091,115 @@ export class HomeComponent implements OnDestroy {
   }
 
   private clearTaskPointerDrag(): void {
+    this.releaseTaskPointerCapture();
+    this.clearTaskTouchDragStartTimer();
     this.pendingTaskDrag = null;
     this.activeTaskDragElement = null;
     this.taskDragState.set(null);
     this.stopTaskAutoScrollLoop();
     this.resetTaskLayoutAnimationStyles();
     if (this.dragging()) this.setDragging(false);
+  }
+
+  private addTaskTouchListeners(): void {
+    if (typeof document === 'undefined') return;
+    document.addEventListener('touchmove', this.handleDocumentTouchMove, { passive: false });
+    document.addEventListener('touchend', this.handleDocumentTouchEnd);
+    document.addEventListener('touchcancel', this.handleDocumentTouchCancel);
+  }
+
+  private removeTaskTouchListeners(): void {
+    if (typeof document === 'undefined') return;
+    document.removeEventListener('touchmove', this.handleDocumentTouchMove);
+    document.removeEventListener('touchend', this.handleDocumentTouchEnd);
+    document.removeEventListener('touchcancel', this.handleDocumentTouchCancel);
+  }
+
+  private handleTaskTouchMove(event: TouchEvent): void {
+    const drag = this.taskDragState();
+    const pending = this.pendingTaskDrag;
+    const touch = this.changedTaskTouch(event);
+    if (!touch) return;
+
+    if (!drag) {
+      if (!pending) return;
+      pending.latestX = touch.clientX;
+      pending.latestY = touch.clientY;
+      const distance = Math.hypot(touch.clientX - pending.startX, touch.clientY - pending.startY);
+      if (distance < 8) return;
+      this.clearTaskPointerDrag();
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.updateTaskDragForPoint({ x: touch.clientX, y: touch.clientY });
+  }
+
+  private finishTaskTouchDrag(event: TouchEvent): void {
+    const drag = this.taskDragState();
+    const pending = this.pendingTaskDrag;
+    const touch = this.changedTaskTouch(event);
+    if (!touch) return;
+
+    if (!drag) {
+      if (pending) this.clearTaskPointerDrag();
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.updateTaskDragForPoint({ x: touch.clientX, y: touch.clientY }, false);
+    const finalDrag = this.taskDragState();
+    const previousRects = this.captureTaskLayoutRects();
+    if (finalDrag) this.commitTaskDrag(finalDrag);
+    this.clearTaskPointerDrag();
+    this.animateTaskLayoutChange(previousRects);
+    this.suppressTaskClickOnce();
+  }
+
+  private cancelTaskTouchDrag(event: TouchEvent): void {
+    const drag = this.taskDragState();
+    const touch = this.changedTaskTouch(event);
+    if (!touch) return;
+    if (drag) event.preventDefault();
+    this.clearTaskPointerDrag();
+  }
+
+  private changedTaskTouch(event: TouchEvent): Touch | null {
+    const drag = this.taskDragState();
+    const pending = this.pendingTaskDrag;
+    const pointerId = drag?.pointerId ?? pending?.pointerId;
+    if (pointerId === undefined) return null;
+    return Array.from(event.changedTouches).find(touch => touch.identifier === pointerId) ?? null;
+  }
+
+  private clearTaskTouchDragStartTimer(): void {
+    if (this.taskTouchDragStartTimer === null) return;
+    clearTimeout(this.taskTouchDragStartTimer);
+    this.taskTouchDragStartTimer = null;
+  }
+
+  private captureTaskPointer(element: HTMLElement, pointerId: number): void {
+    if (!element.setPointerCapture) return;
+    try {
+      element.setPointerCapture(pointerId);
+    } catch {
+      // The browser can reject capture if the pointer ended during setup.
+    }
+  }
+
+  private releaseTaskPointerCapture(): void {
+    const element = this.activeTaskDragElement;
+    const pointerId = this.taskDragState()?.pointerId ?? this.pendingTaskDrag?.pointerId;
+    if (!element || pointerId === undefined || !element.releasePointerCapture) return;
+    try {
+      if (!element.hasPointerCapture || element.hasPointerCapture(pointerId)) {
+        element.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // Capture may already be gone after pointercancel/pointerup.
+    }
   }
 
   private clearTextSelection(): void {
