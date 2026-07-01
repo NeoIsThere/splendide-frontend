@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /share/
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /payment
+Disallow: /settings
+
+Sitemap: https://splendide.app/sitemap.xml

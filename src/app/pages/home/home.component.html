@@ -151,44 +151,62 @@
     @if (!isPublicPage()) {
       <div class="section-share-wrapper" data-public-share data-coach-share>
         @if (activeSectionIsOwner()) {
-          <label class="share-toggle-row share-toggle-control">
-            <input
-              class="share-toggle-input"
-              type="checkbox"
-              role="switch"
-              [checked]="activeSection()?.isShared === true"
-              (change)="setActiveSectionSharing($event)"
-              aria-label="toggle page sharing"
-            />
-            <span class="share-toggle-track" aria-hidden="true">
-              <span class="share-toggle-thumb"></span>
-            </span>
-            <span class="share-toggle-label">share</span>
-            <span class="share-toggle-icon-wrap" aria-hidden="true">
-              <svg
-                class="share-trigger-icon"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
-                <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
-              </svg>
-            </span>
-          </label>
+          <div class="share-toggle-row share-toggle-control">
+            <label class="share-toggle-switch">
+              <input
+                class="share-toggle-input"
+                type="checkbox"
+                role="switch"
+                [checked]="activeSection()?.isShared === true"
+                (change)="setActiveSectionSharing($event)"
+                aria-label="toggle page sharing"
+              />
+              <span class="share-toggle-track" aria-hidden="true">
+                <span class="share-toggle-thumb"></span>
+              </span>
+            </label>
+            <button
+              class="share-panel-trigger"
+              type="button"
+              (click)="showSharePanel()"
+              (mouseenter)="showShareLinkPanel()"
+              (focus)="showShareLinkPanel()"
+              [attr.aria-label]="
+                activeSection()?.isShared === true && shareSectionUrl()
+                  ? 'show shared page link'
+                  : 'show page sharing status'
+              "
+              [attr.aria-expanded]="shareMenuOpen()"
+            >
+              <span class="share-toggle-label">share</span>
+              <span class="share-toggle-icon-wrap" aria-hidden="true">
+                <svg
+                  class="share-trigger-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+                  <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+                </svg>
+              </span>
+            </button>
+          </div>
         } @else if (activeSection()?.isShared && shareSectionUrl()) {
           <button
             class="open-shared-btn section-share-trigger"
             type="button"
-            (click)="toggleShareMenu()"
+            (click)="showShareLinkPanel()"
+            (mouseenter)="showShareLinkPanel()"
+            (focus)="showShareLinkPanel()"
             aria-label="share page"
             [attr.aria-expanded]="shareMenuOpen()"
           >
@@ -288,7 +306,7 @@
             />
           } @else if (editingSectionId() === activeSectionId()) {
             <input
-              class="section-tab-input"
+              class="section-page-input"
               [attr.data-edit-section]="activeSectionId()"
               [value]="activeSection()?.title"
               (blur)="saveSectionEdit(activeSectionId()!, $event)"
@@ -297,11 +315,11 @@
           } @else {
             <button
               class="section-nav-title"
-              [class.keyboard-focused]="isTabsFocused()"
+              [class.keyboard-focused]="isPagesFocused()"
               [attr.data-keyboard-section]="activeSectionId()"
               (click)="startEditingSection(activeSectionId()!)"
             >
-              <span class="section-tab-label">{{ activeSection()?.title }}</span>
+              <span class="section-page-label">{{ activeSection()?.title }}</span>
               @if (activeSection()?.isShared) {
                 <span class="section-shared-indicator" aria-label="shared page">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -324,7 +342,7 @@
               <button
                 class="section-menu-trigger"
                 (click)="toggleSectionMenu()"
-                aria-label="tab actions"
+                aria-label="page actions"
                 data-coach-create-section
                 [attr.aria-expanded]="sectionMenuOpen()"
               >
@@ -377,7 +395,7 @@
                         <path d="M14 11v6" />
                         <path d="M9 6V4h6v2" />
                       </svg>
-                      <span>delete tab</span>
+                      <span>delete page</span>
                     </button>
                   }
                 </div>
@@ -396,7 +414,7 @@
                   data-confirm-delete-section
                   role="dialog"
                   aria-modal="true"
-                  aria-label="confirm delete tab"
+                  aria-label="confirm delete page"
                 >
                   <div class="section-delete-actions">
                     <button
@@ -443,33 +461,33 @@
           </div>
         </div>
       </div>
-      <!-- ═══ Section Tabs (desktop) ═══ -->
-      <div class="section-tabs-row">
+      <!-- ═══ Section Pages (desktop) ═══ -->
+      <div class="section-pages-row">
         <div
-          class="section-tabs"
+          class="section-pages"
           cdkDropList
           cdkDropListOrientation="horizontal"
           (cdkDropListDropped)="dropSection($any($event))"
         >
           @for (sec of sections(); track sec.id) {
             <div
-              class="section-tab"
+              class="section-page"
               [class.active]="activeSectionId() === sec.id"
               [class.keyboard-focused]="isSectionKeyboardFocused(sec.id)"
               [attr.data-keyboard-section]="sec.id"
             >
               <div
-                class="section-tab-surface"
+                class="section-page-surface"
                 cdkDrag
                 [cdkDragData]="sec"
                 [cdkDragStartDelay]="dragDelay()"
                 (cdkDragStarted)="setDragging(true)"
                 (cdkDragEnded)="setDragging(false)"
               >
-                <div class="section-tab-placeholder" *cdkDragPlaceholder></div>
+                <div class="section-page-placeholder" *cdkDragPlaceholder></div>
                 @if (editingSectionId() === sec.id) {
                   <input
-                    class="section-tab-input"
+                    class="section-page-input"
                     [attr.data-edit-section]="sec.id"
                     [value]="sec.title"
                     (blur)="saveSectionEdit(sec.id, $event)"
@@ -477,11 +495,11 @@
                   />
                 } @else {
                   <button
-                    class="section-tab-btn"
-                    (click)="selectSection(sec.id); focusTabsForKeyboard()"
+                    class="section-page-btn"
+                    (click)="selectSection(sec.id); focusPagesForKeyboard()"
                     (dblclick)="startEditingSection(sec.id)"
                   >
-                    <span class="section-tab-label">{{ sec.title }}</span>
+                    <span class="section-page-label">{{ sec.title }}</span>
                     @if (sec.isShared) {
                       <span class="section-shared-indicator" aria-label="shared page">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -498,7 +516,7 @@
                   </button>
                 }
               </div>
-              <div class="section-tab-actions" data-confirm-delete-section>
+              <div class="section-page-actions" data-confirm-delete-section>
                 @if (confirmingDeleteSectionId() === sec.id) {
                   <div class="clear-confirm">
                     <button
@@ -543,10 +561,10 @@
           }
 
           @if (addingSectionTitle() !== null) {
-            <div class="section-tab section-tab-draft">
-              <div class="section-tab-surface section-tab-static">
+            <div class="section-page section-page-draft">
+              <div class="section-page-surface section-page-static">
                 <input
-                  class="section-add-input section-add-input-tab"
+                  class="section-add-input section-add-input-page"
                   [value]="addingSectionTitle()"
                   (input)="onAddSectionInput($event)"
                   (keydown)="handleAddSectionKeydown($event)"
@@ -554,14 +572,14 @@
                   placeholder="page name"
                 />
               </div>
-              <div class="section-tab-actions"></div>
+              <div class="section-page-actions"></div>
             </div>
           }
 
-          <div class="section-tab section-tab-add">
-            <div class="section-tab-surface section-tab-static">
+          <div class="section-page section-page-add">
+            <div class="section-page-surface section-page-static">
               <button
-                class="section-tab-btn section-tab-add-btn"
+                class="section-page-btn section-page-add-btn"
                 (click)="startAddingSection()"
                 [disabled]="addingSectionTitle() !== null"
                 aria-label="add section"
@@ -570,7 +588,7 @@
                 +
               </button>
             </div>
-            <div class="section-tab-actions"></div>
+            <div class="section-page-actions"></div>
           </div>
         </div>
       </div>
@@ -1679,7 +1697,7 @@
               </div>
               <div class="shortcut-row">
                 <dt><kbd>←</kbd><kbd>→</kbd></dt>
-                <dd>switch page tabs or move between lists</dd>
+                <dd>switch pages or move between lists</dd>
               </div>
               <div class="shortcut-row">
                 <dt><kbd>Enter</kbd></dt>

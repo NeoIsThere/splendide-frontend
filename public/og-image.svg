@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Splendide preview</title>
+  <desc id="desc">A calm Now/Later task manager interface preview.</desc>
+  <rect width="1200" height="630" fill="#fafafa"/>
+  <rect x="70" y="70" width="1060" height="490" rx="28" fill="#ffffff" stroke="#111111" stroke-width="3"/>
+  <text x="116" y="158" fill="#111111" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="700">splendide.</text>
+  <text x="116" y="218" fill="#3f3f46" font-family="Inter, Arial, sans-serif" font-size="30">A calm Now/Later task manager</text>
+  <g transform="translate(116 282)">
+    <text x="0" y="0" fill="#111111" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">now</text>
+    <rect x="0" y="26" width="390" height="58" rx="12" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <circle cx="31" cy="55" r="10" fill="none" stroke="#111111" stroke-width="3"/>
+    <text x="58" y="64" fill="#18181b" font-family="Inter, Arial, sans-serif" font-size="24">finish today&apos;s focus task</text>
+    <rect x="0" y="102" width="390" height="58" rx="12" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <path d="M23 131 l7 7 l16 -18" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="58" y="140" fill="#52525b" font-family="Inter, Arial, sans-serif" font-size="24" text-decoration="line-through">clear small admin</text>
+  </g>
+  <g transform="translate(650 282)">
+    <text x="0" y="0" fill="#111111" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">later</text>
+    <rect x="0" y="26" width="390" height="58" rx="12" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <circle cx="31" cy="55" r="10" fill="none" stroke="#111111" stroke-width="3"/>
+    <text x="58" y="64" fill="#18181b" font-family="Inter, Arial, sans-serif" font-size="24">park the next idea</text>
+    <rect x="0" y="102" width="390" height="58" rx="12" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <circle cx="31" cy="131" r="10" fill="none" stroke="#111111" stroke-width="3"/>
+    <text x="58" y="140" fill="#18181b" font-family="Inter, Arial, sans-serif" font-size="24">share a simple checklist</text>
+  </g>
+  <text x="116" y="505" fill="#52525b" font-family="Inter, Arial, sans-serif" font-size="24">local-first storage · sync · shareable pages</text>
+</svg>

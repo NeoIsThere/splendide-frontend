@@ -61,12 +61,17 @@ interface PendingTaskDrag {
 }
 
 interface TaskDragState {
+  inputType: PendingTaskDrag['inputType'];
   sourceList: TaskListKind;
   sourceIndex: number;
   targetList: TaskListKind;
   targetIndex: number;
   task: Task;
   pointerId: number;
+  activationX: number;
+  activationY: number;
+  lastClientX: number;
+  lastClientY: number;
   pointerOffsetX: number;
   pointerOffsetY: number;
   previewX: number;
@@ -74,7 +79,7 @@ interface TaskDragState {
   previewWidth: number;
   previewHeight: number;
 }
-type KeyboardZone = 'tabs' | TaskListKind;
+type KeyboardZone = 'pages' | TaskListKind;
 type SectionDeleteOption = 'delete' | 'cancel';
 type InfoDialogKind = 'shared-page' | 'private-welcome';
 type InfoDialogView = 'about' | 'shortcuts';
@@ -91,6 +96,9 @@ const MAX_DONE_TASKS = 10;
 const PUBLIC_PERIODIC_SYNC_MS = 10_000;
 const PRIVATE_PERIODIC_SYNC_MS = 10_000;
 const MOBILE_TOUCH_DRAG_START_DELAY_MS = 120;
+const MOBILE_TOUCH_DRAG_MOVEMENT_SCALE = 0.72;
+const DESKTOP_TASK_AUTO_SCROLL_MAX_DELTA = 24;
+const MOBILE_TASK_AUTO_SCROLL_MAX_DELTA = 10;
 const PRIVATE_WELCOME_DIALOG_PENDING_KEY = 'splendide_private_welcome_dialog_pending';
 
 @Component({
@@ -341,7 +349,7 @@ export class HomeComponent implements OnDestroy {
         this.openFocusedTaskOrCreate();
         break;
       case 'Delete':
-        if (this.deleteActiveTabOrTask()) {
+        if (this.deleteActivePageOrTask()) {
           event.preventDefault();
         }
         break;
@@ -938,7 +946,7 @@ export class HomeComponent implements OnDestroy {
   protected handleTaskDragScroll(): void {
     const drag = this.taskDragState();
     if (!drag) return;
-    this.updateTaskDragForPoint(this.currentTaskDragPoint(drag));
+    this.updateTaskDragForPoint(this.currentTaskDragPoint(drag), true, this.rawTaskDragPoint(drag));
   }
 
   protected showTaskDragPlaceholder(list: TaskListKind, index: number): boolean {
@@ -1026,12 +1034,17 @@ export class HomeComponent implements OnDestroy {
     this.clearTaskTouchDragStartTimer();
     this.suppressTaskClickOnce();
     this.taskDragState.set({
+      inputType: pending.inputType,
       sourceList: pending.sourceList,
       sourceIndex: pending.sourceIndex,
       targetList: pending.sourceList,
       targetIndex: pending.sourceIndex,
       task: pending.task,
       pointerId: pending.pointerId,
+      activationX: clientPoint.x,
+      activationY: clientPoint.y,
+      lastClientX: clientPoint.x,
+      lastClientY: clientPoint.y,
       pointerOffsetX: pending.offsetX,
       pointerOffsetY: pending.offsetY,
       previewX: clientPoint.x - pending.offsetX,
@@ -1044,7 +1057,11 @@ export class HomeComponent implements OnDestroy {
     this.startTaskAutoScrollLoop();
   }
 
-  private updateTaskDragForPoint(clientPoint: { x: number; y: number }, allowAutoScroll = true): void {
+  private updateTaskDragForPoint(
+    clientPoint: { x: number; y: number },
+    allowAutoScroll = true,
+    rawClientPoint = clientPoint,
+  ): void {
     const drag = this.taskDragState();
     if (!drag) return;
 
@@ -1053,7 +1070,7 @@ export class HomeComponent implements OnDestroy {
     let targetIndex = drag.targetIndex;
 
     if (target) {
-      if (allowAutoScroll) this.scrollTaskDropTargetNearEdge(target.dropZone, clientPoint);
+      if (allowAutoScroll) this.scrollTaskDropTargetNearEdge(target.dropZone, rawClientPoint);
       targetList = target.list;
       targetIndex = this.taskDropIndexFromClientPoint(
         target.dropZone,
@@ -1073,6 +1090,8 @@ export class HomeComponent implements OnDestroy {
       ...drag,
       targetList,
       targetIndex,
+      lastClientX: rawClientPoint.x,
+      lastClientY: rawClientPoint.y,
       previewX: clientPoint.x - drag.pointerOffsetX,
       previewY: clientPoint.y - drag.pointerOffsetY,
     });
@@ -1093,9 +1112,12 @@ export class HomeComponent implements OnDestroy {
       }
 
       const clientPoint = this.currentTaskDragPoint(drag);
-      const target = this.taskDropTargetFromClientPoint(clientPoint);
-      if (target && this.scrollTaskDropTargetNearEdge(target.dropZone, clientPoint)) {
-        this.updateTaskDragForPoint(clientPoint, false);
+      const rawClientPoint = this.rawTaskDragPoint(drag);
+      const target =
+        this.taskDropTargetFromClientPoint(clientPoint) ??
+        this.taskDropTargetFromClientPoint(rawClientPoint);
+      if (target && this.scrollTaskDropTargetNearEdge(target.dropZone, rawClientPoint)) {
+        this.updateTaskDragForPoint(clientPoint, false, rawClientPoint);
       }
       this.taskAutoScrollFrame = window.requestAnimationFrame(tick);
     };
@@ -1113,6 +1135,24 @@ export class HomeComponent implements OnDestroy {
     return {
       x: drag.previewX + drag.pointerOffsetX,
       y: drag.previewY + drag.pointerOffsetY,
+    };
+  }
+
+  private preciseTaskDragPoint(
+    drag: TaskDragState,
+    rawClientPoint: { x: number; y: number },
+  ): { x: number; y: number } {
+    if (drag.inputType !== 'touch' || !this.isMobile()) return rawClientPoint;
+    return {
+      x: rawClientPoint.x,
+      y: drag.activationY + (rawClientPoint.y - drag.activationY) * MOBILE_TOUCH_DRAG_MOVEMENT_SCALE,
+    };
+  }
+
+  private rawTaskDragPoint(drag: TaskDragState): { x: number; y: number } {
+    return {
+      x: drag.lastClientX,
+      y: drag.lastClientY,
     };
   }
 
@@ -1160,7 +1200,12 @@ export class HomeComponent implements OnDestroy {
 
     event.preventDefault();
     event.stopPropagation();
-    this.updateTaskDragForPoint({ x: touch.clientX, y: touch.clientY });
+    const rawClientPoint = { x: touch.clientX, y: touch.clientY };
+    this.updateTaskDragForPoint(
+      this.preciseTaskDragPoint(drag, rawClientPoint),
+      true,
+      rawClientPoint,
+    );
   }
 
   private finishTaskTouchDrag(event: TouchEvent): void {
@@ -1176,7 +1221,12 @@ export class HomeComponent implements OnDestroy {
 
     event.preventDefault();
     event.stopPropagation();
-    this.updateTaskDragForPoint({ x: touch.clientX, y: touch.clientY }, false);
+    const rawClientPoint = { x: touch.clientX, y: touch.clientY };
+    this.updateTaskDragForPoint(
+      this.preciseTaskDragPoint(drag, rawClientPoint),
+      false,
+      rawClientPoint,
+    );
     const finalDrag = this.taskDragState();
     const previousRects = this.captureTaskLayoutRects();
     if (finalDrag) this.commitTaskDrag(finalDrag);
@@ -1325,12 +1375,13 @@ export class HomeComponent implements OnDestroy {
 
     const rect = scrollTarget.getBoundingClientRect();
     const threshold = Math.min(90, Math.max(48, rect.height * 0.18));
+    const maxDelta = this.isMobile() ? MOBILE_TASK_AUTO_SCROLL_MAX_DELTA : DESKTOP_TASK_AUTO_SCROLL_MAX_DELTA;
     let delta = 0;
 
     if (clientPoint.y < rect.top + threshold) {
-      delta = -Math.ceil((1 - Math.max(0, clientPoint.y - rect.top) / threshold) * 24);
+      delta = -Math.ceil((1 - Math.max(0, clientPoint.y - rect.top) / threshold) * maxDelta);
     } else if (clientPoint.y > rect.bottom - threshold) {
-      delta = Math.ceil((1 - Math.max(0, rect.bottom - clientPoint.y) / threshold) * 24);
+      delta = Math.ceil((1 - Math.max(0, rect.bottom - clientPoint.y) / threshold) * maxDelta);
     }
 
     if (delta === 0) return false;
@@ -1405,12 +1456,12 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  protected isTabsFocused(): boolean {
-    return this.keyboardZone() === 'tabs';
+  protected isPagesFocused(): boolean {
+    return this.keyboardZone() === 'pages';
   }
 
   protected isSectionKeyboardFocused(sectionId: string): boolean {
-    return this.isTabsFocused() && this.activeSectionId() === sectionId;
+    return this.isPagesFocused() && this.activeSectionId() === sectionId;
   }
 
   protected isTaskFocused(list: TaskListKind, id: string): boolean {
@@ -1430,13 +1481,13 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected isSectionDeleteOptionFocused(option: SectionDeleteOption): boolean {
-    return this.keyboardZone() === 'tabs' &&
+    return this.keyboardZone() === 'pages' &&
       this.confirmingDeleteSectionId() !== null &&
       this.sectionDeleteConfirmFocus() === option;
   }
 
-  protected focusTabsForKeyboard(): void {
-    this.keyboardZone.set('tabs');
+  protected focusPagesForKeyboard(): void {
+    this.keyboardZone.set('pages');
     this.activeKeyboardTask.set(null);
     this.scrollActiveSectionIntoView();
   }
@@ -1446,12 +1497,12 @@ export class HomeComponent implements OnDestroy {
       if (direction > 0) {
         this.focusListWithoutTask(this.currentList());
       } else {
-        this.focusTabsForKeyboard();
+        this.focusPagesForKeyboard();
       }
       return;
     }
 
-    if (this.keyboardZone() === 'tabs') {
+    if (this.keyboardZone() === 'pages') {
       if (direction > 0) {
         this.focusListWithoutTask(this.currentList());
       } else {
@@ -1469,7 +1520,7 @@ export class HomeComponent implements OnDestroy {
 
     if (direction < 0) {
       if (!active || active.list !== list) {
-        this.focusTabsForKeyboard();
+        this.focusPagesForKeyboard();
         return;
       }
       if (activeIndex <= 0) {
@@ -1492,7 +1543,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private moveKeyboardHorizontally(direction: -1 | 1): void {
-    if (this.keyboardZone() === 'tabs') {
+    if (this.keyboardZone() === 'pages') {
       this.moveSectionKeyboardFocus(direction);
       return;
     }
@@ -1529,14 +1580,14 @@ export class HomeComponent implements OnDestroy {
 
     const currentIndex = Math.max(this.activeSectionIndex(), 0);
     if (direction > 0 && currentIndex >= sections.length - 1) {
-      this.focusTabsForKeyboard();
+      this.focusPagesForKeyboard();
       this.startAddingSection();
       return;
     }
 
     const nextIndex = Math.min(Math.max(currentIndex + direction, 0), sections.length - 1);
     this.selectSection(sections[nextIndex].id);
-    this.focusTabsForKeyboard();
+    this.focusPagesForKeyboard();
   }
 
   private focusFirstTaskInCurrentList(): void {
@@ -1595,8 +1646,8 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  private deleteActiveTabOrTask(): boolean {
-    if (this.keyboardZone() === 'tabs') {
+  private deleteActivePageOrTask(): boolean {
+    if (this.keyboardZone() === 'pages') {
       const sectionId = this.activeSectionId();
       if (!sectionId || this.sections().length < 2) return false;
       this.startDeleteSection(sectionId);
@@ -1608,7 +1659,7 @@ export class HomeComponent implements OnDestroy {
 
   private handleSectionDeleteConfirmationKeydown(event: KeyboardEvent): boolean {
     const sectionId = this.confirmingDeleteSectionId();
-    if (this.keyboardZone() !== 'tabs' || !sectionId) {
+    if (this.keyboardZone() !== 'pages' || !sectionId) {
       return false;
     }
 
@@ -1707,7 +1758,7 @@ export class HomeComponent implements OnDestroy {
     });
   }
 
-  // ─── Section tab switching ─────────────────────────────
+  // ─── Section page switching ────────────────────────────
 
   protected isSectionOwner(section: StoredSection | null | undefined): boolean {
     if (!section || section.sharedAccess) return false;
@@ -2029,14 +2080,14 @@ export class HomeComponent implements OnDestroy {
     if (event.key === 'Enter') {
       event.preventDefault();
       this.confirmAddSection();
-      this.focusTabsForKeyboard();
+      this.focusPagesForKeyboard();
     } else if (event.key === 'ArrowLeft' && !(event.target as HTMLInputElement).value.trim()) {
       event.preventDefault();
       this.cancelAddingSection();
-      this.focusTabsForKeyboard();
+      this.focusPagesForKeyboard();
     } else if (event.key === 'Escape') {
       this.cancelAddingSection();
-      this.focusTabsForKeyboard();
+      this.focusPagesForKeyboard();
     }
   }
 
@@ -2085,7 +2136,7 @@ export class HomeComponent implements OnDestroy {
     this.sectionMenuOpen.set(false);
     this.confirmingDeleteSectionId.set(sectionId);
     this.sectionDeleteConfirmFocus.set('delete');
-    this.keyboardZone.set('tabs');
+    this.keyboardZone.set('pages');
     this.activeKeyboardTask.set(null);
   }
 
@@ -2101,7 +2152,7 @@ export class HomeComponent implements OnDestroy {
     this.deleteSection(id);
     this.confirmingDeleteSectionId.set(null);
     this.sectionDeleteConfirmFocus.set('delete');
-    this.focusTabsForKeyboard();
+    this.focusPagesForKeyboard();
   }
 
   protected toggleSectionMenu(): void {
@@ -2821,8 +2872,17 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected toggleShareMenu(): void {
+    this.showSharePanel();
+  }
+
+  protected showSharePanel(): void {
     this.shareDialogMode.set('viewer');
-    this.shareMenuOpen.update(open => !open);
+    this.shareMenuOpen.set(true);
+  }
+
+  protected showShareLinkPanel(): void {
+    if (this.activeSection()?.isShared !== true || !this.shareSectionUrl()) return;
+    this.showSharePanel();
   }
 
   protected shareSectionUrl(): string {
@@ -3691,7 +3751,7 @@ export class HomeComponent implements OnDestroy {
     }
 
     if (target.closest('[data-keyboard-section]')) {
-      this.focusTabsForKeyboard();
+      this.focusPagesForKeyboard();
     }
   }
 
