@@ -450,9 +450,7 @@ export class HomeComponent implements OnDestroy {
 
     let loaded = this.storage.loadSections();
     this.sections.set(loaded);
-    if (loaded.length > 0) {
-      this.activeSectionId.set(loaded[0].id);
-    }
+    this.restoreActiveSection(loaded, [this.storage.getActiveSectionPreference()]);
 
     if (this.auth.isLoggedIn()) {
       await this.doFullSync();
@@ -460,7 +458,7 @@ export class HomeComponent implements OnDestroy {
       if (loaded.length === 0 && this.storage.ensureDefaultPartition()) {
         loaded = this.storage.loadSections();
         this.sections.set(loaded);
-        this.activeSectionId.set(loaded[0]?.id ?? null);
+        this.restoreActiveSection(loaded, [this.storage.getActiveSectionPreference()]);
       }
       this.ensureLocalDefaultListsForSections();
       this.startPeriodicSync();
@@ -481,14 +479,14 @@ export class HomeComponent implements OnDestroy {
     try {
       const section = await this.sync.loadSharedSection(shareToken);
       this.refreshSectionsFromStorage();
-      this.activeSectionId.set(section.id);
+      this.setActiveSection(section.id, { persist: false });
       this.currentList.set('main');
       this.clearKeyboardFocus('main');
       this.startPeriodicSync();
     } catch {
       this.publicLoadFailed.set(true);
       this.sections.set([]);
-      this.activeSectionId.set(null);
+      this.setActiveSection(null, { persist: false });
     }
   }
 
@@ -503,10 +501,7 @@ export class HomeComponent implements OnDestroy {
       this.sections.set(synced);
       await this.hydrateMissingSectionLists();
       const sections = this.sections();
-      const first = sections[0];
-      if (first) {
-        this.activeSectionId.set(first.id);
-      }
+      this.restoreActiveSection(sections);
       for (const section of sections) {
         await this.doSyncSection(section.id);
       }
@@ -547,11 +542,12 @@ export class HomeComponent implements OnDestroy {
       if (this.shouldSkipPeriodicSync()) return;
       const refreshed = this.sections();
       const activeId = this.activeSectionId();
-      const syncedActiveId = activeId && refreshed.some(section => section.id === activeId)
-        ? activeId
-        : refreshed[0]?.id ?? null;
+      const syncedActiveId = this.resolveSectionId(refreshed, [
+        activeId,
+        this.storage.getActiveSectionPreference(),
+      ]);
       if (syncedActiveId !== activeId) {
-        this.activeSectionId.set(syncedActiveId);
+        this.setActiveSection(syncedActiveId);
       }
       if (syncedActiveId) {
         await this.doSyncSection(syncedActiveId);
@@ -582,7 +578,7 @@ export class HomeComponent implements OnDestroy {
     if (this.activeSectionId() !== sectionId) return;
 
     const nextSection = this.sections()[0] ?? null;
-    this.activeSectionId.set(nextSection?.id ?? null);
+    this.setActiveSection(nextSection?.id ?? null, { persist: !this.isShareRouteUrl() });
     if (!nextSection || this.isShareRouteUrl()) {
       this.publicLoadFailed.set(true);
     }
@@ -696,6 +692,36 @@ export class HomeComponent implements OnDestroy {
 
   private refreshSectionsFromStorage(): void {
     this.sections.set(this.storage.loadSections());
+  }
+
+  private resolveSectionId(
+    sections: StoredSection[],
+    preferredIds: Array<string | null | undefined>,
+  ): string | null {
+    for (const id of preferredIds) {
+      if (id && sections.some(section => section.id === id)) return id;
+    }
+    return sections[0]?.id ?? null;
+  }
+
+  private setActiveSection(sectionId: string | null, options?: { persist?: boolean }): void {
+    this.activeSectionId.set(sectionId);
+    if (options?.persist !== false && !this.isShareRouteUrl()) {
+      this.storage.setActiveSectionPreference(sectionId);
+    }
+  }
+
+  private restoreActiveSection(
+    sections: StoredSection[] = this.sections(),
+    preferredIds: Array<string | null | undefined> = [
+      this.activeSectionId(),
+      this.storage.getActiveSectionPreference(),
+    ],
+    options?: { persist?: boolean },
+  ): string | null {
+    const sectionId = this.resolveSectionId(sections, preferredIds);
+    this.setActiveSection(sectionId, options);
+    return sectionId;
   }
 
   private maybeScheduleFirstVisitCoachMarks(): void {
@@ -1127,6 +1153,7 @@ export class HomeComponent implements OnDestroy {
       pending.latestY = touch.clientY;
       const distance = Math.hypot(touch.clientX - pending.startX, touch.clientY - pending.startY);
       if (distance < 8) return;
+      this.suppressTaskClickOnce();
       this.clearTaskPointerDrag();
       return;
     }
@@ -1696,7 +1723,7 @@ export class HomeComponent implements OnDestroy {
     if (this.isPublicPage()) return;
     if (this.activeSectionId() === sectionId) return;
     this.sectionMenuOpen.set(false);
-    this.activeSectionId.set(sectionId);
+    this.setActiveSection(sectionId);
     this.activeKeyboardTask.set(null);
 
     if (this.auth.isLoggedIn()) {
@@ -1938,7 +1965,7 @@ export class HomeComponent implements OnDestroy {
 
     this.storage.upsertSection(newSection);
     this.refreshSectionsFromStorage();
-    this.activeSectionId.set(sectionId);
+    this.setActiveSection(sectionId);
 
     return newSection;
   }
@@ -1960,7 +1987,7 @@ export class HomeComponent implements OnDestroy {
 
     const first = this.sections()[0];
     if (!first) return false;
-    this.activeSectionId.set(first.id);
+    this.setActiveSection(first.id);
     if (this.auth.isLoggedIn()) return this.sectionHasList(first, list);
     this.ensureLocalDefaultLists(first.id);
     return this.sectionHasList(this.activeSection(), list);
@@ -1973,7 +2000,7 @@ export class HomeComponent implements OnDestroy {
         active = this.createSection('my list');
       } else {
         active = this.sections()[0] ?? null;
-        if (active) this.activeSectionId.set(active.id);
+        if (active) this.setActiveSection(active.id);
       }
     }
     if (!active) return false;
@@ -2125,7 +2152,7 @@ export class HomeComponent implements OnDestroy {
 
     const remaining = this.sections();
     if (this.activeSectionId() === sectionId) {
-      this.activeSectionId.set(remaining[0]?.id ?? null);
+      this.restoreActiveSection(remaining, [this.storage.getActiveSectionPreference()]);
     }
 
     if (this.auth.isLoggedIn()) {
@@ -2823,7 +2850,7 @@ export class HomeComponent implements OnDestroy {
     try {
       const updated = await this.sync.enableSectionSharing(section.id);
       this.refreshSectionsFromStorage();
-      this.activeSectionId.set(updated.id);
+      this.setActiveSection(updated.id);
       this.shareDialogMode.set('enabled');
       this.shareMenuOpen.set(true);
     } catch {
@@ -2837,7 +2864,7 @@ export class HomeComponent implements OnDestroy {
     try {
       const updated = await this.sync.disableSectionSharing(section.id);
       this.refreshSectionsFromStorage();
-      this.activeSectionId.set(updated.id);
+      this.setActiveSection(updated.id);
       this.shareDialogMode.set('disabled');
       this.shareMenuOpen.set(true);
     } catch {
@@ -2884,7 +2911,7 @@ export class HomeComponent implements OnDestroy {
     this.refreshSectionsFromStorage();
     const loaded = this.storage.loadSections();
     this.sections.set(loaded);
-    this.activeSectionId.set(loaded[0]?.id ?? null);
+    this.restoreActiveSection(loaded, [this.storage.getActiveSectionPreference()]);
     this.clearKeyboardFocus('main');
   }
 
@@ -3042,6 +3069,16 @@ export class HomeComponent implements OnDestroy {
     this.setActiveKeyboardTask('main', id);
     this.editingTaskId.set(id);
     this.focusEditInput('task-' + id);
+  }
+
+  protected handleTaskItemClick(event: MouseEvent, list: TaskListKind, id: string): void {
+    if (event.defaultPrevented || this.suppressNextTaskClick) return;
+    if (this.isTaskEditIgnoredTarget(event.target)) return;
+    if (list === 'main') {
+      this.startEditingTask(id);
+    } else {
+      this.startEditingSecondary(id);
+    }
   }
 
   protected saveTaskEdit(id: string, event: Event): void {
@@ -3665,6 +3702,14 @@ export class HomeComponent implements OnDestroy {
   }
 
   private isTaskDragIgnoredTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && Boolean(
+      target.closest(
+        'input, textarea, select, button, a, [contenteditable="true"], .subtask-list, .subtask-row, .task-link',
+      )
+    );
+  }
+
+  private isTaskEditIgnoredTarget(target: EventTarget | null): boolean {
     return target instanceof HTMLElement && Boolean(
       target.closest(
         'input, textarea, select, button, a, [contenteditable="true"], .subtask-list, .subtask-row, .task-link',

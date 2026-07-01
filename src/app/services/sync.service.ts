@@ -57,12 +57,17 @@ export class SyncService {
     return Array.isArray(record['sections']) && typeof record['sectionOrderRevision'] === 'number';
   }
 
-  private applySnapshotIfPresent(response: HttpResponse<unknown>): boolean {
+  private applySnapshotIfPresent(response: HttpResponse<unknown>, requestLocalRevision?: number): boolean {
     const body = response.body;
     this.acceptSyncGenerationFromResponse(response, body);
     if (!this.isSectionsSnapshot(body)) return false;
 
-    this.storage.applySyncedSections(body, { replaceLocal: this.shouldReplaceLocalSnapshot(response) });
+    if (
+      requestLocalRevision === undefined ||
+      requestLocalRevision === this.storage.getLocalMutationRevision()
+    ) {
+      this.storage.applySyncedSections(body, { replaceLocal: this.shouldReplaceLocalSnapshot(response) });
+    }
     return true;
   }
 
@@ -155,6 +160,7 @@ export class SyncService {
   async syncSections(): Promise<StoredSection[]> {
     const generation = ++this.sectionsSyncGeneration;
     const localOrderRevision = this.storage.getSectionOrderLocalRevision();
+    const localMutationRevision = this.storage.getLocalMutationRevision();
     const payload = this.storage.isCloudReplacePending()
       ? {
           replaceCloud: true as const,
@@ -200,10 +206,13 @@ export class SyncService {
 
     const replaceLocal = this.shouldReplaceLocalSnapshot(response);
     if (
-      replaceLocal ||
+      localMutationRevision === this.storage.getLocalMutationRevision() &&
       (
-        generation === this.sectionsSyncGeneration &&
-        localOrderRevision === this.storage.getSectionOrderLocalRevision()
+        replaceLocal ||
+        (
+          generation === this.sectionsSyncGeneration &&
+          localOrderRevision === this.storage.getSectionOrderLocalRevision()
+        )
       )
     ) {
       const rebasedLocalSections = this.storage.applySyncedSections(synced, {
@@ -218,6 +227,7 @@ export class SyncService {
 
   async syncSectionLists(sectionId: string): Promise<StoredList[]> {
     const generation = this.nextGeneration(this.listsSyncGeneration, sectionId);
+    const localMutationRevision = this.storage.getLocalMutationRevision();
     const payload = this.storage.getListsForSection(sectionId).map(list => ({
       id: list.id,
       title: list.title,
@@ -239,7 +249,7 @@ export class SyncService {
           : { observe: 'response', headers: this.syncHeaders() },
       ),
     );
-    if (this.applySnapshotIfPresent(response)) {
+    if (this.applySnapshotIfPresent(response, localMutationRevision)) {
       return this.storage.getListsForSection(sectionId);
     }
     const synced = response.body;
@@ -254,6 +264,7 @@ export class SyncService {
     const key = `${sectionId}:${listId}`;
     const generation = this.nextGeneration(this.itemsSyncGeneration, key);
     const revision = this.storage.getItemsRevision(sectionId, listId);
+    const localMutationRevision = this.storage.getLocalMutationRevision();
     const items = this.storage.getItemsForList(sectionId, listId)
       .filter(item => !(item.created && item.deleted))
       .map(item => {
@@ -285,7 +296,7 @@ export class SyncService {
           : { observe: 'response', headers: this.syncHeaders() },
       ),
     );
-    if (this.applySnapshotIfPresent(response)) {
+    if (this.applySnapshotIfPresent(response, localMutationRevision)) {
       return this.storage.getItemsForList(sectionId, listId);
     }
     const synced = response.body;
@@ -329,6 +340,7 @@ export class SyncService {
   }
 
   async reorderSections(sections: { id: string; position: number }[]): Promise<OrderSyncResponse> {
+    const localMutationRevision = this.storage.getLocalMutationRevision();
     const response = await firstValueFrom(
       this.http.patch<OrderSyncResponse | SectionsSyncResponse>(
         `${this.apiUrl}/sections/reorder`,
@@ -339,7 +351,7 @@ export class SyncService {
         { observe: 'response', headers: this.syncHeaders() },
       ),
     );
-    if (this.applySnapshotIfPresent(response)) return this.localSectionOrderResponse();
+    if (this.applySnapshotIfPresent(response, localMutationRevision)) return this.localSectionOrderResponse();
     this.acceptSyncGenerationFromResponse(response);
     const body = response.body;
     return body && !this.isSectionsSnapshot(body) ? body : this.localSectionOrderResponse();
@@ -347,6 +359,7 @@ export class SyncService {
 
   async reorderItems(sectionId: string, listId: string, items: { id: string; position: number }[]): Promise<OrderSyncResponse> {
     const shareToken = this.shareTokenForAnonymousSection(sectionId);
+    const localMutationRevision = this.storage.getLocalMutationRevision();
     const response = await firstValueFrom(
       this.http.patch<OrderSyncResponse | SectionsSyncResponse>(
         shareToken
@@ -361,7 +374,7 @@ export class SyncService {
           : { observe: 'response', headers: this.syncHeaders() },
       ),
     );
-    if (this.applySnapshotIfPresent(response)) return this.localItemOrderResponse(sectionId, listId);
+    if (this.applySnapshotIfPresent(response, localMutationRevision)) return this.localItemOrderResponse(sectionId, listId);
     this.acceptSyncGenerationFromResponse(response);
     const body = response.body;
     return body && !this.isSectionsSnapshot(body) ? body : this.localItemOrderResponse(sectionId, listId);

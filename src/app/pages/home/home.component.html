@@ -732,6 +732,7 @@
                   [attr.data-keyboard-task]="task.id"
                   (pointerdown)="beginTaskPointerDrag($event, 'main', task, $index)"
                   (touchstart)="beginTaskTouchDrag($event, 'main', task, $index)"
+                  (click)="handleTaskItemClick($event, 'main', task.id)"
                   (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
                   role="listitem"
                 >
@@ -777,7 +778,6 @@
                       <span
                         class="task-text"
                         [class.struck]="task.done"
-                        (click)="startEditingTask(task.id)"
                       >
                         @for (segment of linkSegments(task.text); track $index) {
                           @if (segment.href; as href) {
@@ -1205,6 +1205,7 @@
                     [attr.data-keyboard-task]="task.id"
                     (pointerdown)="beginTaskPointerDrag($event, 'secondary', task, $index)"
                     (touchstart)="beginTaskTouchDrag($event, 'secondary', task, $index)"
+                    (click)="handleTaskItemClick($event, 'secondary', task.id)"
                     (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
                     role="listitem"
                   >
@@ -1250,7 +1251,6 @@
                         <span
                           class="sec-task-text"
                           [class.struck]="task.done"
-                          (click)="startEditingSecondary(task.id)"
                         >
                           @for (segment of linkSegments(task.text); track $index) {
                             @if (segment.href; as href) {

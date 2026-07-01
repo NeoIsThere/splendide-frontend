@@ -183,6 +183,118 @@ function rebaseLocalDirtyItem(remote: StoredItem, local: StoredItem): StoredItem
   };
 }
 
+function cleanSyncedItem(item: StoredItem): StoredItem {
+  return {
+    id: item.id,
+    content: item.content,
+    position: item.position,
+    lastModifiedAt: item.lastModifiedAt,
+    serverRevision: item.serverRevision,
+    ...(item.deleted ? { deleted: true } : {}),
+  };
+}
+
+function mergeSyncedItems(
+  remoteItems: StoredItem[],
+  localItems: StoredItem[],
+  preferLocalOrder: boolean,
+): { items: StoredItem[]; keptLocalOrder: boolean } {
+  const shouldKeepLocalOrder = preferLocalOrder && !sameOrder(activeItemOrder(localItems), activeItemOrder(remoteItems));
+  const localById = new Map(localItems.map((item) => [item.id, item]));
+  const remoteIds = new Set(remoteItems.map((item) => item.id));
+
+  let merged = remoteItems.map((item) => {
+    const local = localById.get(item.id);
+    if (
+      local &&
+      item.serverRevision === local.serverRevision &&
+      item.deleted === local.deleted &&
+      sameContent(item.content, local.content)
+    ) {
+      return cleanSyncedItem(item);
+    }
+
+    if (local && item.deleted && item.serverRevision >= local.serverRevision) {
+      return cleanSyncedItem(item);
+    }
+
+    if (local && shouldRebaseLocalDirtyItem(item, local)) {
+      return rebaseLocalDirtyItem(item, local);
+    }
+
+    if (local && !shouldAcceptRemote(item, local)) {
+      return { ...local, position: item.position };
+    }
+
+    return cleanSyncedItem(item);
+  });
+
+  for (const item of localItems) {
+    if (
+      !remoteIds.has(item.id) &&
+      item.dirty &&
+      !item.deleted &&
+      item.serverRevision === 0
+    ) {
+      merged.push(item);
+    }
+  }
+
+  if (shouldKeepLocalOrder) {
+    merged = keepLocalActiveOrder(merged, localItems);
+  }
+
+  return { items: merged, keptLocalOrder: shouldKeepLocalOrder };
+}
+
+function mergeSyncedList(remote: StoredList, existing?: StoredList, replaceLocal = false): StoredList {
+  const remoteItems = Array.isArray(remote.items) ? remote.items : [];
+  if (replaceLocal || !existing) {
+    return {
+      id: remote.id,
+      title: remote.title,
+      metadataLastModifiedAt: remote.metadataLastModifiedAt,
+      serverRevision: remote.serverRevision,
+      itemsOrderRevision: remote.itemsOrderRevision,
+      itemsBaseOrderRevision: remote.itemsOrderRevision,
+      isBacklog: remote.isBacklog,
+      items: remoteItems.map((item) => cleanSyncedItem(item)),
+    };
+  }
+
+  const { items, keptLocalOrder } = mergeSyncedItems(remoteItems, existing.items, existing.itemsOrderDirty === true);
+  const keepLocalMetadata = !shouldAcceptRemote(remote, existing);
+  return {
+    id: remote.id,
+    title: keepLocalMetadata ? existing.title : remote.title,
+    metadataLastModifiedAt: keepLocalMetadata ? existing.metadataLastModifiedAt : remote.metadataLastModifiedAt,
+    serverRevision: keepLocalMetadata ? existing.serverRevision : remote.serverRevision,
+    ...(keepLocalMetadata && existing.dirty ? { dirty: true } : {}),
+    itemsOrderRevision: remote.itemsOrderRevision,
+    itemsBaseOrderRevision: remote.itemsOrderRevision,
+    ...(keptLocalOrder ? { itemsOrderDirty: true } : {}),
+    isBacklog: remote.isBacklog,
+    items,
+  };
+}
+
+function mergeSyncedLists(remoteLists: StoredList[], localLists: StoredList[], replaceLocal = false): StoredList[] {
+  const existingMap = new Map(localLists.map((list) => [list.id, list]));
+  const remoteIds = new Set(remoteLists.map((list) => list.id));
+  const merged = remoteLists.map((list) => mergeSyncedList(list, existingMap.get(list.id), replaceLocal));
+
+  if (!replaceLocal) {
+    for (const list of localLists) {
+      const remoteHasSameRole = remoteLists.some((remote) => remote.isBacklog === list.isBacklog);
+      if (!remoteIds.has(list.id) && list.dirty && !remoteHasSameRole) {
+        merged.push(list);
+      }
+    }
+  }
+
+  return merged;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -469,10 +581,15 @@ function cloneSectionForUser(section: StoredSection): StoredSection {
 export class StorageService {
   private activeKey = ANONYMOUS_KEY;
   private sectionOrderLocalRevision = 0;
+  private localMutationRevision = 0;
   private readonly itemRevisions = new Map<string, number>();
 
   private buildKey(userId?: string): string {
     return userId ? `${LS_PREFIX}nominal_${userId}` : ANONYMOUS_KEY;
+  }
+
+  private activeSectionPreferenceKey(): string {
+    return `${this.activeKey}:active_section_id`;
   }
 
   private legacyUserKeys(userId: string): string[] {
@@ -488,8 +605,16 @@ export class StorageService {
     this.itemRevisions.set(key, (this.itemRevisions.get(key) ?? 0) + 1);
   }
 
+  private markLocalMutation(): void {
+    this.localMutationRevision += 1;
+  }
+
   getItemsRevision(sectionId: string, listId: string): number {
     return this.itemRevisions.get(this.itemRevisionKey(sectionId, listId)) ?? 0;
+  }
+
+  getLocalMutationRevision(): number {
+    return this.localMutationRevision;
   }
 
   getSectionOrderLocalRevision(): number {
@@ -525,6 +650,7 @@ export class StorageService {
     if (partition && partition.sections.some((section) => !section.deleted)) return false;
 
     const created = createDefaultPartition();
+    this.markLocalMutation();
     this.save(created);
     return true;
   }
@@ -532,6 +658,27 @@ export class StorageService {
   getActiveUserId(): string | undefined {
     const suffix = this.activeKey.slice(LS_PREFIX.length);
     return suffix.startsWith('nominal_') ? suffix.slice('nominal_'.length) : undefined;
+  }
+
+  getActiveSectionPreference(): string | null {
+    try {
+      const value = localStorage.getItem(this.activeSectionPreferenceKey());
+      return value && value.length > 0 ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  setActiveSectionPreference(sectionId: string | null): void {
+    try {
+      if (sectionId && sectionId.length > 0) {
+        localStorage.setItem(this.activeSectionPreferenceKey(), sectionId);
+      } else {
+        localStorage.removeItem(this.activeSectionPreferenceKey());
+      }
+    } catch {
+      // Ignore storage errors.
+    }
   }
 
   load(): Partition {
@@ -600,6 +747,7 @@ export class StorageService {
     partition.sections = [...sections, ...pendingDeleted];
     if (options?.markOrderDirty) {
       this.markSectionOrderDirty(partition);
+      this.markLocalMutation();
     }
     this.save(partition);
   }
@@ -625,6 +773,7 @@ export class StorageService {
       section.lists.push(createEmptyList(true, timestamp));
     }
     section.lists.sort((left, right) => Number(left.isBacklog) - Number(right.isBacklog));
+    this.markLocalMutation();
     this.save(partition);
     return true;
   }
@@ -637,6 +786,7 @@ export class StorageService {
     } else {
       partition.sections.push(section);
     }
+    this.markLocalMutation();
     this.save(partition);
   }
 
@@ -664,6 +814,7 @@ export class StorageService {
       section.deleted = true;
       section.dirty = true;
       section.metadataLastModifiedAt = nowIso();
+      this.markLocalMutation();
     }
     this.save(partition);
   }
@@ -698,7 +849,11 @@ export class StorageService {
     const merged = synced.map((section) => {
       const existing = existingMap.get(section.id);
       if (!options?.replaceLocal && existing && !shouldAcceptRemote(section, existing)) {
-        return { ...existing, position: section.position };
+        return {
+          ...existing,
+          position: section.position,
+          lists: mergeSyncedLists(section.lists ?? existing.lists, existing.lists),
+        };
       }
 
       return {
@@ -712,7 +867,13 @@ export class StorageService {
         ...(section.shareToken ? { shareToken: section.shareToken } : {}),
         ...(section.sharedAccess ? { sharedAccess: true } : {}),
         ...(section.deleted ? { deleted: true } : {}),
-        lists: section.lists ?? (options?.replaceLocal ? [] : existing?.lists ?? []),
+        lists: section.deleted
+          ? []
+          : mergeSyncedLists(
+              section.lists ?? (options?.replaceLocal ? [] : existing?.lists ?? []),
+              existing?.lists ?? [],
+              options?.replaceLocal,
+            ),
       };
     });
 
@@ -780,6 +941,7 @@ export class StorageService {
     } else {
       section.lists.push(list);
     }
+    this.markLocalMutation();
     this.save(partition);
   }
 
@@ -859,6 +1021,9 @@ export class StorageService {
     if (options?.markOrderDirty) {
       this.markListOrderDirty(list);
     }
+    if (options?.touchRevision !== false) {
+      this.markLocalMutation();
+    }
     this.save(partition);
     if (options?.touchRevision !== false) {
       this.bumpItemsRevision(sectionId, listId);
@@ -884,69 +1049,7 @@ export class StorageService {
     const shouldKeepLocalOrder =
       list?.itemsOrderDirty === true &&
       !sameOrder(activeItemOrder(localItems), activeItemOrder(items));
-    const localById = new Map(localItems.map((item) => [item.id, item]));
-    const remoteIds = new Set(items.map((item) => item.id));
-    let merged = items.map((item) => {
-      const local = localById.get(item.id);
-      if (
-        local &&
-        item.serverRevision === local.serverRevision &&
-        item.deleted === local.deleted &&
-        sameContent(item.content, local.content)
-      ) {
-        return {
-          id: item.id,
-          content: item.content,
-          position: item.position,
-          lastModifiedAt: item.lastModifiedAt,
-          serverRevision: item.serverRevision,
-          ...(item.deleted ? { deleted: true } : {}),
-        };
-      }
-
-      if (local && item.deleted && item.serverRevision >= local.serverRevision) {
-        return {
-          id: item.id,
-          content: item.content,
-          position: item.position,
-          lastModifiedAt: item.lastModifiedAt,
-          serverRevision: item.serverRevision,
-          deleted: true,
-        };
-      }
-
-      if (local && shouldRebaseLocalDirtyItem(item, local)) {
-        return rebaseLocalDirtyItem(item, local);
-      }
-
-      if (local && !shouldAcceptRemote(item, local)) {
-        return { ...local, position: item.position };
-      }
-
-      return {
-        id: item.id,
-        content: item.content,
-        position: item.position,
-        lastModifiedAt: item.lastModifiedAt,
-        serverRevision: item.serverRevision,
-        ...(item.deleted ? { deleted: true } : {}),
-      };
-    });
-
-    for (const item of localItems) {
-      if (
-        !remoteIds.has(item.id) &&
-        item.dirty &&
-        !item.deleted &&
-        item.serverRevision === 0
-      ) {
-        merged.push(item);
-      }
-    }
-
-    if (shouldKeepLocalOrder) {
-      merged = keepLocalActiveOrder(merged, localItems);
-    }
+    const { items: merged } = mergeSyncedItems(items, localItems, list?.itemsOrderDirty === true);
 
     this.setItemsForList(sectionId, listId, merged, { touchRevision: false });
     if (shouldKeepLocalOrder) {
