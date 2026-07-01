@@ -108,7 +108,8 @@ import { APP_VERSION } from '../../../environments/environment';
         <p>To exercise rights, contact <strong>privacy&#64;email.splendide.app</strong>. We may need to verify your identity before fulfilling a request. Some requests may be limited where we cannot verify ownership, where data belongs to a shared page, or where retention is required by law.</p>
 
         <h2>11. Cookies and Local Storage</h2>
-        <p>We use essential authentication cookies, including an HTTP-only refresh token cookie. We also use browser local storage for private local task data, theme settings, access tokens, and cached user information. We do not use tracking cookies, analytics cookies, or third-party advertising cookies.</p>
+        <p>We use essential authentication cookies, including an HTTP-only refresh token cookie. We also use browser local storage for private local task data, theme settings, access tokens, cached user information, and privacy-conscious analytics identifiers. We do not use third-party advertising cookies.</p>
+        <p>We use PostHog to understand basic product usage and monitor frontend errors. We disable broad interaction autocapture and session replay by default, and shared-page URLs are redacted before analytics events are sent.</p>
 
         <h2>12. Data Security</h2>
         <p>We implement appropriate technical and organizational measures to protect your data, including:</p>

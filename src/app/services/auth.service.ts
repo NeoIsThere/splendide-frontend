@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { StorageService } from './storage.service';
 import { ThemeService } from './theme.service';
+import { PosthogService } from './posthog.service';
 
 export interface User {
   id: string;
@@ -28,6 +29,7 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly storage = inject(StorageService);
   private readonly theme = inject(ThemeService);
+  private readonly posthog = inject(PosthogService);
   private readonly apiUrl = environment.apiUrl;
 
   private readonly _user = signal<User | null>(this.loadUser());
@@ -39,6 +41,10 @@ export class AuthService {
   readonly isPremium = computed(() => this._user()?.isPremium ?? false);
 
   constructor() {
+    const cachedUser = this._user();
+    if (cachedUser) {
+      this.posthog.identifyUser(cachedUser);
+    }
     if (this._token()) {
       void this.fetchUser();
     }
@@ -117,6 +123,7 @@ export class AuthService {
     this.storage.setActivePartition();
     this._user.set(null);
     this._token.set(null);
+    this.posthog.reset();
     this.themePreferenceAppliedForUserId = null;
     localStorage.removeItem('splendide_token');
     localStorage.removeItem('splendide_user');
@@ -147,6 +154,7 @@ export class AuthService {
       this._user.set(user);
       localStorage.setItem('splendide_user', JSON.stringify(user));
       this.applyUserThemePreference(user);
+      this.posthog.identifyUser(user);
       return user;
     } catch {
       // ignore — user may not be logged in
@@ -179,7 +187,10 @@ export class AuthService {
     const isPremium = res.isPremium;
     this._user.update(u => u ? { ...u, isPremium } : u);
     const user = this._user();
-    if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
+    if (user) {
+      localStorage.setItem('splendide_user', JSON.stringify(user));
+      this.posthog.identifyUser(user);
+    }
     return isPremium;
   }
 
@@ -187,7 +198,10 @@ export class AuthService {
     await firstValueFrom(this.http.post(`${this.apiUrl}/payment/redeem-code`, { code }));
     this._user.update(u => u ? { ...u, isPremium: true } : u);
     const user = this._user();
-    if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
+    if (user) {
+      localStorage.setItem('splendide_user', JSON.stringify(user));
+      this.posthog.identifyUser(user);
+    }
   }
 
   // ─── Session ────────────────────────────────────────────
@@ -199,6 +213,7 @@ export class AuthService {
   logout(): void {
     this._user.set(null);
     this._token.set(null);
+    this.posthog.reset();
     this.themePreferenceAppliedForUserId = null;
     localStorage.removeItem('splendide_token');
     localStorage.removeItem('splendide_user');
@@ -212,6 +227,7 @@ export class AuthService {
     localStorage.setItem('splendide_token', res.accessToken);
     localStorage.setItem('splendide_user', JSON.stringify(res.user));
     this.applyUserThemePreference(res.user);
+    this.posthog.identifyUser(res.user);
   }
 
   private async copyAnonymousToNewUser(userId: string): Promise<void> {
