@@ -1,7 +1,7 @@
 {
   "name": "Splendide",
   "short_name": "Splendide",
-  "description": "A calm, local-first Now/Later task manager.",
+  "description": "A minimalist task manager for calm now/later planning, subtasks, sync, and shareable pages.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

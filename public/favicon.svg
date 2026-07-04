@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
-  <rect x="2" y="4" width="22" height="22" rx="4" stroke="#000" stroke-width="2.2"/>
-  <polyline points="9,15 13.5,19.5 21,10" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-labelledby="title desc">
+  <title id="title">Splendide</title>
+  <desc id="desc">Minimal Splendide S mark.</desc>
+  <rect x="4.5" y="4.5" width="23" height="23" rx="7" fill="#fafafa" stroke="#e0e0e0"/>
+  <path d="M21.2 9.75H14c-2.62 0-4.75 1.68-4.75 3.95s2.13 3.95 4.75 3.95h4c2.62 0 4.75 1.68 4.75 3.95s-2.13 3.95-4.75 3.95h-7.2" fill="none" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round"/>
 </svg>

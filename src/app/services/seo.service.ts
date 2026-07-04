@@ -13,9 +13,9 @@ interface SeoMetadata {
 
 const SITE_ORIGIN = 'https://splendide.app';
 const SITE_NAME = 'Splendide';
-const DEFAULT_TITLE = 'Splendide - Calm Now/Later Task Manager';
-const DEFAULT_DESCRIPTION = 'Splendide is a calm, local-first task manager for now/later planning. Capture tasks, add subtasks, sync across devices, and share editable pages.';
-const SOCIAL_DESCRIPTION = 'A calm, local-first task manager for now/later planning, subtasks, sync, and shareable pages.';
+const DEFAULT_TITLE = SITE_NAME;
+const DEFAULT_DESCRIPTION = 'Splendide is a minimalist task manager for calm now/later planning, subtasks, sync, and shareable pages.';
+const SOCIAL_DESCRIPTION = 'A minimalist task manager for calm now/later planning, subtasks, sync, and shareable pages.';
 const PREVIEW_IMAGE = `${SITE_ORIGIN}/og-image.svg`;
 const INDEX_ROBOTS = 'index, follow, max-image-preview:large';
 const NOINDEX_ROBOTS = 'noindex, nofollow';
@@ -77,7 +77,7 @@ export class SeoService {
 
     if (this.isPrivateOrUtilityPath(path)) {
       return {
-        title: `${SITE_NAME} | App`,
+        title: SITE_NAME,
         description: DEFAULT_DESCRIPTION,
         canonicalPath: '/',
         robots: NOINDEX_ROBOTS,
