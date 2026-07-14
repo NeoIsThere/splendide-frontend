@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Splendide</string>
+    <string name="title_activity_main">Splendide</string>
+    <string name="package_name">app.splendide.mobile</string>
+    <string name="custom_url_scheme">app.splendide.mobile</string>
+</resources>

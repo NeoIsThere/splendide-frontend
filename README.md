@@ -1,5 +1,7 @@
 # Clear
 
+The iOS/Android Capacitor application and its release handoff are documented in [MOBILE_SETUP.md](MOBILE_SETUP.md).
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.3.
 
 ## Development server

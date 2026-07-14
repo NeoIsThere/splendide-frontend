@@ -97,7 +97,7 @@ export class PosthogService {
       $current_url: this.absoluteUrl(path),
       $pathname: path,
       app_version: APP_VERSION,
-      app_shell: environment.isElectron ? 'electron' : 'web',
+      app_shell: environment.isElectron ? 'electron' : environment.isMobile ? 'mobile' : 'web',
     });
   }
 

@@ -1627,6 +1627,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
   @media (max-width: 768px) {
     margin: 0;
+    min-height: 48px;
+    touch-action: pan-y;
   }
 }
 
@@ -2233,6 +2235,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
   @media (max-width: 768px) {
     margin: 0;
+    min-height: 44px;
+    touch-action: pan-y;
   }
 }
 
@@ -2508,11 +2512,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   background: var(--bg);
   color: var(--text);
   border-radius: 8px;
-  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.14);
-  opacity: 0.94;
+  opacity: 0.98;
   will-change: transform;
   user-select: none;
   -webkit-user-select: none;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
 }
 
 .task-item.task-drag-source-hidden,

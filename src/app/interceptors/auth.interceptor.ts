@@ -2,6 +2,7 @@ import { HttpInterceptorFn, HttpRequest, HttpHandlerFn, HttpErrorResponse } from
 import { inject } from '@angular/core';
 import { catchError, finalize, from, Observable, of, shareReplay, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../environments/environment';
 
 let refreshToken$: Observable<string | null> | null = null;
 
@@ -10,8 +11,11 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
   const token = auth.getToken();
 
   let authReq = req;
+  if (environment.isMobile) {
+    authReq = authReq.clone({ setHeaders: { 'X-Splendide-Client': 'mobile' } });
+  }
   if (token && !req.url.includes('/auth/refresh') && !req.url.includes('/auth/login') && !req.url.includes('/auth/register')) {
-    authReq = req.clone({
+    authReq = authReq.clone({
       setHeaders: { Authorization: `Bearer ${token}` },
     });
   }
@@ -33,6 +37,7 @@ function send(
         originalReq.url.includes('/auth/register') ||
         originalReq.url.includes('/auth/google') ||
         originalReq.url.includes('/auth/google/oauth') ||
+        originalReq.url.includes('/auth/apple') ||
         originalReq.url.includes('/auth/forgot-password') ||
         originalReq.url.includes('/auth/reset-password') ||
         originalReq.url.includes('/auth/verify-email') ||
@@ -44,7 +49,10 @@ function send(
           switchMap((newToken) => {
             if (newToken) {
               const retryReq = originalReq.clone({
-                setHeaders: { Authorization: `Bearer ${newToken}` },
+                setHeaders: {
+                  Authorization: `Bearer ${newToken}`,
+                  ...(environment.isMobile ? { 'X-Splendide-Client': 'mobile' } : {}),
+                },
               });
               return next(retryReq);
             }

@@ -638,7 +638,6 @@
                   [value]="newTaskText()"
                   (input)="onNewTaskInput($event)"
                   (keydown)="handleAddKeydown($event)"
-                  autofocus
                   aria-label="new task"
                   maxlength="120"
                 />
@@ -1078,7 +1077,6 @@
                   [value]="secondaryTitle()"
                   (blur)="saveSecondaryTitle($event)"
                   (keydown)="handleSecondaryTitleKeydown($event)"
-                  autofocus
                   aria-label="edit list title"
                   maxlength="40"
                 />
@@ -1111,7 +1109,6 @@
                       [value]="newSecondaryText()"
                       (input)="onNewSecondaryInput($event)"
                       (keydown)="handleSecondaryKeydown($event)"
-                      autofocus
                       aria-label="new secondary task"
                       maxlength="120"
                     />

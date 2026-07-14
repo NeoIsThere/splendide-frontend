@@ -10,7 +10,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     providePostHogErrorHandler(),
-    provideRouter(routes, ...(environment.isElectron ? [withHashLocation()] : [])),
+    provideRouter(routes, ...((environment.isElectron || environment.isMobile) ? [withHashLocation()] : [])),
     provideHttpClient(withInterceptors([authInterceptor])),
   ]
 };

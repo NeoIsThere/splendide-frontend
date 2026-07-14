@@ -9,6 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { Capacitor } from '@capacitor/core';
 
 declare const google: any;
 
@@ -44,11 +45,17 @@ function loadGoogleScript(): Promise<void> {
   selector: 'app-google-button',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (isElectron) {
-      <button class="google-native-btn" type="button" (click)="desktopSignIn.emit()">
+    @if (useNativeButtons) {
+      <button class="native-auth-btn google-native-btn" type="button" (click)="desktopSignIn.emit()">
         <span class="google-mark" aria-hidden="true">g</span>
         continue with google
       </button>
+      @if (showAppleButton) {
+        <button class="native-auth-btn apple-native-btn" type="button" (click)="appleSignIn.emit()">
+          <span class="apple-mark" aria-hidden="true">&#63743;</span>
+          continue with apple
+        </button>
+      }
     } @else {
       <div class="google-btn-wrapper">
         <div #googleBtn></div>
@@ -61,7 +68,7 @@ function loadGoogleScript(): Promise<void> {
       justify-content: center;
       margin: 4px 0;
     }
-    .google-native-btn {
+    .native-auth-btn {
       width: 300px;
       min-height: 42px;
       display: flex;
@@ -95,18 +102,28 @@ function loadGoogleScript(): Promise<void> {
       justify-content: center;
       font-weight: 700;
     }
+    .apple-native-btn {
+      margin-top: 10px;
+      border-color: #000;
+      background: #000;
+      color: #fff;
+    }
+    .apple-native-btn:hover { background: #1a1a1a; }
+    .apple-mark { font-size: 1.2rem; line-height: 1; }
   `,
 })
 export class GoogleButtonComponent implements AfterViewInit {
   private readonly zone = inject(NgZone);
   private readonly buttonEl = viewChild.required<ElementRef<HTMLElement>>('googleBtn');
-  protected readonly isElectron = environment.isElectron;
+  protected readonly useNativeButtons = environment.isElectron || environment.isMobile;
+  protected readonly showAppleButton = environment.isMobile && Capacitor.getPlatform() === 'ios';
 
   readonly credentialResponse = output<string>();
   readonly desktopSignIn = output<void>();
+  readonly appleSignIn = output<void>();
 
   ngAfterViewInit(): void {
-    if (environment.isElectron) return;
+    if (this.useNativeButtons) return;
     void this.renderGoogleButton().catch(() => undefined);
   }
 

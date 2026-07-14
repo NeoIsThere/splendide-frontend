@@ -1,5 +1,10 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './guards/auth.guard';
+import { environment } from '../environments/environment';
+
+const loadPaymentComponent = () => environment.isMobile
+  ? import('./pages/payment/mobile-payment.component').then(component => component.MobilePaymentComponent)
+  : import('./pages/payment/payment.component').then(component => component.PaymentComponent);
 
 export const routes: Routes = [
   {
@@ -31,17 +36,17 @@ export const routes: Routes = [
   },
   {
     path: 'payment',
-    loadComponent: () => import('./pages/payment/payment.component').then(m => m.PaymentComponent),
+    loadComponent: loadPaymentComponent,
     canActivate: [authGuard],
   },
   {
     path: 'payment/success',
-    loadComponent: () => import('./pages/payment/payment.component').then(m => m.PaymentComponent),
+    loadComponent: loadPaymentComponent,
     canActivate: [authGuard],
   },
   {
     path: 'payment/cancel',
-    loadComponent: () => import('./pages/payment/payment.component').then(m => m.PaymentComponent),
+    loadComponent: loadPaymentComponent,
     canActivate: [authGuard],
   },
   {
@@ -51,6 +56,10 @@ export const routes: Routes = [
   {
     path: 'privacy',
     loadComponent: () => import('./pages/legal/privacy.component').then(m => m.PrivacyComponent),
+  },
+  {
+    path: 'delete-account',
+    loadComponent: () => import('./pages/legal/account-deletion.component').then(m => m.AccountDeletionComponent),
   },
   {
     path: 'verify-email',

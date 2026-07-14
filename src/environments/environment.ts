@@ -4,6 +4,11 @@ export const environment = {
   posthogKey: '',
   posthogHost: 'https://eu.i.posthog.com',
   isElectron: false,
+  isMobile: false,
+  googleIosClientId: '',
+  revenueCatAppleApiKey: '',
+  revenueCatGoogleApiKey: '',
+  revenueCatPremiumEntitlementId: 'premium',
 };
 
 export const APP_VERSION = 'v1.0.11'

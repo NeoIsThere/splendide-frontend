@@ -3,6 +3,9 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { openExternalUrl } from '../../utils/external-link';
+import { environment } from '../../../environments/environment';
+import { MobileNotificationsService } from '../../services/mobile-notifications.service';
+import { MobilePurchasesService } from '../../services/mobile-purchases.service';
 
 @Component({
   selector: 'app-settings',
@@ -30,6 +33,30 @@ import { openExternalUrl } from '../../utils/external-link';
             <button class="settings-btn settings-btn--accent" (click)="goPremium()">
               Upgrade to premium ✦
             </button>
+          </section>
+        }
+
+        @if (isMobile) {
+          <section class="settings-section">
+            <div class="notification-row">
+              <div class="settings-section-header">
+                <h3 class="settings-section-title">Shared page notifications</h3>
+                <p class="settings-section-desc">Notify me when someone adds an item to a shared page</p>
+              </div>
+              <label class="settings-switch">
+                <input
+                  type="checkbox"
+                  [checked]="auth.user()?.sharedNotificationsEnabled === true"
+                  [disabled]="notificationLoading()"
+                  (change)="setSharedNotifications($any($event.target).checked)"
+                  aria-label="shared page notifications"
+                />
+                <span class="settings-switch-track" aria-hidden="true"><span></span></span>
+              </label>
+            </div>
+            @if (notificationError()) {
+              <p class="settings-error" role="alert">{{ notificationError() }}</p>
+            }
           </section>
         }
 
@@ -158,18 +185,25 @@ import { openExternalUrl } from '../../utils/external-link';
           <div class="settings-section-header">
             <h3 class="settings-section-title settings-section-title--danger">Delete account</h3>
             <p class="settings-section-desc">
-              @if (auth.isPremium()) {
-                Cancel your subscription before deleting your account
+              @if (hasCancelableSubscription()) {
+                Cancel active subscriptions before deleting your account
               } @else {
                 Permanently delete your account and all data. This cannot be undone
               }
             </p>
           </div>
 
-          @if (auth.isPremium()) {
-            <button class="settings-btn settings-btn--primary" [disabled]="subscriptionLoading()" (click)="manageSubscription()">
-              {{ subscriptionLoading() ? 'Opening' : 'Manage Subscription' }}
-            </button>
+          @if (hasCancelableSubscription()) {
+            @if (auth.user()?.hasMobileSubscription) {
+              <button class="settings-btn settings-btn--primary" [disabled]="subscriptionLoading()" (click)="manageSubscription('mobile')">
+                {{ subscriptionLoading() ? 'Opening' : 'Manage App Store subscription' }}
+              </button>
+            }
+            @if (auth.user()?.hasStripeSubscription) {
+              <button class="settings-btn settings-btn--primary" [disabled]="subscriptionLoading()" (click)="manageSubscription('stripe')">
+                {{ subscriptionLoading() ? 'Opening' : 'Manage web subscription' }}
+              </button>
+            }
             @if (deleteError()) {
               <p class="settings-error" role="alert">{{ deleteError() }}</p>
             }
@@ -232,6 +266,38 @@ import { openExternalUrl } from '../../utils/external-link';
       flex-direction: column;
       gap: 12px;
     }
+
+    .notification-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .settings-switch { flex: 0 0 auto; cursor: pointer; }
+    .settings-switch input { position: absolute; opacity: 0; pointer-events: none; }
+    .settings-switch-track {
+      display: block;
+      width: 46px;
+      height: 28px;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--border);
+      transition: background .18s ease;
+    }
+    .settings-switch-track span {
+      display: block;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--card, #fff);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .22);
+      transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+    }
+    .settings-switch input:checked + .settings-switch-track { background: var(--accent); }
+    .settings-switch input:checked + .settings-switch-track span { transform: translateX(18px); }
+    .settings-switch input:focus-visible + .settings-switch-track { outline: 2px solid var(--text); outline-offset: 3px; }
+    .settings-switch input:disabled + .settings-switch-track { opacity: .55; }
 
     .settings-section-title {
       font-size: 1rem;
@@ -356,6 +422,23 @@ export class SettingsComponent {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
+  private readonly notifications = inject(MobileNotificationsService);
+  private readonly mobilePurchases = inject(MobilePurchasesService);
+  protected readonly isMobile = environment.isMobile;
+  protected readonly notificationLoading = signal(false);
+  protected readonly notificationError = signal('');
+
+  protected async setSharedNotifications(enabled: boolean): Promise<void> {
+    this.notificationLoading.set(true);
+    this.notificationError.set('');
+    try {
+      await this.notifications.setEnabled(enabled);
+    } catch (error: any) {
+      this.notificationError.set(error?.message ?? 'notification settings could not be updated');
+    } finally {
+      this.notificationLoading.set(false);
+    }
+  }
 
   // ── Change password ──────────────────────────────────────
   protected readonly pwForm = this.fb.group({
@@ -411,10 +494,20 @@ export class SettingsComponent {
   protected readonly deleteError = signal('');
   protected readonly subscriptionLoading = signal(false);
 
-  protected async manageSubscription(): Promise<void> {
+  protected hasCancelableSubscription(): boolean {
+    const user = this.auth.user();
+    return Boolean(user?.hasMobileSubscription || user?.hasStripeSubscription);
+  }
+
+  protected async manageSubscription(source: 'mobile' | 'stripe'): Promise<void> {
     this.subscriptionLoading.set(true);
     this.deleteError.set('');
     try {
+      if (source === 'mobile') {
+        await this.mobilePurchases.openManagement();
+        this.subscriptionLoading.set(false);
+        return;
+      }
       const url = await this.auth.manageSubscription();
       const openedExternally = await openExternalUrl(url);
       if (openedExternally) {
@@ -427,7 +520,7 @@ export class SettingsComponent {
   }
 
   protected async deleteAccount(): Promise<void> {
-    if (this.auth.isPremium()) {
+    if (this.hasCancelableSubscription()) {
       this.deleteError.set('cancel your active subscription before deleting your account');
       return;
     }

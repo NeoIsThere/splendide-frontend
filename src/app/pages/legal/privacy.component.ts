@@ -11,7 +11,7 @@ import { APP_VERSION } from '../../../environments/environment';
       <div class="legal-card">
         <a class="legal-back" routerLink="/">&larr; Back to Splendide</a>
         <h1>Privacy Policy</h1>
-        <p class="legal-updated">Last updated: June 5, 2026</p>
+        <p class="legal-updated">Last updated: July 13, 2026</p>
 
         <h2>1. Introduction</h2>
         <p>This Privacy Policy explains how Splendide ("we", "us", "our") collects, uses, stores, and shares information when you use the Service. It applies to private local use, account sync features, and shared pages.</p>
@@ -34,15 +34,18 @@ import { APP_VERSION } from '../../../environments/environment';
           <li><strong>Name</strong> (optional) - for personalization</li>
           <li><strong>Password hash</strong> - securely hashed, never stored in plain text</li>
           <li><strong>Google account ID</strong> - if you sign in with Google</li>
+          <li><strong>Apple account ID</strong> - if you sign in with Apple</li>
           <li><strong>Theme preference</strong> - to apply your light or night mode preference when you sign in</li>
           <li><strong>Private synced task data</strong> - your sections, list names, tasks, subtasks, completion status, done dates, order, and sync metadata</li>
           <li><strong>Authentication data</strong> - access tokens stored in your browser and refresh tokens stored in secure cookies</li>
+          <li><strong>Mobile notification data</strong> - your notification preference, platform, and Firebase device token if you enable shared-page notifications</li>
         </ul>
 
         <h3>Premium users</h3>
         <p>If you upgrade to Premium, we additionally process billing and subscription information:</p>
         <ul>
           <li><strong>Stripe data</strong> - customer ID, subscription status, billing interval, and payment status needed to manage Premium access. We do not store full card numbers; Stripe handles payment details.</li>
+          <li><strong>App store data</strong> - subscription product, status, and entitlement information supplied by Apple, Google Play, and RevenueCat for subscriptions purchased in a mobile app. We do not receive full card details.</li>
         </ul>
 
         <h3>Technical and security data</h3>
@@ -64,7 +67,8 @@ import { APP_VERSION } from '../../../environments/environment';
           <li>Provide, maintain, sync, and secure the Service</li>
           <li>Authenticate your identity and manage account sessions</li>
           <li>Operate shared pages and allow anyone with the link to collaborate</li>
-          <li>Process optional Premium subscriptions through Stripe</li>
+          <li>Process optional Premium subscriptions through Stripe, Apple, or Google Play</li>
+          <li>Send shared-page notifications through Firebase only when you enable them</li>
           <li>Send verification, password reset, support, and service emails through Resend</li>
           <li>Prevent abuse, enforce rate limits, troubleshoot bugs, and comply with legal obligations</li>
         </ul>
@@ -75,6 +79,9 @@ import { APP_VERSION } from '../../../environments/environment';
           <li><strong>Stripe</strong> - for optional Premium subscription billing and subscription management (<a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe Privacy Policy</a>)</li>
           <li><strong>Resend</strong> - for transactional emails such as verification and password reset messages, and for forwarding support emails to us (<a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend Privacy Policy</a>)</li>
           <li><strong>Google</strong> - if you use Google Sign-In (<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>)</li>
+          <li><strong>Apple</strong> - for Sign in with Apple and App Store subscriptions (<a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener">Apple Privacy Policy</a>)</li>
+          <li><strong>Google Play and Firebase</strong> - for Android subscriptions and optional mobile push delivery (<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>)</li>
+          <li><strong>RevenueCat</strong> - to validate and synchronize App Store and Google Play subscription status (<a href="https://www.revenuecat.com/privacy/" target="_blank" rel="noopener">RevenueCat Privacy Policy</a>)</li>
           <li><strong>Hosting and infrastructure providers</strong> - for database hosting, application hosting, logging, security, and network delivery</li>
           <li><strong>Legal or safety recipients</strong> - if required by law or needed to protect rights, users, or the Service</li>
         </ul>
@@ -90,6 +97,7 @@ import { APP_VERSION } from '../../../environments/environment';
           <li><strong>Done tasks</strong> are kept only temporarily in the app's done area and are purged as part of the app's normal sync and deletion behavior.</li>
           <li><strong>Pending signup records</strong> expire after 24 hours and are cleaned up automatically. Password reset tokens expire after 1 hour and are removed when used or when the account is updated or deleted.</li>
           <li><strong>Stripe records</strong> are retained by Stripe and may also be retained as needed for billing, tax, accounting, fraud prevention, and legal obligations.</li>
+          <li><strong>Mobile device tokens</strong> are removed when invalidated, when your account is deleted, or during sign-out cleanup. Disabling notifications stops their use for delivery.</li>
           <li><strong>Security logs</strong> are retained only as long as reasonably needed for security, debugging, abuse prevention, and legal compliance.</li>
         </ul>
 
@@ -108,7 +116,7 @@ import { APP_VERSION } from '../../../environments/environment';
         <p>To exercise rights, contact <strong>privacy&#64;email.splendide.app</strong>. We may need to verify your identity before fulfilling a request. Some requests may be limited where we cannot verify ownership, where data belongs to a shared page, or where retention is required by law.</p>
 
         <h2>11. Cookies and Local Storage</h2>
-        <p>We use essential authentication cookies, including an HTTP-only refresh token cookie. We also use browser local storage for private local task data, theme settings, access tokens, cached user information, and privacy-conscious analytics identifiers. We do not use third-party advertising cookies.</p>
+        <p>We use essential authentication cookies, including an HTTP-only refresh token cookie. We also use browser local storage for private local task data, theme settings, access tokens, cached user information, and privacy-conscious analytics identifiers. Native apps store their refresh token in the iOS Keychain or Android encrypted storage. We do not use third-party advertising cookies.</p>
         <p>We use PostHog to understand basic product usage and monitor frontend errors. We disable broad interaction autocapture and session replay by default, and shared-page URLs are redacted before analytics events are sent.</p>
 
         <h2>12. Data Security</h2>

@@ -8,6 +8,7 @@ import { ThemeService } from '../../services/theme.service';
 import { StorageService, StoredSection, StoredList, StoredItem } from '../../services/storage.service';
 import { SyncService } from '../../services/sync.service';
 import { openExternalUrl } from '../../utils/external-link';
+import { NativePlatformService } from '../../services/native-platform.service';
 
 interface Subtask {
   id: string;
@@ -117,6 +118,7 @@ export class HomeComponent implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly storage = inject(StorageService);
   private readonly sync = inject(SyncService);
+  private readonly nativePlatform = inject(NativePlatformService);
 
   protected readonly dark = this.theme.dark;
   protected readonly publicLoadFailed = signal(false);
@@ -420,6 +422,17 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
+  @HostListener('window:splendide-app-resume')
+  protected async handleNativeAppResume(): Promise<void> {
+    if (this.shouldSkipPeriodicSync()) return;
+    if (this.auth.isLoggedIn()) {
+      await this.auth.fetchUser();
+      await this.doPeriodicSync();
+    } else {
+      await this.doAnonymousSharedPeriodicSync();
+    }
+  }
+
   ngOnDestroy(): void {
     this.stopPeriodicSync();
     if (this.shareToastTimer !== null) {
@@ -434,9 +447,11 @@ export class HomeComponent implements OnDestroy {
     this.unlockHorizontalDragScroll();
     this.removeTaskTouchListeners();
     this.cancelTaskPointerDrag();
+    document.body.classList.remove('native-dragging');
   }
 
   private async initFromStorage(): Promise<void> {
+    await this.auth.waitForSessionReady();
     const shareToken = this.route.snapshot.paramMap.get('token');
     if (this.isShareRouteUrl() && shareToken) {
       await this.initSharedSection(shareToken);
@@ -830,7 +845,12 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected setDragging(value: boolean): void {
+    const changed = this.dragging() !== value;
     this.dragging.set(value);
+    document.body.classList.toggle('native-dragging', value);
+    if (changed) {
+      void (value ? this.nativePlatform.dragStarted() : this.nativePlatform.dropCompleted());
+    }
     if (value) {
       if (!this.isMobile()) {
         this.resetHorizontalListScroll();

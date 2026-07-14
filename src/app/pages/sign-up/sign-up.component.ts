@@ -113,7 +113,11 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
 
           <div class="auth-divider"><span>or</span></div>
 
-          <app-google-button (credentialResponse)="onGoogleSignUp($event)" (desktopSignIn)="onGoogleDesktopSignUp()" />
+          <app-google-button
+            (credentialResponse)="onGoogleSignUp($event)"
+            (desktopSignIn)="onGoogleDesktopSignUp()"
+            (appleSignIn)="onAppleSignUp()"
+          />
           }
 
           <p class="auth-switch">
@@ -267,6 +271,23 @@ export class SignUpComponent {
       this.router.navigate(['/']);
     } catch (e: any) {
       this.error.set(e?.error?.error ?? e?.message ?? 'google sign up failed');
+    } finally {
+      this.loading.set(false);
+      this.googleLoading.set(false);
+    }
+  }
+
+  protected async onAppleSignUp(): Promise<void> {
+    this.googleLoading.set(true);
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      await this.auth.appleMobileAuth();
+      this.router.navigate(['/']);
+    } catch (error: any) {
+      if (error?.code !== 'USER_CANCELLED') {
+        this.error.set(error?.error?.error ?? error?.message ?? 'apple sign up failed');
+      }
     } finally {
       this.loading.set(false);
       this.googleLoading.set(false);
