@@ -1,5 +1,6 @@
 export const environment = {
   apiUrl: 'http://localhost:3001/api',
+  webUrl: 'http://localhost:4201',
   googleClientId: '718439408583-ipj7tj3s2genkl1c5uklhmbaq17nqtkk.apps.googleusercontent.com',
   posthogKey: '',
   posthogHost: 'https://eu.i.posthog.com',

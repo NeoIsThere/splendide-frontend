@@ -1638,6 +1638,64 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   gap: 12px;
 }
 
+.task-drag-handle {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 28px;
+  padding: 5px 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  opacity: 0;
+  touch-action: none;
+  transition:
+    color 0.15s $ease,
+    opacity 0.15s $ease,
+    background 0.15s $ease;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+  }
+
+  &:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+
+  &:focus-visible {
+    color: var(--text);
+    opacity: 1;
+    outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    outline-offset: 1px;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.task-item:hover .task-drag-handle,
+.task-item:focus-within .task-drag-handle,
+.task-item.keyboard-focused .task-drag-handle,
+.sec-task-item:hover .task-drag-handle,
+.sec-task-item:focus-within .task-drag-handle,
+.sec-task-item.keyboard-focused .task-drag-handle {
+  opacity: 0.65;
+}
+
+.task-drag-handle-sec {
+  color: var(--text-sec-list);
+}
+
 // ─── Check button ──────────────────────────────────────────
 .check-btn {
   flex-shrink: 0;
@@ -2521,7 +2579,13 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 .task-item.task-drag-source-hidden,
 .sec-task-item.task-drag-source-hidden {
-  display: none !important;
+  min-height: 0 !important;
+  height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .task-drop-indicator {
@@ -2561,10 +2625,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 .task-item,
 .sec-task-item {
-  cursor: grab;
-  &:active {
-    cursor: grabbing;
-  }
+  cursor: default;
 }
 
 // ─── Main section scrollable ─────────────────────────────

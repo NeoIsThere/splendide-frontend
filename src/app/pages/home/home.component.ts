@@ -9,6 +9,7 @@ import { StorageService, StoredSection, StoredList, StoredItem } from '../../ser
 import { SyncService } from '../../services/sync.service';
 import { openExternalUrl } from '../../utils/external-link';
 import { NativePlatformService } from '../../services/native-platform.service';
+import { environment } from '../../../environments/environment';
 
 interface Subtask {
   id: string;
@@ -239,7 +240,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly dragging = signal(false);
   protected readonly taskDragState = signal<TaskDragState | null>(null);
   protected readonly dragDelay = computed(() => ({
-    touch: this.isMobile() ? MOBILE_TOUCH_DRAG_START_DELAY_MS : 0,
+    touch: MOBILE_TOUCH_DRAG_START_DELAY_MS,
     mouse: 0,
   }));
   protected readonly activeSectionIndex = computed(() => this.sections().findIndex(s => s.id === this.activeSectionId()));
@@ -251,7 +252,7 @@ export class HomeComponent implements OnDestroy {
   });
   protected readonly activeSectionShareUrl = computed(() => {
     const token = this.activeSection()?.shareToken;
-    return token ? `${window.location.origin}/share/${token}` : '';
+    return token ? `${environment.webUrl}/share/${token}` : '';
   });
 
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -872,12 +873,16 @@ export class HomeComponent implements OnDestroy {
     if (this.isEditing()) return;
     if (event.pointerType === 'touch') return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (this.isTaskDragIgnoredTarget(event.target)) return;
+    if (!(event.target instanceof Element) || !event.target.closest('[data-task-drag-handle]')) {
+      return;
+    }
 
     const element = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
     if (!element) return;
 
+    if (this.pendingTaskDrag || this.taskDragState()) this.clearTaskPointerDrag();
     event.preventDefault();
+    event.stopPropagation();
     this.clearTextSelection();
 
     this.pendingTaskDrag = this.createPendingTaskDrag(
@@ -932,7 +937,7 @@ export class HomeComponent implements OnDestroy {
     this.taskTouchDragStartTimer = setTimeout(() => {
       if (this.pendingTaskDrag !== pending || this.taskDragState()) return;
       this.startTaskPointerDrag(pending, { x: pending.latestX, y: pending.latestY });
-    }, this.isMobile() ? MOBILE_TOUCH_DRAG_START_DELAY_MS : 0);
+    }, MOBILE_TOUCH_DRAG_START_DELAY_MS);
   }
 
   private createPendingTaskDrag(
@@ -3153,7 +3158,7 @@ export class HomeComponent implements OnDestroy {
 
   protected handleTaskItemClick(event: MouseEvent, list: TaskListKind, id: string): void {
     if (event.defaultPrevented || this.suppressNextTaskClick) return;
-    if (this.isTaskEditIgnoredTarget(event.target)) return;
+    if (this.isTaskEditIgnoredEvent(event)) return;
     if (list === 'main') {
       this.startEditingTask(id);
     } else {
@@ -3789,9 +3794,12 @@ export class HomeComponent implements OnDestroy {
     );
   }
 
-  private isTaskEditIgnoredTarget(target: EventTarget | null): boolean {
-    return target instanceof HTMLElement && Boolean(
-      target.closest(
+  private isTaskEditIgnoredEvent(event: Event): boolean {
+    // A subtask delete removes the clicked button before the click bubbles to
+    // the task row. composedPath() preserves the original event path, while
+    // closest() on the now-detached target can no longer see the subtask row.
+    return event.composedPath().some(target =>
+      target instanceof HTMLElement && target.matches(
         'input, textarea, select, button, a, [contenteditable="true"], .subtask-list, .subtask-row, .task-link',
       )
     );

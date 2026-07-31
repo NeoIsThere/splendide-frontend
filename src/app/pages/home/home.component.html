@@ -276,7 +276,7 @@
             <button
               class="section-nav-arrow"
               (click)="goToPrevSection()"
-              aria-label="previous section"
+              aria-label="previous page"
             >
               <svg
                 width="20"
@@ -441,7 +441,7 @@
               <button
                 class="section-nav-arrow"
                 (click)="goToNextSection()"
-                aria-label="next section"
+                aria-label="next page"
               >
                 <svg
                   width="20"
@@ -538,7 +538,7 @@
                   <button
                     class="icon-btn-sm remove-btn remove-btn-section"
                     (click)="startDeleteSection(sec.id)"
-                    aria-label="delete section"
+                    aria-label="delete page"
                   >
                     <svg
                       width="16"
@@ -582,7 +582,7 @@
                 class="section-page-btn section-page-add-btn"
                 (click)="startAddingSection()"
                 [disabled]="addingSectionTitle() !== null"
-                aria-label="add section"
+                aria-label="add page"
                 data-coach-create-section
               >
                 +
@@ -813,6 +813,23 @@
                         }
                       </span>
                     }
+
+                    <button
+                      class="task-drag-handle"
+                      type="button"
+                      data-task-drag-handle
+                      (click)="$event.preventDefault(); $event.stopPropagation()"
+                      [attr.aria-label]="'drag task: ' + task.text"
+                    >
+                      <svg viewBox="0 0 12 18" aria-hidden="true">
+                        <circle cx="3" cy="3" r="1.2" />
+                        <circle cx="9" cy="3" r="1.2" />
+                        <circle cx="3" cy="9" r="1.2" />
+                        <circle cx="9" cy="9" r="1.2" />
+                        <circle cx="3" cy="15" r="1.2" />
+                        <circle cx="9" cy="15" r="1.2" />
+                      </svg>
+                    </button>
 
                     <button
                       class="icon-btn-sm remove-btn"
@@ -1284,6 +1301,23 @@
                           }
                         </span>
                       }
+
+                      <button
+                        class="task-drag-handle task-drag-handle-sec"
+                        type="button"
+                        data-task-drag-handle
+                        (click)="$event.preventDefault(); $event.stopPropagation()"
+                        [attr.aria-label]="'drag task: ' + task.text"
+                      >
+                        <svg viewBox="0 0 12 18" aria-hidden="true">
+                          <circle cx="3" cy="3" r="1.2" />
+                          <circle cx="9" cy="3" r="1.2" />
+                          <circle cx="3" cy="9" r="1.2" />
+                          <circle cx="9" cy="9" r="1.2" />
+                          <circle cx="3" cy="15" r="1.2" />
+                          <circle cx="9" cy="15" r="1.2" />
+                        </svg>
+                      </button>
 
                       <button
                         class="icon-btn-sm remove-btn"

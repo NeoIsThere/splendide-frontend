@@ -1,10 +1,10 @@
 import { HttpInterceptorFn, HttpRequest, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { catchError, finalize, from, Observable, of, shareReplay, switchMap, throwError } from 'rxjs';
+import { catchError, finalize, from, Observable, shareReplay, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { environment } from '../../environments/environment';
 
-let refreshToken$: Observable<string | null> | null = null;
+let refreshToken$: Observable<string> | null = null;
 
 export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, next: HttpHandlerFn) => {
   const auth = inject(AuthService);
@@ -45,19 +45,22 @@ function send(
 
       if (error.status === 401 && !isPublicAuthRoute) {
         return refreshAccessToken(auth).pipe(
-          catchError(() => of(null)),
-          switchMap((newToken) => {
-            if (newToken) {
-              const retryReq = originalReq.clone({
-                setHeaders: {
-                  Authorization: `Bearer ${newToken}`,
-                  ...(environment.isMobile ? { 'X-Splendide-Client': 'mobile' } : {}),
-                },
-              });
-              return next(retryReq);
+          catchError((refreshError: unknown) => {
+            if (isRejectedRefreshCredential(refreshError)) {
+              auth.expireSession();
             }
-            auth.logout();
+            // A network interruption or backend 5xx must not destroy a valid
+            // long-lived session. The next protected request can refresh again.
             return throwError(() => error);
+          }),
+          switchMap((newToken) => {
+            const retryReq = originalReq.clone({
+              setHeaders: {
+                Authorization: `Bearer ${newToken}`,
+                ...(environment.isMobile ? { 'X-Splendide-Client': 'mobile' } : {}),
+              },
+            });
+            return next(retryReq);
           }),
         );
       }
@@ -66,7 +69,7 @@ function send(
   );
 }
 
-function refreshAccessToken(auth: AuthService): Observable<string | null> {
+function refreshAccessToken(auth: AuthService): Observable<string> {
   refreshToken$ ??= from(auth.refreshToken()).pipe(
     finalize(() => {
       refreshToken$ = null;
@@ -75,4 +78,9 @@ function refreshAccessToken(auth: AuthService): Observable<string | null> {
   );
 
   return refreshToken$;
+}
+
+function isRejectedRefreshCredential(error: unknown): boolean {
+  return error instanceof HttpErrorResponse &&
+    (error.status === 400 || error.status === 401 || error.status === 403);
 }

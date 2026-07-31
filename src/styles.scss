@@ -221,32 +221,84 @@ html.native-mobile .task-drag-floating-preview {
 }
 
 .driver-popover-footer button {
-  border: none;
+  border: 1px solid var(--border);
   box-shadow: none;
+  background: var(--card);
+  color: var(--text);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 400;
+  text-shadow: none;
 }
 
 .driver-popover-footer button:focus,
 .driver-popover-footer button:focus-visible {
-  outline: none;
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
 }
 
 .driver-popover {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.24);
 }
 
 .driver-popover-title {
   font-size: 1rem;
   font-weight: 400;
-  color: var(--text-secondary);
+  color: var(--text);
 }
 
 .driver-popover-description {
   color: var(--text-secondary);
   font-size: 0.88rem;
   font-weight: 400;
+}
+
+.driver-popover-footer button:hover,
+.driver-popover-footer button:focus {
+  background-color: var(--hover);
+}
+
+.driver-popover-footer .driver-popover-next-btn {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.driver-popover-footer .driver-popover-next-btn:hover,
+.driver-popover-footer .driver-popover-next-btn:focus {
+  background: color-mix(in srgb, var(--accent) 86%, var(--bg));
+}
+
+.driver-popover-arrow {
+  border-color: var(--card);
+}
+
+.driver-popover-arrow-side-left {
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-top-color: transparent;
+}
+
+.driver-popover-arrow-side-right {
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+  border-top-color: transparent;
+}
+
+.driver-popover-arrow-side-top {
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+}
+
+.driver-popover-arrow-side-bottom {
+  border-left-color: transparent;
+  border-top-color: transparent;
+  border-right-color: transparent;
 }
 
 // ─── Light theme — monochrome (white + tones of black) ────
@@ -268,7 +320,6 @@ html.native-mobile .task-drag-floating-preview {
   --hover: rgba(0, 0, 0, 0.05);
   --accent: #1a1a1a;
   --link: #6d28d9;
-  --active-tab-bg: rgba(0, 0, 0, 0.09);
   --task-hover-bg: rgba(0, 0, 0, 0.035);
 }
 
@@ -287,7 +338,6 @@ body.dark {
   --hover: rgba(255, 255, 255, 0.06);
   --accent: #e0e0e0;
   --link: #c084fc;
-  --active-tab-bg: rgba(255, 255, 255, 0.1);
   --task-hover-bg: rgba(255, 255, 255, 0.05);
 }
 

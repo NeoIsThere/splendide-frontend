@@ -36,7 +36,7 @@ import { APP_VERSION } from '../../../environments/environment';
           <li><strong>Google account ID</strong> - if you sign in with Google</li>
           <li><strong>Apple account ID</strong> - if you sign in with Apple</li>
           <li><strong>Theme preference</strong> - to apply your light or night mode preference when you sign in</li>
-          <li><strong>Private synced task data</strong> - your sections, list names, tasks, subtasks, completion status, done dates, order, and sync metadata</li>
+          <li><strong>Private synced task data</strong> - your pages, list names, tasks, subtasks, completion status, done dates, order, and sync metadata</li>
           <li><strong>Authentication data</strong> - access tokens stored in your browser and refresh tokens stored in secure cookies</li>
           <li><strong>Mobile notification data</strong> - your notification preference, platform, and Firebase device token if you enable shared-page notifications</li>
         </ul>

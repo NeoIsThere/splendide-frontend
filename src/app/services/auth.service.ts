@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -187,24 +187,26 @@ export class AuthService {
 
   // ─── Token Refresh ──────────────────────────────────────
 
-  async refreshToken(): Promise<string | null> {
-    try {
-      const refreshToken = await this.getNativeRefreshToken();
-      const res = await firstValueFrom(this.http.post<{ accessToken: string; refreshToken?: string }>(
-        `${this.apiUrl}/auth/refresh`,
-        refreshToken ? { refreshToken } : {},
-        { withCredentials: true },
-      ));
-      if (res.accessToken) {
-        this._token.set(res.accessToken);
-        localStorage.setItem('splendide_token', res.accessToken);
-        if (res.refreshToken) await this.saveNativeRefreshToken(res.refreshToken);
-        return res.accessToken;
-      }
-    } catch {
-      // Let the caller (interceptor) handle logout
+  async refreshToken(): Promise<string> {
+    const refreshToken = await this.getNativeRefreshToken();
+    const res = await firstValueFrom(this.http.post<{ accessToken: string; refreshToken?: string }>(
+      `${this.apiUrl}/auth/refresh`,
+      refreshToken ? { refreshToken } : {},
+      { withCredentials: true },
+    ));
+    if (!res.accessToken) {
+      throw new Error('The refresh response did not include an access token');
     }
-    return null;
+
+    this._token.set(res.accessToken);
+    localStorage.setItem('splendide_token', res.accessToken);
+    if (res.refreshToken) {
+      // The previous signed refresh token remains valid until its expiry, so a
+      // transient Keychain/Keystore write failure must not discard the active
+      // access token or force the user through sign-in again.
+      await this.saveNativeRefreshToken(res.refreshToken).catch(() => undefined);
+    }
+    return res.accessToken;
   }
 
   // ─── Fetch user profile ─────────────────────────────────
@@ -293,14 +295,19 @@ export class AuthService {
 
   logout(): void {
     void this.unregisterCurrentDevice();
-    this._user.set(null);
-    this._token.set(null);
-    this.posthog.reset();
-    this.themePreferenceAppliedForUserId = null;
-    localStorage.removeItem('splendide_token');
-    localStorage.removeItem('splendide_user');
-    void this.clearNativeRefreshToken();
+    this.clearLocalSession();
     this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true }).subscribe();
+    this.router.navigate(['/']);
+  }
+
+  /**
+   * Clears a session only after the refresh credential has been rejected.
+   * Unlike an explicit logout, this deliberately performs no authenticated
+   * cleanup request: retrying one with an expired access token would recurse
+   * through the interceptor and can turn a single 401 into a logout loop.
+   */
+  expireSession(): void {
+    this.clearLocalSession();
     this.router.navigate(['/']);
   }
 
@@ -309,7 +316,9 @@ export class AuthService {
     this._user.set(res.user);
     localStorage.setItem('splendide_token', res.accessToken);
     localStorage.setItem('splendide_user', JSON.stringify(res.user));
-    if (res.refreshToken) await this.saveNativeRefreshToken(res.refreshToken);
+    if (res.refreshToken) {
+      await this.saveNativeRefreshToken(res.refreshToken).catch(() => undefined);
+    }
     this.applyUserThemePreference(res.user);
     this.posthog.identifyUser(res.user);
   }
@@ -317,10 +326,12 @@ export class AuthService {
   private async restoreNativeSession(): Promise<void> {
     try {
       if (!await this.getNativeRefreshToken()) return;
-      if (!await this.refreshToken()) return;
+      await this.refreshToken();
       await this.fetchUser();
-    } catch {
-      await this.clearNativeRefreshToken().catch(() => undefined);
+    } catch (error) {
+      if (this.isRejectedRefreshCredential(error)) {
+        this.clearLocalSession();
+      }
     }
   }
 
@@ -431,6 +442,21 @@ export class AuthService {
   private persistCurrentUser(): void {
     const user = this._user();
     if (user) localStorage.setItem('splendide_user', JSON.stringify(user));
+  }
+
+  private clearLocalSession(): void {
+    this._user.set(null);
+    this._token.set(null);
+    this.posthog.reset();
+    this.themePreferenceAppliedForUserId = null;
+    localStorage.removeItem('splendide_token');
+    localStorage.removeItem('splendide_user');
+    void this.clearNativeRefreshToken().catch(() => undefined);
+  }
+
+  private isRejectedRefreshCredential(error: unknown): boolean {
+    return error instanceof HttpErrorResponse &&
+      (error.status === 400 || error.status === 401 || error.status === 403);
   }
 
   private async unregisterCurrentDevice(): Promise<void> {
