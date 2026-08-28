@@ -1,4 +1,8 @@
-<div class="layout">
+<div
+  class="layout"
+  [class.task-move-busy]="taskMoveInProgress()"
+  [attr.aria-busy]="taskMoveInProgress()"
+>
   <!-- ═══ Top bar ═══ -->
 
   <div class="my-top-bar">
@@ -238,7 +242,7 @@
               <p class="public-share-title">sharing off</p>
               <p class="public-share-copy">nobody has access to this page anymore</p>
             } @else if (activeSection()?.isShared && shareSectionUrl()) {
-              <p class="public-share-title">share this page</p>
+              <p class="public-share-title">page shared</p>
               <p class="public-share-copy">anyone with the link can edit this page</p>
               <div class="public-share-link-row">
                 <input
@@ -475,7 +479,9 @@
               class="section-page"
               [class.active]="activeSectionId() === sec.id"
               [class.keyboard-focused]="isSectionKeyboardFocused(sec.id)"
+              [class.task-page-drop-target]="taskPageDropTargetId() === sec.id"
               [attr.data-keyboard-section]="sec.id"
+              [attr.data-task-drop-section]="sec.id"
             >
               <div
                 class="section-page-surface"
@@ -598,24 +604,9 @@
     }
 
     <div class="lists" (scroll)="handleTaskDragScroll()">
-      <!-- ═══ Main Section ═══ -->
-      <div class="my-list-col main-section" #mainSection>
-        <div class="my-primary-list-container">
-          @if (editingMainTitle()) {
-            <input
-              class="list-title-input main-title-input"
-              type="text"
-              [value]="mainTitle()"
-              (blur)="saveMainTitle($event)"
-              (keydown)="handleMainTitleKeydown($event)"
-              aria-label="edit list title"
-              maxlength="40"
-            />
-          } @else {
-            <h2 class="section-title main-list-title" (click)="startEditingMainTitle()">
-              {{ mainTitle() }}
-            </h2>
-          }
+      <!-- Task list -->
+      <div class="my-list-col task-section" #taskSection>
+        <div class="task-list-container">
           <p
             class="counter"
             [class.counter-invisible]="taskCount() === 0 || completedCount() === 0"
@@ -623,11 +614,11 @@
             {{ completedCount() }} / {{ taskCount() }}
           </p>
 
-          <!-- Main drop zone (drag-drop) -->
+          <!-- Task drop zone -->
           <div
-            class="main-drop-zone"
+            class="task-drop-zone"
             (scroll)="handleTaskDragScroll()"
-            id="mainDropList"
+            id="taskDropList"
           >
             <!-- Add task form -->
             @if (adding()) {
@@ -702,11 +693,11 @@
                   }
                 </div>
               </div>
-            } @else if (showMainAddPlaceholder()) {
+            } @else if (showAddPlaceholder()) {
               <div
                 class="add-placeholder"
-                [class.keyboard-focused]="isAddPlaceholderFocused('main')"
-                data-keyboard-list="main"
+                [class.keyboard-focused]="isAddPlaceholderFocused()"
+                data-keyboard-list="tasks"
                 (click)="startAdding()"
                 (keydown.enter)="startAdding()"
                 role="button"
@@ -739,7 +730,7 @@
               (scroll)="handleTaskDragScroll()"
             >
               @for (task of tasks(); track task.id) {
-                @if (showTaskDragPlaceholder('main', $index)) {
+                @if (showTaskDragPlaceholder($index)) {
                   <div
                     class="task-drop-indicator"
                     [style.height.px]="taskDragPlaceholderHeight()"
@@ -749,14 +740,14 @@
                 <div
                   class="task-item"
                   [class.done]="task.done"
-                  [class.keyboard-focused]="isTaskFocused('main', task.id)"
-                  [class.task-drag-source-hidden]="isTaskDragSource('main', task.id)"
-                  data-keyboard-list="main"
+                  [class.keyboard-focused]="isTaskFocused(task.id)"
+                  [class.task-drag-source-hidden]="isTaskDragSource(task.id)"
+                  data-keyboard-list="tasks"
                   [attr.data-keyboard-task]="task.id"
-                  (pointerdown)="beginTaskPointerDrag($event, 'main', task, $index)"
-                  (touchstart)="beginTaskTouchDrag($event, 'main', task, $index)"
-                  (click)="handleTaskItemClick($event, 'main', task.id)"
-                  (mouseleave)="clearTaskFocusOnMouseLeave('main', task.id)"
+                  (pointerdown)="beginTaskPointerDrag($event, task, $index)"
+                  (touchstart)="beginTaskTouchDrag($event, task, $index)"
+                  (click)="handleTaskItemClick($event, task.id)"
+                  (mouseleave)="clearTaskFocusOnMouseLeave(task.id)"
                   role="listitem"
                 >
                   <div class="task-main">
@@ -821,6 +812,28 @@
                     }
 
                     <button
+                      class="icon-btn-sm deadline-btn desktop-deadline-btn"
+                      [class.has-deadline]="task.deadlineAt"
+                      (click)="openDeadlineEditor(task); $event.stopPropagation()"
+                      [attr.aria-label]="task.deadlineAt ? 'edit deadline for: ' + task.text : 'set deadline for: ' + task.text"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 7v5l3 2" />
+                      </svg>
+                    </button>
+
+                    <button
                       class="icon-btn-sm remove-btn"
                       (click)="removeTask(task.id)"
                       [attr.aria-label]="'remove: ' + task.text"
@@ -841,23 +854,30 @@
                       </svg>
                     </button>
 
-                    <!-- Mobile 3-dot menu -->
-                    <div class="task-dots-wrapper mobile-only" data-task-menu>
+                    <div class="task-dots-wrapper" data-task-menu>
                       <button
                         class="icon-btn-sm task-dots-btn"
                         (click)="toggleTaskMenu(task.id, $event)"
                         [attr.aria-label]="'options for: ' + task.text"
+                        [attr.aria-expanded]="taskMenuOpenId() === task.id"
+                        [attr.aria-controls]="'task-menu-' + task.id"
                       >
                         &#8226;&#8226;&#8226;
                       </button>
                       @if (taskMenuOpenId() === task.id) {
-                        <div class="task-dots-menu">
-                          @if (!isPublicPage()) {
+                        <div class="task-dots-menu" [id]="'task-menu-' + task.id">
+                          <button
+                            class="task-dots-item"
+                            (click)="openDeadlineEditor(task); taskMenuOpenId.set(null)"
+                          >
+                            {{ task.deadlineAt ? 'edit deadline' : 'add deadline' }}
+                          </button>
+                          @if (taskMoveTargetSections().length > 0) {
                             <button
                               class="task-dots-item"
-                              (click)="moveToBacklog(task.id); taskMenuOpenId.set(null)"
+                              (click)="openTaskMoveDialog(task)"
                             >
-                              move to {{ secondaryTitle() }}
+                              move to page
                             </button>
                           }
                           <button
@@ -871,6 +891,20 @@
                     </div>
                   </div>
 
+                  @if (task.deadlineAt) {
+                    <button
+                      class="task-deadline-label"
+                      type="button"
+                      (click)="openDeadlineEditor(task); $event.stopPropagation()"
+                      [attr.aria-label]="'deadline ' + deadlineLabel(task.deadlineAt) + ' for: ' + task.text"
+                    >
+                      {{ deadlineLabel(task.deadlineAt) }}
+                      @if (task.deadlineNotificationEnabled) {
+                        <span aria-label="notification enabled">· alert</span>
+                      }
+                    </button>
+                  }
+
                   <!-- Subtasks -->
                   <div
                     class="subtask-list"
@@ -882,6 +916,7 @@
                       <div
                         class="subtask-row"
                         cdkDrag
+                        [cdkDragDisabled]="editingSubtask()?.taskId === task.id && editingSubtask()?.subtaskId === sub.id"
                         [cdkDragStartDelay]="dragDelay()"
                         (cdkDragStarted)="setDragging(true)"
                         (cdkDragEnded)="setDragging(false)"
@@ -921,6 +956,8 @@
                             type="text"
                             [value]="sub.text"
                             [attr.data-edit-id]="'sub-' + sub.id"
+                            (pointerdown)="$event.stopPropagation()"
+                            (touchstart)="$event.stopPropagation()"
                             (blur)="saveSubtaskEdit(task.id, sub.id, $event)"
                             (keydown)="handleSubtaskEditKeydown(task.id, sub.id, $event)"
                             aria-label="edit subtask"
@@ -1021,7 +1058,7 @@
               } @empty {
                 <!-- empty -->
               }
-              @if (showTaskDragPlaceholder('main', tasks().length)) {
+              @if (showTaskDragPlaceholder(tasks().length)) {
                 <div
                   class="task-drop-indicator"
                   [style.height.px]="taskDragPlaceholderHeight()"
@@ -1030,7 +1067,7 @@
               }
             </div>
           </div>
-          <!-- /.main-drop-zone -->
+          <!-- /.task-drop-zone -->
 
           @if (taskCount() > 0) {
             @if (confirmingClear()) {
@@ -1071,490 +1108,7 @@
         </div>
       </div>
 
-      <!-- ═══ Secondary Section ═══ -->
-      @if (!isPublicPage()) {
-        <div class="my-list-col secondary-section" #secondarySection>
-          <div class="my-secondary-list-container">
-            <div class="sec-header">
-              @if (editingSecondaryTitle()) {
-                <input
-                  class="list-title-input sec-title-input"
-                  type="text"
-                  [value]="secondaryTitle()"
-                  (blur)="saveSecondaryTitle($event)"
-                  (keydown)="handleSecondaryTitleKeydown($event)"
-                  aria-label="edit list title"
-                  maxlength="40"
-                />
-              } @else {
-                <h2 class="section-title" (click)="startEditingSecondaryTitle()">
-                  {{ secondaryTitle() }}
-                </h2>
-              }
-            </div>
-
-            <p
-              class="counter counter-sec"
-              [class.counter-invisible]="secondaryCount() === 0 || secondaryCompletedCount() === 0"
-            >
-              {{ secondaryCompletedCount() }} / {{ secondaryCount() }}
-            </p>
-
-            <div
-              class="sec-drop-zone"
-              (scroll)="handleTaskDragScroll()"
-              id="secondaryDropList"
-            >
-              @if (secondaryVisible()) {
-                @if (addingSecondary()) {
-                  <div class="add-form add-form-sec" (focusout)="onSecAddFormFocusOut($event)">
-                    <input
-                      class="input-minimal input-sec"
-                      type="text"
-                      placeholder="task"
-                      [value]="newSecondaryText()"
-                      (input)="onNewSecondaryInput($event)"
-                      (keydown)="handleSecondaryKeydown($event)"
-                      aria-label="new secondary task"
-                      maxlength="120"
-                    />
-                    @for (sub of newSecondarySubtasks(); track $index) {
-                      <div class="subtask-input-row">
-                        <input
-                          class="input-minimal input-sub"
-                          type="text"
-                          placeholder="subtask"
-                          [value]="sub"
-                          (input)="updateNewSecSubtask($index, $event)"
-                          (keydown)="handleSecondaryKeydown($event)"
-                          aria-label="subtask"
-                          maxlength="120"
-                        />
-                        <button
-                          class="icon-btn-sm"
-                          (click)="removeSecSubtaskField($index)"
-                          aria-label="remove subtask field"
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
-                      </div>
-                    }
-                    <div class="form-actions">
-                      @if (newSecondarySubtasks().length < 10) {
-                        <button
-                          class="add-subtask-btn add-subtask-btn-form"
-                          (click)="addSecSubtaskField()"
-                          aria-label="add subtask field"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                          </svg>
-                          subtask
-                        </button>
-                      }
-                    </div>
-                  </div>
-                } @else if (showSecondaryAddPlaceholder()) {
-                  <div
-                    class="add-placeholder add-placeholder-sec"
-                    [class.keyboard-focused]="isAddPlaceholderFocused('secondary')"
-                    data-keyboard-list="secondary"
-                    (click)="startAddingSecondary()"
-                    (keydown.enter)="startAddingSecondary()"
-                    role="button"
-                    tabindex="0"
-                    aria-label="add a task"
-                  >
-                    <svg
-                      class="add-placeholder-icon add-placeholder-icon-sec"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    <span class="add-placeholder-text add-placeholder-text-sec">task</span>
-                  </div>
-                }
-              }
-              <div
-                class="task-list"
-                role="list"
-                aria-label="secondary tasks"
-                (scroll)="handleTaskDragScroll()"
-              >
-                @for (task of secondaryTasks(); track task.id) {
-                  @if (showTaskDragPlaceholder('secondary', $index)) {
-                    <div
-                      class="task-drop-indicator task-drop-indicator-sec"
-                      [style.height.px]="taskDragPlaceholderHeight()"
-                      aria-hidden="true"
-                    ></div>
-                  }
-                  <div
-                    class="sec-task-item"
-                    [class.done]="task.done"
-                    [class.keyboard-focused]="isTaskFocused('secondary', task.id)"
-                    [class.task-drag-source-hidden]="isTaskDragSource('secondary', task.id)"
-                    data-keyboard-list="secondary"
-                    [attr.data-keyboard-task]="task.id"
-                    (pointerdown)="beginTaskPointerDrag($event, 'secondary', task, $index)"
-                    (touchstart)="beginTaskTouchDrag($event, 'secondary', task, $index)"
-                    (click)="handleTaskItemClick($event, 'secondary', task.id)"
-                    (mouseleave)="clearTaskFocusOnMouseLeave('secondary', task.id)"
-                    role="listitem"
-                  >
-                    <div class="sec-task-main">
-                      <button
-                        class="check-btn check-btn-sub"
-                        [class.checked]="task.done"
-                        (click)="toggleSecondaryTask(task.id)"
-                        (mousedown)="$event.stopPropagation()"
-                        [attr.aria-label]="
-                          (task.done ? 'mark incomplete: ' : 'mark complete: ') + task.text
-                        "
-                      >
-                        @if (task.done) {
-                          <svg
-                            width="8"
-                            height="8"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="3"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        }
-                      </button>
-
-                      @if (editingSecondaryId() === task.id) {
-                        <input
-                          class="edit-input edit-input-sec"
-                          type="text"
-                          [value]="task.text"
-                          [attr.data-edit-id]="'sec-' + task.id"
-                          (blur)="saveSecondaryEdit(task.id, $event)"
-                          (keydown)="handleSecondaryEditKeydown(task.id, $event)"
-                          aria-label="edit task"
-                          maxlength="120"
-                        />
-                      } @else {
-                        <span
-                          class="sec-task-text"
-                          [class.struck]="task.done"
-                        >
-                          @for (segment of linkSegments(task.text); track $index) {
-                            @if (segment.href; as href) {
-                              <a
-                                class="task-link"
-                                [href]="href"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                (pointerdown)="$event.stopPropagation()"
-                                (click)="openTaskLink($event, href)"
-                                [textContent]="segment.text"
-                              ></a>
-                            } @else {
-                              <span [textContent]="segment.text"></span>
-                            }
-                          }
-                        </span>
-                      }
-
-                      <button
-                        class="icon-btn-sm remove-btn"
-                        (click)="removeSecondaryTask(task.id)"
-                        [attr.aria-label]="'remove: ' + task.text"
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          aria-hidden="true"
-                        >
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </button>
-
-                      <!-- Mobile 3-dot menu -->
-                      <div class="task-dots-wrapper mobile-only" data-sec-task-menu>
-                        <button
-                          class="icon-btn-sm task-dots-btn"
-                          (click)="toggleSecTaskMenu(task.id, $event)"
-                          [attr.aria-label]="'options for: ' + task.text"
-                        >
-                          &#8226;&#8226;&#8226;
-                        </button>
-                        @if (secTaskMenuOpenId() === task.id) {
-                          <div class="task-dots-menu task-dots-menu-left">
-                            <button
-                              class="task-dots-item"
-                              (click)="moveToMain(task.id); secTaskMenuOpenId.set(null)"
-                            >
-                              move to {{ mainTitle() }}
-                            </button>
-                            <button
-                              class="task-dots-item task-dots-item-danger"
-                              (click)="removeSecondaryTask(task.id)"
-                            >
-                              delete
-                            </button>
-                          </div>
-                        }
-                      </div>
-                    </div>
-
-                    <!-- Subtasks -->
-                    <div
-                      class="subtask-list"
-                      cdkDropList
-                      [cdkDropListData]="task.subtasks"
-                      (cdkDropListDropped)="dropSecSubtask(task.id, $any($event))"
-                    >
-                      @for (sub of task.subtasks; track sub.id) {
-                        <div
-                          class="subtask-row"
-                          cdkDrag
-                          [cdkDragStartDelay]="dragDelay()"
-                          (cdkDragStarted)="setDragging(true)"
-                          (cdkDragEnded)="setDragging(false)"
-                        >
-                          <button
-                            class="check-btn check-btn-sub"
-                            [class.checked]="sub.done"
-                            (click)="toggleSecSubtask(task.id, sub.id)"
-                            (mousedown)="$event.stopPropagation()"
-                            [attr.aria-label]="
-                              (sub.done ? 'mark incomplete: ' : 'mark complete: ') + sub.text
-                            "
-                          >
-                            @if (sub.done) {
-                              <svg
-                                width="8"
-                                height="8"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="3"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                aria-hidden="true"
-                              >
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            }
-                          </button>
-
-                          @if (
-                            editingSecSubtask()?.taskId === task.id &&
-                            editingSecSubtask()?.subtaskId === sub.id
-                          ) {
-                            <input
-                              class="edit-input edit-input-sub"
-                              type="text"
-                              [value]="sub.text"
-                              [attr.data-edit-id]="'secsub-' + sub.id"
-                              (blur)="saveSecSubtaskEdit(task.id, sub.id, $event)"
-                              (keydown)="handleSecSubtaskEditKeydown(task.id, sub.id, $event)"
-                              aria-label="edit subtask"
-                              maxlength="120"
-                            />
-                          } @else {
-                            <span
-                              class="subtask-text"
-                              [class.struck]="sub.done"
-                              (pointerdown)="$event.stopPropagation()"
-                              (click)="startEditingSecSubtask(task.id, sub.id)"
-                            >
-                              @for (segment of linkSegments(sub.text); track $index) {
-                                @if (segment.href; as href) {
-                                  <a
-                                    class="task-link"
-                                    [href]="href"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    (pointerdown)="$event.stopPropagation()"
-                                    (click)="openTaskLink($event, href)"
-                                    [textContent]="segment.text"
-                                  ></a>
-                                } @else {
-                                  <span [textContent]="segment.text"></span>
-                                }
-                              }
-                            </span>
-                          }
-
-                          <button
-                            class="icon-btn-sm remove-btn"
-                            (click)="removeSecSubtask(task.id, sub.id)"
-                            [attr.aria-label]="'remove subtask: ' + sub.text"
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              aria-hidden="true"
-                            >
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </button>
-                        </div>
-                      }
-                    </div>
-
-                    <!-- Inline add subtask input -->
-                    @if (addingSecSubtaskToId() === task.id) {
-                      <div class="subtask-row">
-                        <input
-                          class="edit-input edit-input-sub"
-                          type="text"
-                          placeholder="subtask"
-                          data-inline-sec-subtask
-                          [value]="newInlineSecSubtaskText()"
-                          (input)="onInlineSecSubtaskInput($event)"
-                          (keydown)="handleInlineSecSubtaskKeydown(task.id, $event)"
-                          (blur)="confirmAddSecSubtask(task.id)"
-                          aria-label="new subtask"
-                          maxlength="120"
-                        />
-                      </div>
-                    }
-
-                    <!-- Add subtask button -->
-                    @if (task.subtasks.length < 10 && addingSecSubtaskToId() !== task.id) {
-                      <button
-                        class="add-subtask-btn"
-                        (click)="startAddingSecSubtask(task.id)"
-                        aria-label="add subtask"
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          aria-hidden="true"
-                        >
-                          <line x1="12" y1="5" x2="12" y2="19" />
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                        subtask
-                      </button>
-                    }
-                  </div>
-                } @empty {
-                  <!-- empty -->
-                }
-                @if (showTaskDragPlaceholder('secondary', secondaryTasks().length)) {
-                  <div
-                    class="task-drop-indicator task-drop-indicator-sec"
-                    [style.height.px]="taskDragPlaceholderHeight()"
-                    aria-hidden="true"
-                  ></div>
-                }
-              </div>
-            </div>
-            <!-- /.sec-drop-zone -->
-
-            @if (secondaryVisible() && secondaryCount() > 0) {
-              @if (confirmingSecondaryClear()) {
-                <div class="clear-confirm" data-confirm-secondary-clear>
-                  <span class="clear-confirm-label">delete:</span>
-                  @if (
-                    secondaryCompletedCount() > 0 && secondaryCompletedCount() < secondaryCount()
-                  ) {
-                    <button
-                      class="clear-yes"
-                      (click)="clearDoneSecondary(); cancelSecondaryClear()"
-                    >
-                      done only
-                    </button>
-                  }
-                  <button class="clear-yes" (click)="confirmSecondaryClear()">all</button>
-                  <button class="clear-no" (click)="cancelSecondaryClear()">cancel</button>
-                </div>
-              } @else {
-                <div class="clear-actions" data-confirm-secondary-clear>
-                  <button
-                    class="clear-btn"
-                    (click)="startSecondaryClear()"
-                    aria-label="clear the list"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                      <path d="M9 6V4h6v2" />
-                    </svg>
-                  </button>
-                </div>
-              }
-            }
-          </div>
-        </div>
-      }
-
+      <!-- Completed tasks -->
       @if (doneTaskCount() > 0) {
         <div class="my-list-col my-last-list-col">
           <div class="my-tertiary-list-container">
@@ -1654,6 +1208,104 @@
       }
     </div>
   }
+  <p class="visually-hidden" aria-live="polite">{{ taskMoveAnnouncement() }}</p>
+
+  @if (deadlineEditorTask(); as task) {
+    <div class="deadline-backdrop" (click)="closeDeadlineEditor()" aria-hidden="true"></div>
+    <section
+      #deadlineDialog
+      class="deadline-dialog"
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+      aria-labelledby="deadline-dialog-title"
+      aria-describedby="deadline-dialog-description"
+    >
+      <button
+        class="icon-btn-sm deadline-dialog-close"
+        type="button"
+        (click)="closeDeadlineEditor()"
+        aria-label="close deadline dialog"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      <h2 id="deadline-dialog-title">deadline</h2>
+      <p id="deadline-dialog-description" class="deadline-task-name">{{ task.text }}</p>
+      <form (submit)="saveDeadline($event)">
+        <label class="deadline-field">
+          <span>date and time</span>
+          <input
+            data-deadline-initial-focus
+            type="datetime-local"
+            [value]="deadlineDraftLocal()"
+            (input)="updateDeadlineDraft($event)"
+            required
+          />
+        </label>
+        <label class="deadline-notification-toggle">
+          <input
+            type="checkbox"
+            [checked]="deadlineNotificationDraft()"
+            (change)="updateDeadlineNotificationDraft($event)"
+          />
+          <span>notify me</span>
+        </label>
+        @if (deadlinePermissionMessage()) {
+          <p class="deadline-permission-message" aria-live="polite">{{ deadlinePermissionMessage() }}</p>
+        }
+        <div class="deadline-actions">
+          @if (task.deadlineAt) {
+            <button class="deadline-remove" type="button" (click)="removeDeadline()">remove</button>
+          }
+          <span></span>
+          <button type="button" (click)="closeDeadlineEditor()">cancel</button>
+          <button class="deadline-save" type="submit">save</button>
+        </div>
+      </form>
+    </section>
+  }
+
+  @if (taskMoveDialogTask(); as task) {
+    <div class="deadline-backdrop" (click)="closeTaskMoveDialog()" aria-hidden="true"></div>
+    <section
+      #taskMoveDialog
+      class="deadline-dialog task-move-dialog"
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+      aria-labelledby="task-move-dialog-title"
+      aria-describedby="task-move-dialog-description"
+    >
+      <button
+        class="icon-btn-sm deadline-dialog-close"
+        type="button"
+        (click)="closeTaskMoveDialog()"
+        aria-label="close move task dialog"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      <h2 id="task-move-dialog-title">move to page</h2>
+      <p id="task-move-dialog-description" class="deadline-task-name">{{ task.text }}</p>
+      <div class="task-move-page-list">
+        @for (section of taskMoveTargetSections(); track section.id) {
+          <button
+            type="button"
+            [attr.data-task-move-initial-focus]="$first ? '' : null"
+            (click)="moveTaskToPage(task, section.id)"
+          >
+            {{ section.title || 'untitled page' }}
+          </button>
+        }
+      </div>
+      <button class="task-move-cancel" type="button" (click)="closeTaskMoveDialog()">cancel</button>
+    </section>
+  }
 
   @if (infoDialog()) {
     <div class="splendide-info-backdrop" (click)="closeInfoDialog()" aria-hidden="true"></div>
@@ -1701,11 +1353,11 @@
             <dl class="shortcut-list">
               <div class="shortcut-row">
                 <dt><kbd>↑</kbd><kbd>↓</kbd></dt>
-                <dd>move through pages, lists, and tasks</dd>
+                <dd>move through pages and tasks</dd>
               </div>
               <div class="shortcut-row">
                 <dt><kbd>←</kbd><kbd>→</kbd></dt>
-                <dd>switch pages or move between lists</dd>
+                <dd>switch pages</dd>
               </div>
               <div class="shortcut-row">
                 <dt><kbd>Enter</kbd></dt>
@@ -1814,7 +1466,6 @@
     >
       <div
         class="task-drag-preview-card"
-        [class.task-drag-preview-card-sec]="drag.sourceList === 'secondary'"
       >
         <div class="task-drag-preview-main">
           <span

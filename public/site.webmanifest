@@ -1,7 +1,7 @@
 {
   "name": "Splendide",
   "short_name": "Splendide",
-  "description": "A minimalist task manager for calm now/later planning, subtasks, sync, and shareable pages.",
+  "description": "A minimalist collaborative to-do list for calm, shared planning.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

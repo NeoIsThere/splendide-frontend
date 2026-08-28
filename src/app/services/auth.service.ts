@@ -4,7 +4,11 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { StorageService } from './storage.service';
-import { ThemeService } from './theme.service';
+import {
+  BackgroundThemeId,
+  isBackgroundThemeId,
+  ThemeService,
+} from './theme.service';
 import { PosthogService } from './posthog.service';
 import { Capacitor } from '@capacitor/core';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
@@ -18,6 +22,7 @@ export interface User {
   hasPassword: boolean;
   syncGeneration: number;
   darkMode: boolean | null;
+  backgroundTheme: BackgroundThemeId | null;
   sharedNotificationsEnabled: boolean;
   hasStripeSubscription: boolean;
   hasMobileSubscription: boolean;
@@ -41,7 +46,6 @@ export class AuthService {
 
   private readonly _user = signal<User | null>(this.loadUser());
   private readonly _token = signal<string | null>(this.loadToken());
-  private themePreferenceAppliedForUserId: string | null = null;
   private readonly sessionReady: Promise<void>;
 
   readonly user = this._user.asReadonly();
@@ -178,7 +182,6 @@ export class AuthService {
     this._user.set(null);
     this._token.set(null);
     this.posthog.reset();
-    this.themePreferenceAppliedForUserId = null;
     localStorage.removeItem('splendide_token');
     localStorage.removeItem('splendide_user');
     await this.clearNativeRefreshToken();
@@ -213,7 +216,8 @@ export class AuthService {
 
   async fetchUser(): Promise<User | null> {
     try {
-      const user = await firstValueFrom(this.http.get<User>(`${this.apiUrl}/user/me`));
+      const response = await firstValueFrom(this.http.get<User>(`${this.apiUrl}/user/me`));
+      const user = this.normalizeUserPreferences(response);
       this._user.set(user);
       localStorage.setItem('splendide_user', JSON.stringify(user));
       this.applyUserThemePreference(user);
@@ -312,15 +316,16 @@ export class AuthService {
   }
 
   private async setSession(res: AuthResponse): Promise<void> {
+    const user = this.normalizeUserPreferences(res.user);
     this._token.set(res.accessToken);
-    this._user.set(res.user);
+    this._user.set(user);
     localStorage.setItem('splendide_token', res.accessToken);
-    localStorage.setItem('splendide_user', JSON.stringify(res.user));
+    localStorage.setItem('splendide_user', JSON.stringify(user));
     if (res.refreshToken) {
       await this.saveNativeRefreshToken(res.refreshToken).catch(() => undefined);
     }
-    this.applyUserThemePreference(res.user);
-    this.posthog.identifyUser(res.user);
+    this.applyUserThemePreference(user);
+    this.posthog.identifyUser(user);
   }
 
   private async restoreNativeSession(): Promise<void> {
@@ -347,33 +352,53 @@ export class AuthService {
     try {
       const raw = localStorage.getItem('splendide_user');
       const parsed = raw ? JSON.parse(raw) as User : null;
-      return parsed ? {
+      return parsed ? this.normalizeUserPreferences({
         ...parsed,
         syncGeneration: parsed.syncGeneration ?? 0,
-        darkMode: parsed.darkMode ?? null,
         sharedNotificationsEnabled: parsed.sharedNotificationsEnabled ?? false,
         hasStripeSubscription: parsed.hasStripeSubscription ?? false,
         hasMobileSubscription: parsed.hasMobileSubscription ?? false,
-      } : null;
+      }) : null;
     } catch { return null; }
   }
 
-  private applyUserThemePreference(user: User): void {
-    if (this.themePreferenceAppliedForUserId === user.id) return;
-    this.themePreferenceAppliedForUserId = user.id;
+  private normalizeUserPreferences(user: User): User {
+    return {
+      ...user,
+      darkMode: typeof user.darkMode === 'boolean' ? user.darkMode : null,
+      backgroundTheme: isBackgroundThemeId(user.backgroundTheme) ? user.backgroundTheme : null,
+    };
+  }
 
-    if (user.darkMode === null || user.darkMode === undefined) {
-      const darkMode = this.theme.dark();
-      this._user.update(current => current ? { ...current, darkMode } : current);
+  private applyUserThemePreference(user: User): void {
+    const pending = this.theme.pendingPreferenceForUser(user.id);
+    const needsDarkPreference = !pending && typeof user.darkMode !== 'boolean';
+    const needsBackgroundPreference = !pending && !isBackgroundThemeId(user.backgroundTheme);
+    const darkMode = pending?.darkMode
+      ?? (typeof user.darkMode === 'boolean' ? user.darkMode : this.theme.dark());
+    const backgroundTheme = pending?.backgroundTheme
+      ?? (isBackgroundThemeId(user.backgroundTheme)
+        ? user.backgroundTheme
+        : this.theme.backgroundTheme());
+
+    this.theme.setDark(darkMode);
+    this.theme.setBackgroundTheme(backgroundTheme);
+    if (
+      pending ||
+      needsDarkPreference ||
+      needsBackgroundPreference ||
+      user.darkMode !== darkMode ||
+      user.backgroundTheme !== backgroundTheme
+    ) {
+      this._user.update(current => current ? { ...current, darkMode, backgroundTheme } : current);
       const current = this._user();
       if (current) {
         localStorage.setItem('splendide_user', JSON.stringify(current));
       }
-      this.theme.saveCurrentPreferenceToAccount();
-      return;
+      if (!pending && (needsDarkPreference || needsBackgroundPreference)) {
+        this.theme.saveCurrentPreferenceToAccount();
+      }
     }
-
-    this.theme.setDark(user.darkMode);
   }
 
   private readonly mobileSocialLoginInitializations = new Map<'google' | 'apple', Promise<void>>();
@@ -448,7 +473,6 @@ export class AuthService {
     this._user.set(null);
     this._token.set(null);
     this.posthog.reset();
-    this.themePreferenceAppliedForUserId = null;
     localStorage.removeItem('splendide_token');
     localStorage.removeItem('splendide_user');
     void this.clearNativeRefreshToken().catch(() => undefined);

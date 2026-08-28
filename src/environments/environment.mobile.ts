@@ -13,4 +13,4 @@ export const environment = {
   isMobile: true,
 };
 
-export const APP_VERSION = 'v1.0.0';
+export const APP_VERSION = 'v1.1.0';

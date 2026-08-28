@@ -1,8 +1,12 @@
 import { Injectable } from '@angular/core';
+import { planSingleListMigration } from '../utils/single-list-migration';
 
 export interface StoredItem {
   id: string;
   content: unknown;
+  deadlineAt?: string | null;
+  deadlineTimeZone?: string | null;
+  deadlineNotificationEnabled?: boolean;
   position: number;
   lastModifiedAt: string;
   serverRevision: number;
@@ -20,7 +24,6 @@ export interface StoredList {
   itemsBaseOrderRevision: number;
   dirty?: boolean;
   itemsOrderDirty?: boolean;
-  isBacklog: boolean;
   items: StoredItem[];
 }
 
@@ -77,12 +80,41 @@ type LegacySection = Partial<StoredSection> & {
 };
 
 type LegacyList = Partial<StoredList> & {
+  isBacklog?: boolean;
   lastModifiedAt?: string;
   content?: unknown[];
 };
 
-const LS_PREFIX = 'splendide_v2_';
+export interface MovedItemOrderState {
+  sectionId: string;
+  listId: string;
+  itemsOrderRevision: number;
+  positions: { id: string; position: number }[];
+}
+
+export interface MoveItemResponse {
+  item: StoredItem;
+  source: MovedItemOrderState;
+  target: MovedItemOrderState;
+}
+
+export interface MoveItemRollback {
+  itemId: string;
+  expectedItemServerRevision: number;
+  sourceSectionId: string;
+  sourceList: StoredList;
+  sourceItemsRevision: number;
+  baseSourceOrderRevision: number;
+  targetSectionId: string;
+  targetList: StoredList;
+  targetItemsRevision: number;
+  baseTargetOrderRevision: number;
+}
+
+const LS_PREFIX = 'splendide_v3_';
+const LEGACY_LS_PREFIX = 'splendide_v2_';
 const ANONYMOUS_KEY = `${LS_PREFIX}anonymous`;
+const NEUTRAL_LIST_TITLE = 'tasks';
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -184,9 +216,11 @@ function rebaseLocalDirtyItem(remote: StoredItem, local: StoredItem): StoredItem
 }
 
 function cleanSyncedItem(item: StoredItem): StoredItem {
+  const deadlines = normalizeDeadlineFields(item.content, item as unknown as Record<string, unknown>);
   return {
     id: item.id,
-    content: item.content,
+    content: normalizeTaskContent(item.content, item.id, deadlines),
+    ...deadlines,
     position: item.position,
     lastModifiedAt: item.lastModifiedAt,
     serverRevision: item.serverRevision,
@@ -247,18 +281,40 @@ function mergeSyncedItems(
   return { items: merged, keptLocalOrder: shouldKeepLocalOrder };
 }
 
-function mergeSyncedList(remote: StoredList, existing?: StoredList, replaceLocal = false): StoredList {
-  const remoteItems = Array.isArray(remote.items) ? remote.items : [];
+function mergeSyncedList(
+  remote: StoredList,
+  existing?: StoredList,
+  replaceLocal = false,
+  hasAuthoritativeItems = true,
+): StoredList {
+  const remoteItems = (Array.isArray(remote.items) ? remote.items : [])
+    .map((item, index) => normalizeItem(item, index, remote.metadataLastModifiedAt));
   if (replaceLocal || !existing) {
     return {
       id: remote.id,
-      title: remote.title,
+      title: NEUTRAL_LIST_TITLE,
       metadataLastModifiedAt: remote.metadataLastModifiedAt,
       serverRevision: remote.serverRevision,
       itemsOrderRevision: remote.itemsOrderRevision,
       itemsBaseOrderRevision: remote.itemsOrderRevision,
-      isBacklog: remote.isBacklog,
       items: remoteItems.map((item) => cleanSyncedItem(item)),
+    };
+  }
+
+  if (!hasAuthoritativeItems) {
+    const keepLocalMetadata = !shouldAcceptRemote(remote, existing);
+    return {
+      id: remote.id,
+      title: NEUTRAL_LIST_TITLE,
+      metadataLastModifiedAt: keepLocalMetadata ? existing.metadataLastModifiedAt : remote.metadataLastModifiedAt,
+      serverRevision: keepLocalMetadata ? existing.serverRevision : remote.serverRevision,
+      ...(keepLocalMetadata && existing.dirty ? { dirty: true } : {}),
+      itemsOrderRevision: remote.itemsOrderRevision,
+      itemsBaseOrderRevision: existing.itemsOrderDirty
+        ? existing.itemsBaseOrderRevision
+        : remote.itemsOrderRevision,
+      ...(existing.itemsOrderDirty ? { itemsOrderDirty: true } : {}),
+      items: existing.items,
     };
   }
 
@@ -266,37 +322,94 @@ function mergeSyncedList(remote: StoredList, existing?: StoredList, replaceLocal
   const keepLocalMetadata = !shouldAcceptRemote(remote, existing);
   return {
     id: remote.id,
-    title: keepLocalMetadata ? existing.title : remote.title,
+    title: NEUTRAL_LIST_TITLE,
     metadataLastModifiedAt: keepLocalMetadata ? existing.metadataLastModifiedAt : remote.metadataLastModifiedAt,
     serverRevision: keepLocalMetadata ? existing.serverRevision : remote.serverRevision,
     ...(keepLocalMetadata && existing.dirty ? { dirty: true } : {}),
     itemsOrderRevision: remote.itemsOrderRevision,
     itemsBaseOrderRevision: remote.itemsOrderRevision,
     ...(keptLocalOrder ? { itemsOrderDirty: true } : {}),
-    isBacklog: remote.isBacklog,
     items,
   };
 }
 
-function mergeSyncedLists(remoteLists: StoredList[], localLists: StoredList[], replaceLocal = false): StoredList[] {
-  const existingMap = new Map(localLists.map((list) => [list.id, list]));
-  const remoteIds = new Set(remoteLists.map((list) => list.id));
-  const merged = remoteLists.map((list) => mergeSyncedList(list, existingMap.get(list.id), replaceLocal));
+function mergeSyncedLists(
+  remoteLists: StoredList[],
+  localLists: StoredList[],
+  replaceLocal = false,
+  sectionId = 'section',
+): StoredList[] {
+  const timestamp = nowIso();
+  const rawRemote = remoteLists[0] as unknown;
+  const hasAuthoritativeItems = isRecord(rawRemote) &&
+    (Array.isArray(rawRemote['items']) || Array.isArray(rawRemote['content']));
+  const remote = remoteLists.length > 0
+    ? normalizeLists(remoteLists as LegacyList[], sectionId, timestamp)[0]
+    : undefined;
+  const existing = localLists.length > 0
+    ? normalizeLists(localLists as LegacyList[], sectionId, timestamp)[0]
+    : undefined;
 
-  if (!replaceLocal) {
-    for (const list of localLists) {
-      const remoteHasSameRole = remoteLists.some((remote) => remote.isBacklog === list.isBacklog);
-      if (!remoteIds.has(list.id) && list.dirty && !remoteHasSameRole) {
-        merged.push(list);
-      }
-    }
+  if (!remote) {
+    return existing && !replaceLocal
+      ? [existing]
+      : [createEmptyList(timestamp, deterministicId(`${sectionId}:task-list`))];
   }
-
-  return merged;
+  return [mergeSyncedList(remote, existing, replaceLocal, hasAuthoritativeItems)];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeDeadlineAt(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return undefined;
+  return Number.isNaN(Date.parse(value)) ? undefined : value;
+}
+
+function normalizeDeadlineFields(
+  content: unknown,
+  envelope?: Record<string, unknown>,
+): Pick<StoredItem, 'deadlineAt' | 'deadlineTimeZone' | 'deadlineNotificationEnabled'> {
+  const contentRecord = isRecord(content) ? content : {};
+  const deadlineSource = 'deadlineAt' in contentRecord ? contentRecord : envelope;
+  const timezoneSource = 'deadlineTimeZone' in contentRecord ? contentRecord : envelope;
+  const notificationSource = 'deadlineNotificationEnabled' in contentRecord ? contentRecord : envelope;
+  const deadlineAt = deadlineSource ? normalizeDeadlineAt(deadlineSource['deadlineAt']) : undefined;
+  const hasDeadlineTimeZone = !!timezoneSource && 'deadlineTimeZone' in timezoneSource;
+  const rawDeadlineTimeZone = timezoneSource?.['deadlineTimeZone'];
+  const deadlineTimeZone = rawDeadlineTimeZone === null
+    ? null
+    : typeof rawDeadlineTimeZone === 'string' && rawDeadlineTimeZone.length > 0
+      ? rawDeadlineTimeZone
+      : undefined;
+
+  return {
+    ...(deadlineSource && 'deadlineAt' in deadlineSource ? { deadlineAt: deadlineAt ?? null } : {}),
+    ...(hasDeadlineTimeZone ? { deadlineTimeZone: deadlineTimeZone ?? null } : {}),
+    ...(notificationSource && 'deadlineNotificationEnabled' in notificationSource
+      ? { deadlineNotificationEnabled: notificationSource['deadlineNotificationEnabled'] === true }
+      : {}),
+  };
+}
+
+function deterministicId(seed: string): string {
+  const salts = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+  let hex = '';
+  for (const salt of salts) {
+    let hash = salt;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash ^= seed.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    hex += (hash >>> 0).toString(16).padStart(8, '0');
+  }
+  const versioned = `${hex.slice(0, 12)}5${hex.slice(13)}`;
+  const variantNibble = ((Number.parseInt(versioned[16] ?? '0', 16) & 0x3) | 0x8).toString(16);
+  const uuid = `${versioned.slice(0, 16)}${variantNibble}${versioned.slice(17)}`;
+  return `${uuid.slice(0, 8)}-${uuid.slice(8, 12)}-${uuid.slice(12, 16)}-${uuid.slice(16, 20)}-${uuid.slice(20, 32)}`;
 }
 
 function normalizeSubtasks(value: unknown): unknown[] {
@@ -308,22 +421,31 @@ function normalizeSubtasks(value: unknown): unknown[] {
   });
 }
 
-function normalizeTaskContent(value: unknown, fallbackId: string): unknown {
+function normalizeTaskContent(
+  value: unknown,
+  fallbackId: string,
+  fallbackDeadlines?: Pick<StoredItem, 'deadlineAt' | 'deadlineTimeZone' | 'deadlineNotificationEnabled'>,
+): unknown {
   if (!isRecord(value)) return value;
+
+  const deadlines = normalizeDeadlineFields(value, fallbackDeadlines as Record<string, unknown> | undefined);
 
   return {
     ...value,
     id: fallbackId,
     subtasks: normalizeSubtasks(value['subtasks']),
+    ...deadlines,
   };
 }
 
 function normalizeItem(value: unknown, position: number, fallbackTimestamp: string): StoredItem {
   if (isRecord(value) && 'content' in value) {
     const id = String(value['id'] ?? generateId());
+    const deadlines = normalizeDeadlineFields(value['content'], value);
     return {
       id,
-      content: normalizeTaskContent(value['content'], id),
+      content: normalizeTaskContent(value['content'], id, deadlines),
+      ...deadlines,
       position: Number(value['position'] ?? position),
       lastModifiedAt: String(value['lastModifiedAt'] ?? fallbackTimestamp),
       serverRevision: revision(value['serverRevision']),
@@ -334,9 +456,11 @@ function normalizeItem(value: unknown, position: number, fallbackTimestamp: stri
   }
 
   const id = isRecord(value) ? String(value['id'] ?? generateId()) : generateId();
+  const deadlines = normalizeDeadlineFields(value, isRecord(value) ? value : undefined);
   return {
     id,
-    content: normalizeTaskContent(value, id),
+    content: normalizeTaskContent(value, id, deadlines),
+    ...deadlines,
     position,
     lastModifiedAt: fallbackTimestamp,
     serverRevision: 0,
@@ -344,28 +468,7 @@ function normalizeItem(value: unknown, position: number, fallbackTimestamp: stri
   };
 }
 
-function normalizeUniqueItems(items: StoredItem[]): StoredItem[] {
-  const usedIds = new Set<string>();
-  return items.map((item) => {
-    if (!usedIds.has(item.id)) {
-      usedIds.add(item.id);
-      return item;
-    }
-
-    const id = generateId();
-    usedIds.add(id);
-    return {
-      ...item,
-      id,
-      content: normalizeTaskContent(item.content, id),
-      serverRevision: 0,
-      created: true,
-      dirty: true,
-    };
-  });
-}
-
-function normalizeList(value: LegacyList, index: number, fallbackTimestamp: string): StoredList {
+function normalizeList(value: LegacyList, fallbackTimestamp: string): StoredList {
   const timestamp = String(
     value.metadataLastModifiedAt ?? value.lastModifiedAt ?? fallbackTimestamp,
   );
@@ -377,31 +480,82 @@ function normalizeList(value: LegacyList, index: number, fallbackTimestamp: stri
 
   return {
     id: String(value.id ?? generateId()),
-    title: String(value.title ?? (value.isBacklog ? 'later' : 'now')),
+    title: NEUTRAL_LIST_TITLE,
     metadataLastModifiedAt: timestamp,
     serverRevision: revision(value.serverRevision),
     itemsOrderRevision: revision(value.itemsOrderRevision),
     itemsBaseOrderRevision: revision(value.itemsBaseOrderRevision ?? value.itemsOrderRevision),
     ...(value.dirty === true ? { dirty: true } : {}),
     ...(value.itemsOrderDirty === true ? { itemsOrderDirty: true } : {}),
-    isBacklog: Boolean(value.isBacklog ?? index === 1),
-    items: normalizeUniqueItems(rawItems.map((item, itemIndex) => normalizeItem(item, itemIndex, timestamp)))
-      .sort((a, b) => a.position - b.position),
+    items: rawItems
+      .map((item, itemIndex) => normalizeItem(item, itemIndex, timestamp))
+      .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id)),
   };
 }
 
-function createEmptyList(isBacklog: boolean, timestamp: string = nowIso()): StoredList {
+function createEmptyList(timestamp: string = nowIso(), id: string = generateId()): StoredList {
   return {
-    id: generateId(),
-    title: isBacklog ? 'later' : 'now',
+    id,
+    title: NEUTRAL_LIST_TITLE,
     metadataLastModifiedAt: timestamp,
     serverRevision: 0,
     itemsOrderRevision: 0,
     itemsBaseOrderRevision: 0,
     dirty: true,
-    isBacklog,
     items: [],
   };
+}
+
+function normalizeLists(
+  values: LegacyList[],
+  sectionId: string,
+  fallbackTimestamp: string,
+): StoredList[] {
+  if (values.length === 0) {
+    return [createEmptyList(fallbackTimestamp, deterministicId(`${sectionId}:task-list`))];
+  }
+
+  const entries = values.map((value, sourceIndex) => ({
+    value,
+    sourceIndex,
+    list: normalizeList(value, fallbackTimestamp),
+  }));
+  const plan = planSingleListMigration(
+    entries.map(entry => ({
+      id: entry.list.id,
+      isBacklog: entry.value.isBacklog,
+      sourceIndex: entry.sourceIndex,
+      items: entry.list.items,
+    })),
+    sectionId,
+    deterministicId,
+  );
+  if (!plan) return [createEmptyList(fallbackTimestamp, deterministicId(`${sectionId}:task-list`))];
+
+  const canonical = entries.find(entry => entry.list.id === plan.canonicalListId)!.list;
+  const mergedItems = plan.items.map(planned => {
+    const rekeyed = planned.duplicated
+      ? {
+          ...planned.item,
+          id: planned.id,
+          content: normalizeTaskContent(planned.item.content, planned.id),
+          serverRevision: 0,
+          created: true,
+          dirty: true,
+        }
+      : planned.item;
+    return { ...rekeyed, position: planned.position };
+  });
+  const mergedMultipleLists = values.length > 1;
+  return [{
+    ...canonical,
+    title: NEUTRAL_LIST_TITLE,
+    ...(mergedMultipleLists ? { dirty: true, itemsOrderDirty: true } : {}),
+    itemsBaseOrderRevision: mergedMultipleLists
+      ? canonical.itemsOrderRevision
+      : canonical.itemsBaseOrderRevision,
+    items: mergedItems,
+  }];
 }
 
 function normalizeSection(
@@ -411,9 +565,10 @@ function normalizeSection(
 ): StoredSection {
   const timestamp = String(value.metadataLastModifiedAt ?? fallbackTimestamp);
   const lists = Array.isArray(value.lists) ? value.lists : [];
+  const id = String(value.id ?? generateId());
 
   return {
-    id: String(value.id ?? generateId()),
+    id,
     ...(typeof value.ownerId === 'string' && value.ownerId.length > 0 ? { ownerId: value.ownerId } : {}),
     title: String(value.title ?? 'my tasks'),
     position: Number(value.position ?? index),
@@ -425,7 +580,7 @@ function normalizeSection(
     ...(value.deleted === true ? { deleted: true } : {}),
     ...(value.created === true || value.isNew === true ? { created: true } : {}),
     ...(value.dirty === true ? { dirty: true } : {}),
-    lists: lists.map((list, listIndex) => normalizeList(list, listIndex, timestamp)),
+    lists: normalizeLists(lists, id, timestamp),
   };
 }
 
@@ -454,9 +609,9 @@ function normalizePartition(value: unknown): Partition {
 
 function createDefaultPartition(): Partition {
   const timestamp = nowIso();
-  const mainTaskId = generateId();
-  const mainSubtaskId = generateId();
-  const secondaryTaskId = generateId();
+  const firstTaskId = generateId();
+  const firstSubtaskId = generateId();
+  const secondTaskId = generateId();
 
   return {
     syncGeneration: 0,
@@ -473,43 +628,30 @@ function createDefaultPartition(): Partition {
         lists: [
           {
             id: generateId(),
-            title: 'now',
+            title: NEUTRAL_LIST_TITLE,
             metadataLastModifiedAt: timestamp,
             serverRevision: 0,
             itemsOrderRevision: 0,
             itemsBaseOrderRevision: 0,
             dirty: true,
-            isBacklog: false,
             items: [
               {
-                id: mainTaskId,
+                id: firstTaskId,
                 content: {
-                  id: mainTaskId,
+                  id: firstTaskId,
                   text: 'my tasks...',
                   done: false,
-                  subtasks: [{ id: mainSubtaskId, text: 'my subtask...', done: false }],
+                  subtasks: [{ id: firstSubtaskId, text: 'my subtask...', done: false }],
                 },
                 position: 0,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
                 dirty: true,
               },
-            ],
-          },
-          {
-            id: generateId(),
-            title: 'later',
-            metadataLastModifiedAt: timestamp,
-            serverRevision: 0,
-            itemsOrderRevision: 0,
-            itemsBaseOrderRevision: 0,
-            dirty: true,
-            isBacklog: true,
-            items: [
               {
-                id: secondaryTaskId,
-                content: { id: secondaryTaskId, text: 'my task...', done: false, subtasks: [] },
-                position: 0,
+                id: secondTaskId,
+                content: { id: secondTaskId, text: 'my task...', done: false, subtasks: [] },
+                position: 1,
                 lastModifiedAt: timestamp,
                 serverRevision: 0,
                 dirty: true,
@@ -538,13 +680,12 @@ function cloneItemForUser(item: StoredItem, position: number): StoredItem {
 function cloneListForUser(list: StoredList): StoredList {
   return {
     id: generateId(),
-    title: list.title,
+    title: NEUTRAL_LIST_TITLE,
     metadataLastModifiedAt: list.metadataLastModifiedAt,
     serverRevision: 0,
     itemsOrderRevision: 0,
     itemsBaseOrderRevision: 0,
     dirty: true,
-    isBacklog: list.isBacklog,
     items: list.items
       .filter((item) => !item.deleted)
       .map((item, index) => cloneItemForUser(item, index)),
@@ -580,6 +721,7 @@ function cloneSectionForUser(section: StoredSection): StoredSection {
 @Injectable({ providedIn: 'root' })
 export class StorageService {
   private activeKey = ANONYMOUS_KEY;
+  private readonly legacyPartitionFallbacks = new Map<string, Partition>();
   private sectionOrderLocalRevision = 0;
   private localMutationRevision = 0;
   private readonly itemRevisions = new Map<string, number>();
@@ -592,8 +734,13 @@ export class StorageService {
     return `${this.activeKey}:active_section_id`;
   }
 
-  private legacyUserKeys(userId: string): string[] {
-    return [`${LS_PREFIX}${userId}`, `${LS_PREFIX}premium_${userId}`];
+  private legacyPartitionKeys(userId?: string): string[] {
+    if (!userId) return [`${LEGACY_LS_PREFIX}anonymous`];
+    return [
+      `${LEGACY_LS_PREFIX}nominal_${userId}`,
+      `${LEGACY_LS_PREFIX}${userId}`,
+      `${LEGACY_LS_PREFIX}premium_${userId}`,
+    ];
   }
 
   private itemRevisionKey(sectionId: string, listId: string): string {
@@ -637,16 +784,18 @@ export class StorageService {
 
   setActivePartition(userId?: string): void {
     this.activeKey = this.buildKey(userId);
-    if (userId) this.migrateLegacyUserPartition(userId);
+    this.migrateLegacyPartition(userId);
   }
 
   isPartitionEmpty(userId?: string): boolean {
-    const partition = this.readPartition(this.buildKey(userId));
+    const fallback = this.migrateLegacyPartition(userId);
+    const partition = this.readPartition(this.buildKey(userId)) ?? fallback;
     return !partition || partition.sections.filter((section) => !section.deleted).length === 0;
   }
 
   ensureDefaultPartition(): boolean {
-    const partition = this.readPartition(this.activeKey);
+    const fallback = this.migrateLegacyPartition(this.getActiveUserId());
+    const partition = this.readPartition(this.activeKey) ?? fallback;
     if (partition && partition.sections.some((section) => !section.deleted)) return false;
 
     const created = createDefaultPartition();
@@ -682,7 +831,8 @@ export class StorageService {
   }
 
   load(): Partition {
-    const partition = this.readPartition(this.activeKey);
+    const fallback = this.migrateLegacyPartition(this.getActiveUserId());
+    const partition = this.readPartition(this.activeKey) ?? fallback;
     if (!this.getActiveUserId()) {
       if (!partition || partition.sections.filter((section) => !section.deleted).length === 0) {
         const created = createDefaultPartition();
@@ -699,6 +849,7 @@ export class StorageService {
   save(partition: Partition): void {
     try {
       localStorage.setItem(this.activeKey, JSON.stringify(normalizePartition(partition)));
+      this.legacyPartitionFallbacks.delete(this.activeKey);
     } catch {
       // Ignore quota errors.
     }
@@ -756,23 +907,13 @@ export class StorageService {
     return this.load().sections.find((section) => section.id === sectionId);
   }
 
-  ensureSectionHasDefaultLists(sectionId: string): boolean {
+  ensureSectionHasTaskList(sectionId: string): boolean {
     const partition = this.load();
     const section = partition.sections.find((existing) => existing.id === sectionId && !existing.deleted);
     if (!section) return false;
 
-    const hasMainList = section.lists.some((list) => !list.isBacklog);
-    const hasBacklogList = section.lists.some((list) => list.isBacklog);
-    if (hasMainList && hasBacklogList) return false;
-
-    const timestamp = nowIso();
-    if (!hasMainList) {
-      section.lists.push(createEmptyList(false, timestamp));
-    }
-    if (!hasBacklogList) {
-      section.lists.push(createEmptyList(true, timestamp));
-    }
-    section.lists.sort((left, right) => Number(left.isBacklog) - Number(right.isBacklog));
+    if (section.lists.length === 1) return false;
+    section.lists = normalizeLists(section.lists as LegacyList[], section.id, section.metadataLastModifiedAt);
     this.markLocalMutation();
     this.save(partition);
     return true;
@@ -852,7 +993,7 @@ export class StorageService {
         return {
           ...existing,
           position: section.position,
-          lists: mergeSyncedLists(section.lists ?? existing.lists, existing.lists),
+          lists: mergeSyncedLists(section.lists ?? existing.lists, existing.lists, false, section.id),
         };
       }
 
@@ -873,6 +1014,7 @@ export class StorageService {
               section.lists ?? (options?.replaceLocal ? [] : existing?.lists ?? []),
               existing?.lists ?? [],
               options?.replaceLocal,
+              section.id,
             ),
       };
     });
@@ -935,12 +1077,12 @@ export class StorageService {
     const section = partition.sections.find((existing) => existing.id === sectionId);
     if (!section) return;
 
-    const index = section.lists.findIndex((existing) => existing.id === list.id);
-    if (index >= 0) {
-      section.lists[index] = { ...list, items: section.lists[index].items };
-    } else {
-      section.lists.push(list);
-    }
+    const existing = section.lists[0];
+    section.lists = [{
+      ...list,
+      title: NEUTRAL_LIST_TITLE,
+      items: existing?.id === list.id ? existing.items : list.items,
+    }];
     this.markLocalMutation();
     this.save(partition);
   }
@@ -950,36 +1092,7 @@ export class StorageService {
     const section = partition.sections.find((existing) => existing.id === sectionId);
     if (!section) return;
 
-    const existingMap = new Map(section.lists.map((list) => [list.id, list]));
-    const remoteIds = new Set(lists.map((list) => list.id));
-    section.lists = lists.map((list) => {
-      const existing = existingMap.get(list.id);
-      if (existing && !shouldAcceptRemote(list, existing)) {
-        return {
-          ...existing,
-          itemsOrderRevision: list.itemsOrderRevision,
-        };
-      }
-
-      return {
-        id: list.id,
-        title: list.title,
-        metadataLastModifiedAt: list.metadataLastModifiedAt,
-        serverRevision: list.serverRevision,
-        itemsOrderRevision: list.itemsOrderRevision,
-        itemsBaseOrderRevision: existing?.itemsBaseOrderRevision ?? list.itemsOrderRevision,
-        ...(existing?.itemsOrderDirty ? { itemsOrderDirty: true } : {}),
-        isBacklog: list.isBacklog,
-        items: list.items ?? existing?.items ?? [],
-      };
-    });
-
-    for (const list of existingMap.values()) {
-      const remoteHasSameRole = lists.some((remote) => remote.isBacklog === list.isBacklog);
-      if (!remoteIds.has(list.id) && list.dirty && !remoteHasSameRole) {
-        section.lists.push(list);
-      }
-    }
+    section.lists = mergeSyncedLists(lists, section.lists, false, sectionId);
     this.save(partition);
   }
 
@@ -1043,7 +1156,11 @@ export class StorageService {
       return false;
     }
 
-    const items = response.items;
+    const items = response.items.map((item, position) => normalizeItem(
+      item,
+      position,
+      item.lastModifiedAt,
+    ));
     const list = this.getListsForSection(sectionId).find((existing) => existing.id === listId);
     const localItems = this.getItemsForList(sectionId, listId);
     const shouldKeepLocalOrder =
@@ -1101,8 +1218,189 @@ export class StorageService {
     this.applyListOrderRevision(sectionId, listId, orderRevision);
   }
 
+  optimisticallyMoveItem(
+    sourceSectionId: string,
+    itemId: string,
+    targetSectionId: string,
+    targetPosition: number,
+  ): MoveItemRollback | null {
+    if (sourceSectionId === targetSectionId) return null;
+
+    const partition = this.load();
+    const sourceSection = partition.sections.find(
+      (section) => section.id === sourceSectionId && !section.deleted,
+    );
+    const targetSection = partition.sections.find(
+      (section) => section.id === targetSectionId && !section.deleted,
+    );
+    const sourceList = sourceSection?.lists[0];
+    const targetList = targetSection?.lists[0];
+    if (!sourceList || !targetList) return null;
+
+    const sourceActive = sourceList.items
+      .filter((item) => !item.deleted)
+      .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+    const movedItem = sourceActive.find((item) => item.id === itemId);
+    if (!movedItem || targetList.items.some((item) => item.id === itemId)) return null;
+
+    const rollbackSource = {
+      ...sourceList,
+      items: sourceList.items.map((item) => ({ ...item })),
+    };
+    const rollbackTarget = {
+      ...targetList,
+      items: targetList.items.map((item) => ({ ...item })),
+    };
+    const baseSourceOrderRevision = sourceList.itemsOrderDirty
+      ? sourceList.itemsBaseOrderRevision
+      : sourceList.itemsOrderRevision;
+    const baseTargetOrderRevision = targetList.itemsOrderDirty
+      ? targetList.itemsBaseOrderRevision
+      : targetList.itemsOrderRevision;
+
+    const nextSourceActive = sourceActive.filter((item) => item.id !== itemId);
+    const targetActive = targetList.items
+      .filter((item) => !item.deleted)
+      .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+    const requestedPosition = Number.isFinite(targetPosition)
+      ? Math.trunc(targetPosition)
+      : targetActive.length;
+    const insertionIndex = Math.max(0, Math.min(requestedPosition, targetActive.length));
+    targetActive.splice(insertionIndex, 0, movedItem);
+
+    const sourceDeleted = sourceList.items
+      .filter((item) => item.deleted)
+      .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+    const targetDeleted = targetList.items
+      .filter((item) => item.deleted)
+      .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+    sourceList.items = [...nextSourceActive, ...sourceDeleted]
+      .map((item, position) => ({ ...item, position }));
+    targetList.items = [...targetActive, ...targetDeleted]
+      .map((item, position) => ({ ...item, position }));
+    this.markListOrderDirty(sourceList);
+    this.markListOrderDirty(targetList);
+    this.markLocalMutation();
+    this.save(partition);
+    this.bumpItemsRevision(sourceSectionId, sourceList.id);
+    this.bumpItemsRevision(targetSectionId, targetList.id);
+
+    return {
+      itemId,
+      expectedItemServerRevision: movedItem.serverRevision,
+      sourceSectionId,
+      sourceList: rollbackSource,
+      sourceItemsRevision: this.getItemsRevision(sourceSectionId, sourceList.id),
+      baseSourceOrderRevision,
+      targetSectionId,
+      targetList: rollbackTarget,
+      targetItemsRevision: this.getItemsRevision(targetSectionId, targetList.id),
+      baseTargetOrderRevision,
+    };
+  }
+
+  applyMovedItemResponse(response: MoveItemResponse, rollback?: MoveItemRollback): boolean {
+    if (
+      rollback &&
+      (
+        response.item.id !== rollback.itemId ||
+        response.source.sectionId !== rollback.sourceSectionId ||
+        response.target.sectionId !== rollback.targetSectionId ||
+        this.getItemsRevision(rollback.sourceSectionId, rollback.sourceList.id) !== rollback.sourceItemsRevision ||
+        this.getItemsRevision(rollback.targetSectionId, rollback.targetList.id) !== rollback.targetItemsRevision
+      )
+    ) {
+      return false;
+    }
+
+    const partition = this.load();
+    const sourceList = partition.sections
+      .find((section) => section.id === response.source.sectionId && !section.deleted)
+      ?.lists.find((list) => list.id === response.source.listId);
+    const targetList = partition.sections
+      .find((section) => section.id === response.target.sectionId && !section.deleted)
+      ?.lists.find((list) => list.id === response.target.listId);
+    if (!sourceList || !targetList) return false;
+
+    sourceList.items = sourceList.items.filter((item) => item.id !== response.item.id);
+    const normalizedMovedItem = cleanSyncedItem(normalizeItem(
+      response.item,
+      response.item.position,
+      response.item.lastModifiedAt,
+    ));
+    targetList.items = [
+      ...targetList.items.filter((item) => item.id !== response.item.id),
+      normalizedMovedItem,
+    ];
+    this.applyAuthoritativeItemOrder(sourceList, response.source);
+    this.applyAuthoritativeItemOrder(targetList, response.target);
+    this.save(partition);
+    this.bumpItemsRevision(response.source.sectionId, response.source.listId);
+    this.bumpItemsRevision(response.target.sectionId, response.target.listId);
+    return true;
+  }
+
+  rollbackMovedItem(rollback: MoveItemRollback): boolean {
+    if (
+      this.getItemsRevision(rollback.sourceSectionId, rollback.sourceList.id) !== rollback.sourceItemsRevision ||
+      this.getItemsRevision(rollback.targetSectionId, rollback.targetList.id) !== rollback.targetItemsRevision
+    ) {
+      return false;
+    }
+
+    const partition = this.load();
+    const sourceSection = partition.sections.find(
+      (section) => section.id === rollback.sourceSectionId && !section.deleted,
+    );
+    const targetSection = partition.sections.find(
+      (section) => section.id === rollback.targetSectionId && !section.deleted,
+    );
+    if (!sourceSection || !targetSection) return false;
+
+    sourceSection.lists = [{
+      ...rollback.sourceList,
+      items: rollback.sourceList.items.map((item) => ({ ...item })),
+    }];
+    targetSection.lists = [{
+      ...rollback.targetList,
+      items: rollback.targetList.items.map((item) => ({ ...item })),
+    }];
+    this.markLocalMutation();
+    this.save(partition);
+    this.bumpItemsRevision(rollback.sourceSectionId, rollback.sourceList.id);
+    this.bumpItemsRevision(rollback.targetSectionId, rollback.targetList.id);
+    return true;
+  }
+
+  private applyAuthoritativeItemOrder(list: StoredList, state: MovedItemOrderState): void {
+    const positionMap = new Map(state.positions.map((item) => [item.id, item.position]));
+    const active = list.items.filter((item) => !item.deleted);
+    const positioned = active
+      .filter((item) => positionMap.has(item.id))
+      .sort((left, right) =>
+        (positionMap.get(left.id) ?? left.position) - (positionMap.get(right.id) ?? right.position) ||
+        left.id.localeCompare(right.id),
+      );
+    const pending = active
+      .filter((item) => !positionMap.has(item.id))
+      .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+    const deleted = list.items
+      .filter((item) => item.deleted)
+      .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+    list.items = [...positioned, ...pending, ...deleted]
+      .map((item, position) => ({ ...item, position }));
+    list.itemsOrderRevision = state.itemsOrderRevision;
+    list.itemsBaseOrderRevision = state.itemsOrderRevision;
+    if (pending.length > 0) {
+      list.itemsOrderDirty = true;
+    } else {
+      delete list.itemsOrderDirty;
+    }
+  }
+
   copyAnonymousToUser(userId: string): void {
-    const source = this.readPartition(ANONYMOUS_KEY) ?? {
+    const fallback = this.migrateLegacyPartition();
+    const source = this.readPartition(ANONYMOUS_KEY) ?? fallback ?? {
       syncGeneration: 0,
       sectionOrderRevision: 0,
       sectionBaseOrderRevision: 0,
@@ -1131,8 +1429,10 @@ export class StorageService {
   removeUserPartition(userId: string): void {
     try {
       localStorage.removeItem(this.buildKey(userId));
-      for (const key of this.legacyUserKeys(userId)) {
+      localStorage.removeItem(`${this.buildKey(userId)}:active_section_id`);
+      for (const key of this.legacyPartitionKeys(userId)) {
         localStorage.removeItem(key);
+        localStorage.removeItem(`${key}:active_section_id`);
       }
     } catch {
       // Ignore storage errors.
@@ -1142,7 +1442,11 @@ export class StorageService {
   private readPartition(key: string): Partition | null {
     try {
       const raw = localStorage.getItem(key);
-      return raw ? normalizePartition(JSON.parse(raw)) : null;
+      if (!raw) return null;
+      const parsed: unknown = JSON.parse(raw);
+      return isRecord(parsed) && Array.isArray(parsed['sections'])
+        ? normalizePartition(parsed)
+        : null;
     } catch {
       return null;
     }
@@ -1160,24 +1464,50 @@ export class StorageService {
   private writePartition(key: string, partition: Partition): void {
     try {
       localStorage.setItem(key, JSON.stringify(normalizePartition(partition)));
+      this.legacyPartitionFallbacks.delete(key);
     } catch {
       // Ignore quota errors.
     }
   }
 
-  private migrateLegacyUserPartition(userId: string): void {
+  private migrateLegacyPartition(userId?: string): Partition | null {
+    const targetKey = this.buildKey(userId);
+    const existing = this.readPartition(targetKey);
+    if (existing) {
+      this.legacyPartitionFallbacks.delete(targetKey);
+      return existing;
+    }
     try {
-      if (localStorage.getItem(this.activeKey)) return;
-
-      for (const key of this.legacyUserKeys(userId)) {
+      for (const key of this.legacyPartitionKeys(userId)) {
         const partition = this.readPartition(key);
         if (partition) {
-          localStorage.setItem(this.activeKey, JSON.stringify(partition));
-          return;
+          const serialized = JSON.stringify(partition);
+          try {
+            localStorage.setItem(targetKey, serialized);
+          } catch {
+            this.legacyPartitionFallbacks.set(targetKey, partition);
+          }
+          const targetPreferenceKey = `${targetKey}:active_section_id`;
+          const legacyPreference = localStorage.getItem(`${key}:active_section_id`);
+          if (!localStorage.getItem(targetPreferenceKey) && legacyPreference) {
+            try {
+              localStorage.setItem(targetPreferenceKey, legacyPreference);
+            } catch {
+              // The partition fallback remains usable when preference storage is full.
+            }
+          }
+          const migrated = this.readPartition(targetKey);
+          if (migrated) {
+            this.legacyPartitionFallbacks.delete(targetKey);
+            return migrated;
+          }
+          this.legacyPartitionFallbacks.set(targetKey, partition);
+          return partition;
         }
       }
     } catch {
-      // Ignore migration errors.
+      // Use the last normalized legacy value when storage is temporarily unavailable.
     }
+    return this.legacyPartitionFallbacks.get(targetKey) ?? null;
   }
 }

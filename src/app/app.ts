@@ -6,6 +6,7 @@ import { PosthogService } from './services/posthog.service';
 import { SeoService } from './services/seo.service';
 import { NativePlatformService } from './services/native-platform.service';
 import { MobileNotificationsService } from './services/mobile-notifications.service';
+import { DeadlineNotificationsService } from './services/deadline-notifications.service';
 import { MobilePurchasesService } from './services/mobile-purchases.service';
 
 @Component({
@@ -25,5 +26,6 @@ export class App {
   private readonly seo = inject(SeoService);
   private readonly nativePlatform = inject(NativePlatformService);
   private readonly mobileNotifications = inject(MobileNotificationsService);
+  private readonly deadlineNotifications = inject(DeadlineNotificationsService);
   private readonly mobilePurchases = inject(MobilePurchasesService);
 }

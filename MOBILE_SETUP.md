@@ -83,15 +83,15 @@ Download and place the configuration files here:
 
 For iOS, create an APNs authentication key in the Apple Developer portal and upload it in Firebase under Project settings > Cloud Messaging. In Xcode, enable the Push Notifications capability for the App target.
 
-For the backend, create a Firebase Admin service account, store its JSON securely on the server, and point `GOOGLE_APPLICATION_CREDENTIALS` to it. The app only requests notification permission after the user enables **Shared page notifications** in settings.
+For the backend, create a Firebase Admin service account, store its JSON securely on the server, and point `GOOGLE_APPLICATION_CREDENTIALS` to it. The app requests notification permission only after an explicit user action: enabling **Shared page notifications** in settings or enabling **notify me** for a task deadline. A denied permission does not prevent saving the deadline.
 
-The server notification has no body. Its visible title is exactly:
+Shared-page notifications have no body. Their visible title is exactly:
 
 ```text
 <page title>: an item has been added
 ```
 
-It is sent to the owner and signed-in collaborators who have enabled the global setting, excluding the signed-in user who added the item.
+They are sent to the owner and signed-in collaborators who have enabled the global setting, excluding the signed-in user who added the item. Deadline notifications use the page title and task text, include sound, and are deduplicated by the task's current deadline schedule across registered Android, iOS, and web clients.
 
 Firebase setup reference: https://firebase.google.com/docs/cloud-messaging
 

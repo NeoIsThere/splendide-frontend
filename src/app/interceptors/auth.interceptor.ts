@@ -5,12 +5,14 @@ import { AuthService } from '../services/auth.service';
 import { environment } from '../../environments/environment';
 
 let refreshToken$: Observable<string> | null = null;
+const DATA_MODEL_PARAM = 'dataModel';
+const DATA_MODEL_VERSION = 'single-list-v3';
 
 export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, next: HttpHandlerFn) => {
   const auth = inject(AuthService);
   const token = auth.getToken();
 
-  let authReq = req;
+  let authReq = withDataModelVersion(req);
   if (environment.isMobile) {
     authReq = authReq.clone({ setHeaders: { 'X-Splendide-Client': 'mobile' } });
   }
@@ -54,12 +56,12 @@ function send(
             return throwError(() => error);
           }),
           switchMap((newToken) => {
-            const retryReq = originalReq.clone({
+            const retryReq = withDataModelVersion(originalReq.clone({
               setHeaders: {
                 Authorization: `Bearer ${newToken}`,
                 ...(environment.isMobile ? { 'X-Splendide-Client': 'mobile' } : {}),
               },
-            });
+            }));
             return next(retryReq);
           }),
         );
@@ -67,6 +69,13 @@ function send(
       return throwError(() => error);
     }),
   );
+}
+
+function withDataModelVersion(request: HttpRequest<unknown>): HttpRequest<unknown> {
+  if (!request.url.includes('/sections')) return request;
+  return request.clone({
+    params: request.params.set(DATA_MODEL_PARAM, DATA_MODEL_VERSION),
+  });
 }
 
 function refreshAccessToken(auth: AuthService): Observable<string> {

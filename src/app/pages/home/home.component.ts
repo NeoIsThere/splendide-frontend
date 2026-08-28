@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, Injector, inject, signal, viewChild, ElementRef, OnDestroy, HostListener } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, Injector, inject, signal, viewChild, ElementRef, OnDestroy, HostListener } from '@angular/core';
 import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder, moveItemInArray } from '@angular/cdk/drag-drop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -9,7 +9,12 @@ import { StorageService, StoredSection, StoredList, StoredItem } from '../../ser
 import { SyncService } from '../../services/sync.service';
 import { openExternalUrl } from '../../utils/external-link';
 import { NativePlatformService } from '../../services/native-platform.service';
+import { DeadlineNotificationsService } from '../../services/deadline-notifications.service';
 import { environment } from '../../../environments/environment';
+import {
+  completedItemsBeyondRetention,
+  SINGLE_LIST_COMPLETED_RETENTION,
+} from '../../utils/completed-task-retention';
 
 interface Subtask {
   id: string;
@@ -23,12 +28,15 @@ interface Task {
   subtasks: Subtask[];
   done: boolean;
   doneAt?: string;
+  deadlineAt?: string | null;
+  deadlineTimeZone?: string | null;
+  deadlineNotificationEnabled: boolean;
+  deadlineScheduleId?: string;
   lastModifiedAt?: string;
   serverRevision?: number;
 }
 
 interface DoneTask extends Task {
-  sourceList: TaskListKind;
   doneAt: string;
 }
 
@@ -37,17 +45,14 @@ interface TextSegment {
   href: string | null;
 }
 
-type TaskListKind = 'main' | 'secondary';
-
 interface TaskDropTarget {
-  list: TaskListKind;
   dropZone: HTMLElement;
   taskSelector: string;
 }
 
 interface PendingTaskDrag {
   inputType: 'pointer' | 'touch';
-  sourceList: TaskListKind;
+  sourceSectionId: string;
   sourceIndex: number;
   task: Task;
   pointerId: number;
@@ -63,10 +68,10 @@ interface PendingTaskDrag {
 }
 
 interface TaskDragState {
-  sourceList: TaskListKind;
+  sourceSectionId: string;
   sourceIndex: number;
-  targetList: TaskListKind;
   targetIndex: number;
+  targetSectionId: string | null;
   task: Task;
   pointerId: number;
   lastClientX: number;
@@ -78,20 +83,20 @@ interface TaskDragState {
   previewWidth: number;
   previewHeight: number;
 }
-type KeyboardZone = 'pages' | TaskListKind;
+type KeyboardZone = 'pages' | 'tasks';
 type SectionDeleteOption = 'delete' | 'cancel';
 type InfoDialogKind = 'shared-page' | 'private-welcome';
 type InfoDialogView = 'about' | 'shortcuts';
 type ShareDialogMode = 'enabled' | 'disabled' | 'viewer';
 
-const DEFAULT_BACKLOG_TITLE = 'later';
-const DEFAULT_MAIN_TITLE = 'now';
 const MAX_SECTIONS = 100;
 const MAX_FREE_SECTIONS = 2;
-const MAX_FREE_TASKS_PER_OWNED_LIST = 15;
-const MAX_BACKLOG_TASKS = 500;
-const MAX_MAIN_TASKS = MAX_BACKLOG_TASKS;
-const MAX_DONE_TASKS = 10;
+const MAX_FREE_TASKS_PER_PAGE = 30;
+const MAX_TASKS_PER_PAGE = 1000;
+// The former two-list model retained ten completed tasks per list. Keeping
+// twenty after the deterministic merge prevents an upgrade from deleting the
+// completed half of a fully populated page.
+const MAX_DONE_TASKS = SINGLE_LIST_COMPLETED_RETENTION;
 const PUBLIC_PERIODIC_SYNC_MS = 10_000;
 const PRIVATE_PERIODIC_SYNC_MS = 10_000;
 const MOBILE_TOUCH_DRAG_START_DELAY_MS = 120;
@@ -116,6 +121,7 @@ export class HomeComponent implements OnDestroy {
   private readonly storage = inject(StorageService);
   private readonly sync = inject(SyncService);
   private readonly nativePlatform = inject(NativePlatformService);
+  private readonly deadlineNotifications = inject(DeadlineNotificationsService);
 
   protected readonly dark = this.theme.dark;
   protected readonly publicLoadFailed = signal(false);
@@ -144,32 +150,21 @@ export class HomeComponent implements OnDestroy {
   protected readonly sectionMenuOpen = signal(false);
 
   // ─── Active section lists ───────────────────────────────
-  protected readonly mainList = computed(() => {
+  protected readonly taskList = computed(() => {
     const sec = this.activeSection();
-    return sec?.lists.find(l => !l.isBacklog) ?? null;
-  });
-  protected readonly backlogList = computed(() => {
-    const sec = this.activeSection();
-    return sec?.lists.find(l => l.isBacklog) ?? null;
+    return sec?.lists[0] ?? null;
   });
 
   // ─── Tasks from active lists ────────────────────────────
-  protected readonly tasks = computed<Task[]>(() => this.visibleTasks(this.mainList()));
-  protected readonly secondaryTasks = computed<Task[]>(() => this.visibleTasks(this.backlogList()));
-  protected readonly doneTasks = computed<DoneTask[]>(() => {
-    const tasks = this.doneTasksForList('main', this.mainList());
-    if (!this.isPublicPage()) {
-      tasks.push(...this.doneTasksForList('secondary', this.backlogList()));
-    }
-    return tasks
+  protected readonly tasks = computed<Task[]>(() => this.visibleTasks(this.taskList()));
+  protected readonly doneTasks = computed<DoneTask[]>(() =>
+    this.doneTasksForList(this.taskList())
       .sort((left, right) => this.compareDoneTasksNewestFirst(left, right))
-      .slice(0, MAX_DONE_TASKS);
-  });
+      .slice(0, MAX_DONE_TASKS),
+  );
   protected readonly doneTaskCount = computed(() => this.doneTasks().length);
-  protected readonly mainTitle = computed(() => this.mainList()?.title || DEFAULT_MAIN_TITLE);
-  protected readonly secondaryTitle = computed(() => this.backlogList()?.title || DEFAULT_BACKLOG_TITLE);
 
-  // ─── Main tasks state ──────────────────────────────────
+  // ─── Task state ────────────────────────────────────────
   protected readonly adding = signal(false);
   protected readonly newTaskText = signal('');
   protected readonly newSubtasks = signal<string[]>([]);
@@ -177,64 +172,64 @@ export class HomeComponent implements OnDestroy {
   protected readonly editingSubtask = signal<{ taskId: string; subtaskId: string } | null>(null);
   protected readonly addingSubtaskToId = signal<string | null>(null);
   protected readonly newInlineSubtaskText = signal('');
-  protected readonly editingMainTitle = signal(false);
+  protected readonly deadlineEditorTaskId = signal<string | null>(null);
+  protected readonly deadlineEditorTask = computed(() => {
+    const id = this.deadlineEditorTaskId();
+    return id ? this.tasks().find(task => task.id === id) ?? null : null;
+  });
+  protected readonly deadlineDraftLocal = signal('');
+  protected readonly deadlineNotificationDraft = signal(false);
+  protected readonly deadlinePermissionMessage = signal('');
+  protected readonly deadlineDialog = viewChild<ElementRef<HTMLElement>>('deadlineDialog');
+  protected readonly taskMoveDialog = viewChild<ElementRef<HTMLElement>>('taskMoveDialog');
 
   protected readonly taskCount = computed(() => this.tasks().length);
   protected readonly completedCount = computed(() => this.tasks().filter(t => t.done).length);
-  protected readonly canAdd = computed(() => this.canAddTaskToList('main'));
-  protected readonly showMainAddPlaceholder = computed(() => this.canAdd() || this.freeOwnedTaskLimitApplies());
+  protected readonly canAdd = computed(() => this.canAddTask());
+  protected readonly showAddPlaceholder = computed(() => this.canAdd() || this.freeOwnedTaskLimitApplies());
   protected readonly allDone = computed(() => {
     const t = this.tasks();
     return t.length > 0 && t.every(task => task.done && task.subtasks.every(s => s.done));
   });
 
-  // ─── Secondary tasks state ─────────────────────────────
-  protected readonly addingSecondary = signal(false);
-  protected readonly newSecondaryText = signal('');
-  protected readonly newSecondarySubtasks = signal<string[]>([]);
-  protected readonly editingSecondaryId = signal<string | null>(null);
-  protected readonly editingSecSubtask = signal<{ taskId: string; subtaskId: string } | null>(null);
-  protected readonly addingSecSubtaskToId = signal<string | null>(null);
-  protected readonly newInlineSecSubtaskText = signal('');
-  protected readonly editingSecondaryTitle = signal(false);
-  protected readonly secondaryVisible = signal(true);
-
   // ─── Task dot menus (mobile) ────────────────────────────
   protected readonly taskMenuOpenId = signal<string | null>(null);
-  protected readonly secTaskMenuOpenId = signal<string | null>(null);
+  protected readonly taskMoveDialogTaskId = signal<string | null>(null);
+  protected readonly taskMoveDialogTask = computed(() => {
+    const id = this.taskMoveDialogTaskId();
+    return id ? this.tasks().find(task => task.id === id) ?? null : null;
+  });
+  protected readonly taskMoveTargetSections = computed(() => {
+    const activeId = this.activeSectionId();
+    return this.sections().filter(section => section.id !== activeId && this.canAddTask(section));
+  });
 
   // ─── User menu ──────────────────────────────────────────
   protected readonly menuOpen = signal(false);
 
   protected readonly keyboardZone = signal<KeyboardZone | null>(null);
-  protected readonly currentList = signal<TaskListKind>('main');
-  protected readonly activeKeyboardTask = signal<{ list: TaskListKind; id: string } | null>(null);
+  protected readonly activeKeyboardTaskId = signal<string | null>(null);
   protected readonly sectionDeleteConfirmFocus = signal<SectionDeleteOption>('delete');
 
   // ─── Global editing guard ──────────────────────────────
   protected readonly isEditing = computed(() =>
     this.adding() ||
-    this.addingSecondary() ||
     this.editingTaskId() !== null ||
-    this.editingSecondaryId() !== null ||
     this.editingSubtask() !== null ||
-    this.editingSecSubtask() !== null ||
     this.addingSubtaskToId() !== null ||
-    this.addingSecSubtaskToId() !== null ||
-    this.editingMainTitle() ||
-    this.editingSecondaryTitle() ||
+    this.deadlineEditorTaskId() !== null ||
+    this.taskMoveDialogTaskId() !== null ||
     this.editingSectionId() !== null ||
-    this.addingSectionTitle() !== null
+    this.addingSectionTitle() !== null ||
+    this.taskMoveInProgress()
   );
-
-  protected readonly secondaryCount = computed(() => this.secondaryTasks().length);
-  protected readonly secondaryCompletedCount = computed(() => this.secondaryTasks().filter(t => t.done).length);
-  protected readonly canAddSecondary = computed(() => this.canAddTaskToList('secondary'));
-  protected readonly showSecondaryAddPlaceholder = computed(() => this.canAddSecondary() || this.freeOwnedTaskLimitApplies());
 
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
   protected readonly dragging = signal(false);
   protected readonly taskDragState = signal<TaskDragState | null>(null);
+  protected readonly taskPageDropTargetId = signal<string | null>(null);
+  protected readonly taskMoveAnnouncement = signal('');
+  protected readonly taskMoveInProgress = signal(false);
   protected readonly dragDelay = computed(() => ({
     touch: MOBILE_TOUCH_DRAG_START_DELAY_MS,
     mouse: 0,
@@ -252,6 +247,7 @@ export class HomeComponent implements OnDestroy {
   });
 
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
+  private periodicSyncPromise: Promise<void> | null = null;
   private shareToastTimer: ReturnType<typeof setTimeout> | null = null;
   private firstVisitCoachMarksPending = false;
   private coachMarksScheduled = false;
@@ -264,6 +260,8 @@ export class HomeComponent implements OnDestroy {
   private activeTaskDragElement: HTMLElement | null = null;
   private suppressNextTaskClick = false;
   private suppressTaskClickTimer: ReturnType<typeof setTimeout> | null = null;
+  private deadlineDialogReturnFocus: HTMLElement | null = null;
+  private taskMoveDialogReturnFocus: HTMLElement | null = null;
   private readonly handleDocumentTouchMove = (event: TouchEvent): void => this.handleTaskTouchMove(event);
   private readonly handleDocumentTouchEnd = (event: TouchEvent): void => this.finishTaskTouchDrag(event);
   private readonly handleDocumentTouchCancel = (event: TouchEvent): void => this.cancelTaskTouchDrag(event);
@@ -275,16 +273,40 @@ export class HomeComponent implements OnDestroy {
   }> = [];
 
   constructor() {
+    const finishInitialDeadlineReconciliation = this.deadlineNotifications.deferElectronReconciliation();
     this.addTaskTouchListeners();
+    effect(() => {
+      const target = this.deadlineNotifications.openedDeadline();
+      if (!target) return;
+
+      const section = this.sections().find(candidate => candidate.id === target.pageId);
+      const taskExists = section?.lists.some(list => list.items.some(item =>
+        item.id === target.taskId && !item.deleted,
+      ));
+      if (!section || !taskExists) return;
+
+      this.setActiveSection(section.id, { persist: !this.isShareRouteUrl() });
+      this.setActiveKeyboardTask(target.taskId);
+      this.deadlineNotifications.clearOpenedDeadline();
+    });
     if (!this.isShareRouteUrl()) {
       this.showPendingPrivateWelcomeDialog();
     }
-    void this.initFromStorage();
+    void this.initFromStorage().finally(() => finishInitialDeadlineReconciliation());
   }
 
   @HostListener('document:keydown', ['$event'])
   protected handleDocumentKeydown(event: KeyboardEvent): void {
-    if (event.defaultPrevented || event.repeat || event.isComposing) return;
+    if (event.defaultPrevented || event.isComposing) return;
+    if (this.deadlineEditorTaskId() !== null) {
+      this.handleModalKeydown(event, this.deadlineDialog()?.nativeElement, () => this.closeDeadlineEditor());
+      return;
+    }
+    if (this.taskMoveDialogTaskId() !== null) {
+      this.handleModalKeydown(event, this.taskMoveDialog()?.nativeElement, () => this.closeTaskMoveDialog());
+      return;
+    }
+    if (event.repeat) return;
     if (this.infoDialog()) {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -374,17 +396,11 @@ export class HomeComponent implements OnDestroy {
     if (this.confirmingClear() && !target.closest('[data-confirm-clear]')) {
       this.cancelClear();
     }
-    if (this.confirmingSecondaryClear() && !target.closest('[data-confirm-secondary-clear]')) {
-      this.cancelSecondaryClear();
-    }
     if (this.confirmingDeleteSectionId() !== null && !target.closest('[data-confirm-delete-section]')) {
       this.cancelDeleteSection();
     }
     if (this.taskMenuOpenId() !== null && !target.closest('[data-task-menu]')) {
       this.taskMenuOpenId.set(null);
-    }
-    if (this.secTaskMenuOpenId() !== null && !target.closest('[data-sec-task-menu]')) {
-      this.secTaskMenuOpenId.set(null);
     }
     if (this.shareMenuOpen() && !target.closest('[data-public-share]')) {
       this.shareMenuOpen.set(false);
@@ -469,7 +485,7 @@ export class HomeComponent implements OnDestroy {
     }
 
     let loaded = this.storage.loadSections();
-    this.sections.set(loaded);
+    this.setSections(loaded);
     this.restoreActiveSection(loaded, [this.storage.getActiveSectionPreference()]);
 
     if (this.auth.isLoggedIn()) {
@@ -477,10 +493,10 @@ export class HomeComponent implements OnDestroy {
     } else {
       if (loaded.length === 0 && this.storage.ensureDefaultPartition()) {
         loaded = this.storage.loadSections();
-        this.sections.set(loaded);
+        this.setSections(loaded);
         this.restoreActiveSection(loaded, [this.storage.getActiveSectionPreference()]);
       }
-      this.ensureLocalDefaultListsForSections();
+      this.ensureLocalTaskListsForSections();
       this.startPeriodicSync();
     }
 
@@ -500,12 +516,11 @@ export class HomeComponent implements OnDestroy {
       const section = await this.sync.loadSharedSection(shareToken);
       this.refreshSectionsFromStorage();
       this.setActiveSection(section.id, { persist: false });
-      this.currentList.set('main');
-      this.clearKeyboardFocus('main');
+      this.clearKeyboardFocus();
       this.startPeriodicSync();
     } catch {
       this.publicLoadFailed.set(true);
-      this.sections.set([]);
+      this.setSections([]);
       this.setActiveSection(null, { persist: false });
     }
   }
@@ -518,7 +533,7 @@ export class HomeComponent implements OnDestroy {
   private async doFullSync(): Promise<void> {
     try {
       const synced = await this.sync.syncSections();
-      this.sections.set(synced);
+      this.setSections(synced);
       await this.hydrateMissingSectionLists();
       const sections = this.sections();
       this.restoreActiveSection(sections);
@@ -534,6 +549,10 @@ export class HomeComponent implements OnDestroy {
     const intervalMs = this.auth.isLoggedIn() ? PRIVATE_PERIODIC_SYNC_MS : PUBLIC_PERIODIC_SYNC_MS;
     this.syncIntervalId = setInterval(async () => {
       if (this.shouldSkipPeriodicSync()) return;
+      if (this.auth.isLoggedIn() && this.canUseElectronDeadlineOnlyPass()) {
+        await this.deadlineNotifications.refreshElectronDeadlineSnapshot().catch(() => undefined);
+        return;
+      }
       if (this.auth.isLoggedIn()) {
         await this.auth.fetchUser();
       }
@@ -552,14 +571,24 @@ export class HomeComponent implements OnDestroy {
     this.syncIntervalId = null;
   }
 
-  private async doPeriodicSync(): Promise<void> {
+  private doPeriodicSync(): Promise<void> {
+    if (this.periodicSyncPromise) return this.periodicSyncPromise;
+    const run = this.performPeriodicSync();
+    const tracked = run.finally(() => {
+      if (this.periodicSyncPromise === tracked) this.periodicSyncPromise = null;
+    });
+    this.periodicSyncPromise = tracked;
+    return tracked;
+  }
+
+  private async performPeriodicSync(): Promise<void> {
     if (this.shouldSkipPeriodicSync()) return;
+    const finishDeadlineReconciliation = this.deadlineNotifications.deferElectronReconciliation();
     try {
       const synced = await this.sync.syncSections();
       if (this.shouldSkipPeriodicSync()) return;
-      this.sections.set(synced);
+      this.setSections(synced);
       await this.hydrateMissingSectionLists();
-      if (this.shouldSkipPeriodicSync()) return;
       const refreshed = this.sections();
       const activeId = this.activeSectionId();
       const syncedActiveId = this.resolveSectionId(refreshed, [
@@ -569,22 +598,54 @@ export class HomeComponent implements OnDestroy {
       if (syncedActiveId !== activeId) {
         this.setActiveSection(syncedActiveId);
       }
-      if (syncedActiveId) {
-        await this.doSyncSection(syncedActiveId);
+
+      const locallyChangedPageIds = refreshed
+        .filter(section => section.lists.some(list =>
+          list.dirty || list.itemsOrderDirty || list.items.some(item => item.dirty || item.created),
+        ))
+        .map(section => section.id);
+      const sectionIdsToRefresh = [syncedActiveId, ...locallyChangedPageIds]
+        .filter((sectionId): sectionId is string =>
+          !!sectionId && refreshed.some(section => section.id === sectionId),
+        )
+        .filter((sectionId, index, sectionIds) => sectionIds.indexOf(sectionId) === index);
+      let allRelevantPagesSynced = true;
+      for (const sectionId of sectionIdsToRefresh) {
+        allRelevantPagesSynced = await this.doSyncSection(sectionId) && allRelevantPagesSynced;
+      }
+      if (allRelevantPagesSynced && !this.shouldSkipPeriodicSync()) {
+        await this.deadlineNotifications.refreshElectronDeadlineSnapshot();
       }
     } catch { /* silently fail */ }
+    finally {
+      await finishDeadlineReconciliation();
+    }
   }
 
   private shouldSkipPeriodicSync(): boolean {
     return this.isEditing() || this.dragging();
   }
 
+  private canUseElectronDeadlineOnlyPass(): boolean {
+    if (!environment.isElectron || document.visibilityState !== 'hidden') return false;
+    return !this.sections().some(section =>
+      section.created || section.dirty || section.lists.some(list =>
+        list.dirty || list.itemsOrderDirty || list.items.some(item => item.dirty || item.created),
+      ),
+    );
+  }
+
   private async doAnonymousSharedPeriodicSync(): Promise<void> {
     const sharedSections = this.sections().filter(section => section.shareToken && !section.deleted);
     if (sharedSections.length === 0) return;
-    for (const section of sharedSections) {
-      await this.doSyncSection(section.id);
-      if (this.shouldSkipPeriodicSync()) return;
+    const finishDeadlineReconciliation = this.deadlineNotifications.deferElectronReconciliation();
+    try {
+      for (const section of sharedSections) {
+        await this.doSyncSection(section.id);
+        if (this.shouldSkipPeriodicSync()) return;
+      }
+    } finally {
+      await finishDeadlineReconciliation();
     }
   }
 
@@ -637,10 +698,10 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  private async doSyncSection(sectionId: string): Promise<void> {
+  private async doSyncSection(sectionId: string): Promise<boolean> {
     try {
       const lists = await this.sync.syncSectionLists(sectionId);
-      for (const list of this.prioritizeMovedIntoLists(sectionId, lists)) {
+      for (const list of lists) {
         await this.sync.syncListItems(sectionId, list.id);
       }
       const overflowListIds = this.enforceDoneTaskLimit(sectionId);
@@ -648,8 +709,10 @@ export class HomeComponent implements OnDestroy {
         await this.sync.syncListItems(sectionId, listId);
       }
       this.refreshSectionsFromStorage();
+      return true;
     } catch (error) {
       this.handleSharedSectionSyncFailure(sectionId, error);
+      return false;
     }
   }
 
@@ -659,7 +722,7 @@ export class HomeComponent implements OnDestroy {
     const ids = sectionIds ?? this.sections().map(section => section.id);
     for (const sectionId of ids) {
       const section = this.sections().find(existing => existing.id === sectionId);
-      if (!section || this.sectionHasDefaultLists(section)) continue;
+      if (!section || this.sectionHasTaskList(section)) continue;
 
       try {
         await this.sync.syncSectionLists(sectionId);
@@ -670,48 +733,34 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  private sectionHasDefaultLists(section: StoredSection | null): boolean {
-    return !!section &&
-      section.lists.some(list => !list.isBacklog) &&
-      section.lists.some(list => list.isBacklog);
+  private sectionHasTaskList(section: StoredSection | null): boolean {
+    return section?.lists.length === 1;
   }
 
-  private sectionHasList(section: StoredSection | null, list: TaskListKind): boolean {
-    return !!section?.lists.some(existing => list === 'main' ? !existing.isBacklog : existing.isBacklog);
-  }
-
-  private ensureLocalDefaultLists(sectionId: string): void {
-    if (this.storage.ensureSectionHasDefaultLists(sectionId)) {
+  private ensureLocalTaskList(sectionId: string): void {
+    if (this.storage.ensureSectionHasTaskList(sectionId)) {
       this.refreshSectionsFromStorage();
     }
   }
 
-  private ensureLocalDefaultListsForSections(): void {
+  private ensureLocalTaskListsForSections(): void {
     let changed = false;
     for (const section of this.sections()) {
-      if (!this.sectionHasDefaultLists(section)) {
-        changed = this.storage.ensureSectionHasDefaultLists(section.id) || changed;
+      if (!this.sectionHasTaskList(section)) {
+        changed = this.storage.ensureSectionHasTaskList(section.id) || changed;
       }
     }
     if (changed) this.refreshSectionsFromStorage();
   }
 
-  private prioritizeMovedIntoLists(sectionId: string, lists: StoredList[]): StoredList[] {
-    return [...lists].sort((left, right) =>
-      Number(this.hasMovedIntoItem(sectionId, right.id)) - Number(this.hasMovedIntoItem(sectionId, left.id)),
-    );
-  }
-
-  private hasMovedIntoItem(sectionId: string, listId: string): boolean {
-    return this.storage.getItemsForList(sectionId, listId).some(item =>
-      item.created === true &&
-      item.deleted !== true &&
-      item.serverRevision > 0,
-    );
-  }
-
   private refreshSectionsFromStorage(): void {
-    this.sections.set(this.storage.loadSections());
+    const sections = this.storage.loadSections();
+    this.setSections(sections);
+  }
+
+  private setSections(sections: StoredSection[]): void {
+    this.sections.set(sections);
+    void this.deadlineNotifications.reconcileDeadlines(sections);
   }
 
   private resolveSectionId(
@@ -774,28 +823,19 @@ export class HomeComponent implements OnDestroy {
   private startCoachMarks(): void {
     if (this.isPublicPage() || this.isEditing() || this.infoDialog() !== null || this.premiumUpgradePromptOpen()) return;
 
-    const mainListTarget = document.querySelector<HTMLElement>('.my-primary-list-container');
-    const secondaryListTarget = document.querySelector<HTMLElement>('.my-secondary-list-container');
+    const taskListTarget = document.querySelector<HTMLElement>('.task-list-container');
     const createSectionTarget = Array.from(
       document.querySelectorAll<HTMLElement>('[data-coach-create-section]'),
     ).find(element => element.offsetParent !== null || element.getClientRects().length > 0);
     const shareTarget = document.querySelector<HTMLElement>('[data-coach-share]');
-    const moveTarget = document.querySelector<HTMLElement>('.main-drop-zone [data-keyboard-task]');
-    if (!mainListTarget || !secondaryListTarget || !createSectionTarget || !moveTarget) return;
+    const moveTarget = document.querySelector<HTMLElement>('.task-drop-zone [data-keyboard-task]');
+    if (!taskListTarget || !createSectionTarget || !moveTarget) return;
 
     const coachSteps: DriveStep[] = [
       {
-        element: mainListTarget,
+        element: taskListTarget,
         popover: {
-          title: 'Focus on what matters now',
-          side: 'right',
-          align: 'start',
-        },
-      },
-      {
-        element: secondaryListTarget,
-        popover: {
-          title: 'Keep the rest for later',
+          title: 'Keep every task in one calm list',
           side: 'right',
           align: 'start',
         },
@@ -803,7 +843,7 @@ export class HomeComponent implements OnDestroy {
       {
         element: moveTarget,
         popover: {
-          title: 'Drag tasks between lists',
+          title: 'Drag a task onto another page',
           side: 'right',
           align: 'start',
         },
@@ -862,7 +902,6 @@ export class HomeComponent implements OnDestroy {
 
   protected beginTaskPointerDrag(
     event: PointerEvent,
-    sourceList: TaskListKind,
     task: Task,
     sourceIndex: number,
   ): void {
@@ -880,7 +919,6 @@ export class HomeComponent implements OnDestroy {
     this.clearTextSelection();
 
     this.pendingTaskDrag = this.createPendingTaskDrag(
-      sourceList,
       sourceIndex,
       task,
       'pointer',
@@ -890,14 +928,12 @@ export class HomeComponent implements OnDestroy {
     );
     this.activeTaskDragElement = element;
     this.captureTaskPointer(element, event.pointerId);
-    this.setActiveKeyboardTask(sourceList, task.id);
+    this.setActiveKeyboardTask(task.id);
     this.taskMenuOpenId.set(null);
-    this.secTaskMenuOpenId.set(null);
   }
 
   protected beginTaskTouchDrag(
     event: TouchEvent,
-    sourceList: TaskListKind,
     task: Task,
     sourceIndex: number,
   ): void {
@@ -913,7 +949,6 @@ export class HomeComponent implements OnDestroy {
 
     this.clearTextSelection();
     const pending = this.createPendingTaskDrag(
-      sourceList,
       sourceIndex,
       task,
       'touch',
@@ -923,9 +958,8 @@ export class HomeComponent implements OnDestroy {
     );
     this.pendingTaskDrag = pending;
     this.activeTaskDragElement = element;
-    this.setActiveKeyboardTask(sourceList, task.id);
+    this.setActiveKeyboardTask(task.id);
     this.taskMenuOpenId.set(null);
-    this.secTaskMenuOpenId.set(null);
 
     this.clearTaskTouchDragStartTimer();
     this.taskTouchDragStartTimer = setTimeout(() => {
@@ -935,7 +969,6 @@ export class HomeComponent implements OnDestroy {
   }
 
   private createPendingTaskDrag(
-    sourceList: TaskListKind,
     sourceIndex: number,
     task: Task,
     inputType: PendingTaskDrag['inputType'],
@@ -943,10 +976,12 @@ export class HomeComponent implements OnDestroy {
     clientPoint: { x: number; y: number },
     element: HTMLElement,
   ): PendingTaskDrag {
+    const sourceSectionId = this.activeSectionId();
+    if (!sourceSectionId) throw new Error('Cannot drag a task without an active page');
     const rect = element.getBoundingClientRect();
     return {
       inputType,
-      sourceList,
+      sourceSectionId,
       sourceIndex,
       task,
       pointerId,
@@ -968,20 +1003,17 @@ export class HomeComponent implements OnDestroy {
     this.updateTaskDragForPoint(this.currentTaskDragPoint(drag), true, this.rawTaskDragPoint(drag));
   }
 
-  protected showTaskDragPlaceholder(list: TaskListKind, index: number): boolean {
+  protected showTaskDragPlaceholder(index: number): boolean {
     const drag = this.taskDragState();
-    if (!drag || drag.targetList !== list) return false;
+    if (!drag || drag.targetSectionId !== null) return false;
 
     const renderedIndex =
-      drag.targetList === drag.sourceList && drag.targetIndex > drag.sourceIndex
-        ? drag.targetIndex + 1
-        : drag.targetIndex;
+      drag.targetIndex > drag.sourceIndex ? drag.targetIndex + 1 : drag.targetIndex;
     return renderedIndex === index;
   }
 
-  protected isTaskDragSource(list: TaskListKind, taskId: string): boolean {
-    const drag = this.taskDragState();
-    return drag?.sourceList === list && drag.task.id === taskId;
+  protected isTaskDragSource(taskId: string): boolean {
+    return this.taskDragState()?.task.id === taskId;
   }
 
   protected taskDragPlaceholderHeight(): number {
@@ -1053,10 +1085,10 @@ export class HomeComponent implements OnDestroy {
     this.clearTaskTouchDragStartTimer();
     this.suppressTaskClickOnce();
     this.taskDragState.set({
-      sourceList: pending.sourceList,
+      sourceSectionId: pending.sourceSectionId,
       sourceIndex: pending.sourceIndex,
-      targetList: pending.sourceList,
       targetIndex: pending.sourceIndex,
+      targetSectionId: null,
       task: pending.task,
       pointerId: pending.pointerId,
       lastClientX: clientPoint.x,
@@ -1081,13 +1113,17 @@ export class HomeComponent implements OnDestroy {
     const drag = this.taskDragState();
     if (!drag) return;
 
+    const pageTargetId = !this.isMobile()
+      ? this.taskPageTargetFromClientPoint(rawClientPoint)
+      : null;
+    const targetSectionId = pageTargetId && pageTargetId !== drag.sourceSectionId
+      ? pageTargetId
+      : null;
     const target = this.taskDropTargetFromClientPoint(clientPoint);
-    let targetList = drag.targetList;
     let targetIndex = drag.targetIndex;
 
-    if (target) {
+    if (!targetSectionId && target) {
       if (allowAutoScroll) this.scrollTaskDropTargetNearEdge(target.dropZone, rawClientPoint);
-      targetList = target.list;
       targetIndex = this.taskDropIndexFromClientPoint(
         target.dropZone,
         target.taskSelector,
@@ -1098,14 +1134,15 @@ export class HomeComponent implements OnDestroy {
     }
 
     const previousRects =
-      targetList !== drag.targetList || targetIndex !== drag.targetIndex
+      targetSectionId !== drag.targetSectionId || targetIndex !== drag.targetIndex
         ? this.captureTaskLayoutRects()
         : null;
 
+    this.taskPageDropTargetId.set(targetSectionId);
     this.taskDragState.set({
       ...drag,
-      targetList,
       targetIndex,
+      targetSectionId,
       lastClientX: rawClientPoint.x,
       lastClientY: rawClientPoint.y,
       previewX: clientPoint.x - drag.pointerOffsetX,
@@ -1167,6 +1204,7 @@ export class HomeComponent implements OnDestroy {
     this.pendingTaskDrag = null;
     this.activeTaskDragElement = null;
     this.taskDragState.set(null);
+    this.taskPageDropTargetId.set(null);
     this.stopTaskAutoScrollLoop();
     this.resetTaskLayoutAnimationStyles();
     if (this.dragging()) this.setDragging(false);
@@ -1285,12 +1323,11 @@ export class HomeComponent implements OnDestroy {
     const rects = new Map<string, DOMRect>();
     if (typeof document === 'undefined') return rects;
 
-    for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task], .sec-task-item[data-keyboard-task]')) {
+    for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task]')) {
       if (element.offsetParent === null) continue;
-      const list = element.dataset['keyboardList'];
       const taskId = element.dataset['keyboardTask'];
-      if (!taskId || (list !== 'main' && list !== 'secondary')) continue;
-      rects.set(`${list}:${taskId}`, element.getBoundingClientRect());
+      if (!taskId) continue;
+      rects.set(taskId, element.getBoundingClientRect());
     }
 
     return rects;
@@ -1304,11 +1341,10 @@ export class HomeComponent implements OnDestroy {
       this.taskLayoutAnimationFrame = null;
       const animatedElements: HTMLElement[] = [];
 
-      for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task], .sec-task-item[data-keyboard-task]')) {
+      for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task]')) {
         if (element.offsetParent === null) continue;
-        const list = element.dataset['keyboardList'];
         const taskId = element.dataset['keyboardTask'];
-        const previousRect = taskId ? previousRects.get(`${list}:${taskId}`) : undefined;
+        const previousRect = taskId ? previousRects.get(taskId) : undefined;
         if (!previousRect) continue;
 
         const nextRect = element.getBoundingClientRect();
@@ -1348,7 +1384,7 @@ export class HomeComponent implements OnDestroy {
     }
     if (typeof document === 'undefined') return;
 
-    for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task], .sec-task-item[data-keyboard-task]')) {
+    for (const element of document.querySelectorAll<HTMLElement>('.task-item[data-keyboard-task]')) {
       element.style.transition = '';
       element.style.transform = '';
       element.style.willChange = '';
@@ -1401,59 +1437,146 @@ export class HomeComponent implements OnDestroy {
 
   private commitTaskDrag(drag: TaskDragState): void {
     if (this.isEditing()) return;
-    if (drag.sourceList === drag.targetList) {
-      this.commitTaskReorder(drag);
+    if (drag.targetSectionId) {
+      void this.commitTaskMoveToPage(drag);
       return;
     }
-    this.commitTaskMoveBetweenLists(drag);
+    this.commitTaskReorder(drag);
   }
 
   private commitTaskReorder(drag: TaskDragState): void {
     const section = this.activeSection();
-    const list = this.listForKind(drag.sourceList);
+    const list = this.taskList();
     if (!section || !list) return;
 
-    const items = [...this.tasksForList(drag.sourceList)];
+    const items = [...this.tasks()];
     const sourceIndex = items.findIndex(task => task.id === drag.task.id);
     if (!this.moveTaskInArray(items, sourceIndex, drag.targetIndex)) return;
     this.reorderTasksInList(section.id, list, items);
   }
 
-  private commitTaskMoveBetweenLists(drag: TaskDragState): void {
-    if (drag.targetList === 'main' && !this.canAdd()) {
+  private async commitTaskMoveToPage(drag: TaskDragState): Promise<void> {
+    const targetSectionId = drag.targetSectionId;
+    if (!targetSectionId || targetSectionId === drag.sourceSectionId || this.taskMoveInProgress()) return;
+
+    this.taskMoveInProgress.set(true);
+    try {
+      await this.performTaskMoveToPage(drag, targetSectionId);
+    } finally {
+      this.taskMoveInProgress.set(false);
+    }
+  }
+
+  private async performTaskMoveToPage(drag: TaskDragState, targetSectionId: string): Promise<void> {
+
+    let source = this.storage.getSection(drag.sourceSectionId);
+    let target = this.storage.getSection(targetSectionId);
+    if (!source || !target || !this.canAddTask(target)) {
       this.handleTaskLimitReached();
       return;
     }
-    if (drag.targetList === 'secondary' && !this.canAddSecondary()) {
-      this.handleTaskLimitReached();
+
+    if (
+      !this.auth.isLoggedIn() &&
+      (Boolean(source.shareToken) || Boolean(target.shareToken) || source.sharedAccess || target.sharedAccess)
+    ) {
+      this.taskMoveAnnouncement.set('sign in before moving tasks between shared pages');
       return;
     }
 
-    const mainItems = [...this.tasks()];
-    const secItems = [...this.secondaryTasks()];
-    const sourceItems = drag.sourceList === 'main' ? mainItems : secItems;
-    const sourceIndex = sourceItems.findIndex(task => task.id === drag.task.id);
-    if (sourceIndex === -1) return;
-
-    const [task] = sourceItems.splice(sourceIndex, 1);
-
-    if (drag.targetList === 'main') {
-      if (mainItems.length >= MAX_MAIN_TASKS) {
-        const displaced = mainItems.pop();
-        if (displaced) secItems.unshift(displaced);
+    if (this.auth.isLoggedIn()) {
+      try {
+        await this.flushPagesBeforeCrossPageMove([drag.sourceSectionId, targetSectionId]);
+      } catch {
+        this.refreshSectionsFromStorage();
+        this.taskMoveAnnouncement.set(`could not move ${drag.task.text}`);
+        return;
       }
-
-      mainItems.splice(Math.max(0, Math.min(drag.targetIndex, mainItems.length)), 0, task);
-      this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('main'));
-    } else {
-      if (secItems.length >= MAX_BACKLOG_TASKS) {
-        const displaced = secItems.shift();
-        if (displaced) mainItems.push(displaced);
+      source = this.storage.getSection(drag.sourceSectionId);
+      target = this.storage.getSection(targetSectionId);
+      const sourceHasTask = source?.lists[0]?.items.some(item => item.id === drag.task.id && !item.deleted);
+      if (!source || !target || !sourceHasTask || !this.canAddTask(target)) {
+        this.refreshSectionsFromStorage();
+        this.taskMoveAnnouncement.set(`sync updated; move ${drag.task.text} again`);
+        return;
       }
-
-      secItems.splice(Math.max(0, Math.min(drag.targetIndex, secItems.length)), 0, task);
-      this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('backlog'));
+      if (!this.pagesAreCleanForCrossPageMove([drag.sourceSectionId, targetSectionId])) {
+        this.refreshSectionsFromStorage();
+        this.taskMoveAnnouncement.set(`page changed; move ${drag.task.text} again`);
+        return;
+      }
     }
+
+    const targetPosition = 0;
+    const rollback = this.storage.optimisticallyMoveItem(
+      drag.sourceSectionId,
+      drag.task.id,
+      targetSectionId,
+      targetPosition,
+    );
+    if (!rollback) return;
+
+    this.refreshSectionsFromStorage();
+    const targetTitle = target.title || 'page';
+    this.taskMoveAnnouncement.set(`moved ${drag.task.text} to ${targetTitle}`);
+    if (!this.auth.isLoggedIn()) return;
+
+    try {
+      const moved = await this.sync.moveTaskToSection(
+        drag.sourceSectionId,
+        drag.task.id,
+        targetSectionId,
+        targetPosition,
+        rollback,
+      );
+      if (!moved) {
+        await this.doSyncSection(drag.sourceSectionId);
+        await this.doSyncSection(targetSectionId);
+        this.taskMoveAnnouncement.set(`sync updated; move ${drag.task.text} again`);
+      }
+      this.refreshSectionsFromStorage();
+    } catch {
+      const rolledBack = this.storage.rollbackMovedItem(rollback);
+      if (!rolledBack) {
+        await this.doSyncSection(drag.sourceSectionId);
+        await this.doSyncSection(targetSectionId);
+      }
+      this.refreshSectionsFromStorage();
+      this.taskMoveAnnouncement.set(`could not move ${drag.task.text}`);
+    }
+  }
+
+  private async flushPagesBeforeCrossPageMove(sectionIds: string[]): Promise<void> {
+    const uniqueSectionIds = [...new Set(sectionIds)];
+    if (uniqueSectionIds.some(sectionId => this.storage.getSection(sectionId)?.created)) {
+      await this.sync.syncSections();
+    }
+    for (const sectionId of uniqueSectionIds) {
+      let clean = false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await this.sync.syncSectionLists(sectionId);
+        const list = this.storage.getListsForSection(sectionId)[0];
+        if (!list) break;
+        await this.sync.syncListItems(sectionId, list.id);
+        const synced = this.storage.getListsForSection(sectionId)[0];
+        clean = Boolean(synced) && this.listIsCleanForCrossPageMove(synced!);
+        if (clean) break;
+      }
+      if (!clean) throw new Error('Page changed while preparing the move.');
+    }
+  }
+
+  private pagesAreCleanForCrossPageMove(sectionIds: string[]): boolean {
+    return [...new Set(sectionIds)].every(sectionId => {
+      const list = this.storage.getListsForSection(sectionId)[0];
+      return Boolean(list) && this.listIsCleanForCrossPageMove(list!);
+    });
+  }
+
+  private listIsCleanForCrossPageMove(list: StoredList): boolean {
+    return !list.dirty &&
+      !list.itemsOrderDirty &&
+      list.items.every(item => !item.dirty && !item.created);
   }
 
   protected isPagesFocused(): boolean {
@@ -1464,20 +1587,16 @@ export class HomeComponent implements OnDestroy {
     return this.isPagesFocused() && this.activeSectionId() === sectionId;
   }
 
-  protected isTaskFocused(list: TaskListKind, id: string): boolean {
-    const active = this.activeKeyboardTask();
-    return active?.list === list && active.id === id;
+  protected isTaskFocused(id: string): boolean {
+    return this.keyboardZone() === 'tasks' && this.activeKeyboardTaskId() === id;
   }
 
-  protected isAddPlaceholderFocused(list: TaskListKind): boolean {
-    return this.keyboardZone() === list && this.currentList() === list && this.activeKeyboardTask() === null;
+  protected isAddPlaceholderFocused(): boolean {
+    return this.keyboardZone() === 'tasks' && this.activeKeyboardTaskId() === null;
   }
 
-  protected clearTaskFocusOnMouseLeave(list: TaskListKind, id: string): void {
-    const active = this.activeKeyboardTask();
-    if (this.keyboardZone() === list && active?.list === list && active.id === id) {
-      this.clearKeyboardFocus(list);
-    }
+  protected clearTaskFocusOnMouseLeave(id: string): void {
+    if (this.isTaskFocused(id)) this.clearKeyboardFocus();
   }
 
   protected isSectionDeleteOptionFocused(option: SectionDeleteOption): boolean {
@@ -1488,90 +1607,47 @@ export class HomeComponent implements OnDestroy {
 
   protected focusPagesForKeyboard(): void {
     this.keyboardZone.set('pages');
-    this.activeKeyboardTask.set(null);
+    this.activeKeyboardTaskId.set(null);
     this.scrollActiveSectionIntoView();
   }
 
   private moveKeyboardVertically(direction: -1 | 1): void {
     if (this.keyboardZone() === null) {
-      if (direction > 0) {
-        this.focusListWithoutTask(this.currentList());
-      } else {
-        this.focusPagesForKeyboard();
-      }
+      direction > 0 ? this.focusTaskList() : this.focusPagesForKeyboard();
       return;
     }
 
     if (this.keyboardZone() === 'pages') {
-      if (direction > 0) {
-        this.focusListWithoutTask(this.currentList());
-      } else {
-        this.scrollActiveSectionIntoView();
-      }
+      direction > 0 ? this.focusTaskList() : this.scrollActiveSectionIntoView();
       return;
     }
 
-    const list = this.currentList();
-    const items = this.tasksForList(list);
-    const active = this.validActiveKeyboardTask();
-    const activeIndex = active?.list === list
-      ? items.findIndex(task => task.id === active.id)
-      : -1;
+    const items = this.tasks();
+    const activeId = this.validActiveKeyboardTaskId();
+    const activeIndex = activeId ? items.findIndex(task => task.id === activeId) : -1;
 
     if (direction < 0) {
-      if (!active || active.list !== list) {
+      if (!activeId) {
         this.focusPagesForKeyboard();
-        return;
+      } else if (activeIndex <= 0) {
+        this.focusTaskList();
+      } else {
+        this.setActiveKeyboardTask(items[activeIndex - 1].id);
       }
-      if (activeIndex <= 0) {
-        this.focusListWithoutTask(list);
-        return;
-      }
-      this.setActiveKeyboardTask(list, items[activeIndex - 1].id);
       return;
     }
 
-    if (!active || active.list !== list) {
-      if (items.length > 0) {
-        this.setActiveKeyboardTask(list, items[0].id);
-      }
+    if (!activeId) {
+      if (items.length > 0) this.setActiveKeyboardTask(items[0].id);
       return;
     }
 
     const nextIndex = Math.min(activeIndex + 1, items.length - 1);
-    this.setActiveKeyboardTask(list, items[nextIndex].id);
+    this.setActiveKeyboardTask(items[nextIndex].id);
   }
 
   private moveKeyboardHorizontally(direction: -1 | 1): void {
-    if (this.keyboardZone() === 'pages') {
-      this.moveSectionKeyboardFocus(direction);
-      return;
-    }
-    if (this.isPublicPage()) return;
-
-    const sourceList = this.currentList();
-    const targetList: TaskListKind = direction > 0 ? 'secondary' : 'main';
-    if (sourceList === targetList) return;
-
-    const sourceItems = this.tasksForList(sourceList);
-    const targetItems = this.tasksForList(targetList);
-    const active = this.validActiveKeyboardTask();
-    if (!active || active.list !== sourceList) {
-      this.focusListWithoutTask(targetList);
-      return;
-    }
-
-    const activeIndex = active?.list === sourceList
-      ? sourceItems.findIndex(task => task.id === active.id)
-      : 0;
-    const targetIndex = Math.min(Math.max(activeIndex, 0), targetItems.length - 1);
-
-    if (targetItems.length === 0) {
-      this.focusListWithoutTask(targetList);
-      return;
-    }
-
-    this.setActiveKeyboardTask(targetList, targetItems[targetIndex].id);
+    this.moveSectionKeyboardFocus(direction);
   }
 
   private moveSectionKeyboardFocus(direction: -1 | 1): void {
@@ -1590,60 +1666,38 @@ export class HomeComponent implements OnDestroy {
     this.focusPagesForKeyboard();
   }
 
-  private focusFirstTaskInCurrentList(): void {
-    const list = this.currentList();
-    const items = this.tasksForList(list);
-    if (items.length === 0) {
-      this.focusListWithoutTask(list);
-      return;
-    }
-
-    this.setActiveKeyboardTask(list, items[0].id);
+  private focusFirstTask(): void {
+    const first = this.tasks()[0];
+    first ? this.setActiveKeyboardTask(first.id) : this.focusTaskList();
   }
 
-  private setActiveKeyboardTask(list: TaskListKind, id: string): void {
-    if (this.isPublicPage() && list === 'secondary') list = 'main';
-    this.currentList.set(list);
-    this.keyboardZone.set(list);
-    this.activeKeyboardTask.set({ list, id });
-    this.scrollKeyboardTaskIntoView(list, id);
+  private setActiveKeyboardTask(id: string): void {
+    this.keyboardZone.set('tasks');
+    this.activeKeyboardTaskId.set(id);
+    this.scrollKeyboardTaskIntoView(id);
   }
 
-  private focusListWithoutTask(list: TaskListKind): void {
-    if (this.isPublicPage() && list === 'secondary') list = 'main';
-    this.currentList.set(list);
-    this.keyboardZone.set(list);
-    this.activeKeyboardTask.set(null);
+  private focusTaskList(): void {
+    this.keyboardZone.set('tasks');
+    this.activeKeyboardTaskId.set(null);
   }
 
-  private clearKeyboardFocus(list: TaskListKind = this.currentList()): void {
-    this.currentList.set(list);
+  private clearKeyboardFocus(): void {
     this.keyboardZone.set(null);
-    this.activeKeyboardTask.set(null);
+    this.activeKeyboardTaskId.set(null);
   }
 
-  private validActiveKeyboardTask(): { list: TaskListKind; id: string } | null {
-    const active = this.activeKeyboardTask();
-    if (!active) return null;
-    if (this.tasksForList(active.list).some(task => task.id === active.id)) return active;
-
-    this.activeKeyboardTask.set(null);
+  private validActiveKeyboardTaskId(): string | null {
+    const id = this.activeKeyboardTaskId();
+    if (!id) return null;
+    if (this.tasks().some(task => task.id === id)) return id;
+    this.activeKeyboardTaskId.set(null);
     return null;
   }
 
   private openFocusedTaskOrCreate(): void {
-    const active = this.validActiveKeyboardTask();
-    if (!active) {
-      if (this.currentList() === 'secondary' && !this.isAddPlaceholderFocused('secondary')) return;
-      this.startAddingInCurrentList();
-      return;
-    }
-
-    if (active.list === 'main') {
-      this.startEditingTask(active.id);
-    } else {
-      this.startEditingSecondary(active.id);
-    }
+    const id = this.validActiveKeyboardTaskId();
+    id ? this.startEditingTask(id) : void this.startAdding();
   }
 
   private deleteActivePageOrTask(): boolean {
@@ -1653,95 +1707,61 @@ export class HomeComponent implements OnDestroy {
       this.startDeleteSection(sectionId);
       return true;
     }
-
     return this.deleteActiveKeyboardTask();
   }
 
   private handleSectionDeleteConfirmationKeydown(event: KeyboardEvent): boolean {
     const sectionId = this.confirmingDeleteSectionId();
-    if (this.keyboardZone() !== 'pages' || !sectionId) {
-      return false;
-    }
+    if (this.keyboardZone() !== 'pages' || !sectionId) return false;
 
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault();
       this.sectionDeleteConfirmFocus.set(event.key === 'ArrowLeft' ? 'delete' : 'cancel');
       return true;
     }
-
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (this.sectionDeleteConfirmFocus() === 'delete') {
-        this.confirmDeleteSection();
-      } else {
-        this.cancelDeleteSection();
-      }
+      this.sectionDeleteConfirmFocus() === 'delete'
+        ? this.confirmDeleteSection()
+        : this.cancelDeleteSection();
       return true;
     }
-
     if (event.key === 'Escape') {
       event.preventDefault();
       this.cancelDeleteSection();
       return true;
     }
-
     return false;
   }
 
   private startAddingInCurrentList(): void {
-    if (this.currentList() === 'secondary') {
-      void this.startAddingSecondary();
-    } else {
-      void this.startAdding();
-    }
+    void this.startAdding();
   }
 
   private addSubtaskForActiveTask(): boolean {
-    const active = this.validActiveKeyboardTask();
-    if (!active) return false;
-
-    if (active.list === 'main') {
-      this.startAddingSubtask(active.id);
-    } else {
-      this.startAddingSecSubtask(active.id);
-    }
+    const id = this.validActiveKeyboardTaskId();
+    if (!id) return false;
+    this.startAddingSubtask(id);
     return true;
   }
 
   private deleteActiveKeyboardTask(): boolean {
-    const active = this.validActiveKeyboardTask();
-    if (!active) return false;
+    const id = this.validActiveKeyboardTaskId();
+    if (!id) return false;
 
-    const items = this.tasksForList(active.list);
-    const index = items.findIndex(task => task.id === active.id);
+    const items = this.tasks();
+    const index = items.findIndex(task => task.id === id);
     const nextTask = items[index + 1] ?? items[index - 1] ?? null;
-
-    if (active.list === 'main') {
-      this.removeTask(active.id);
-    } else {
-      this.removeSecondaryTask(active.id);
-    }
-
-    if (nextTask) {
-      this.setActiveKeyboardTask(active.list, nextTask.id);
-    } else {
-      this.focusListWithoutTask(active.list);
-    }
-
+    this.removeTask(id);
+    nextTask ? this.setActiveKeyboardTask(nextTask.id) : this.focusTaskList();
     return true;
   }
 
-  private tasksForList(list: TaskListKind): Task[] {
-    return list === 'main' ? this.tasks() : this.secondaryTasks();
-  }
-
-  private scrollKeyboardTaskIntoView(list: TaskListKind, id: string): void {
+  private scrollKeyboardTaskIntoView(id: string): void {
     requestAnimationFrame(() => {
-      const items = Array.from(document.querySelectorAll<HTMLElement>('[data-keyboard-task]')).filter(item =>
-        item.dataset['keyboardList'] === list && item.dataset['keyboardTask'] === id
-      );
-      const el = items.find(item => item.offsetParent !== null) ?? items[0];
-      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const items = Array.from(document.querySelectorAll<HTMLElement>('[data-keyboard-task]'));
+      const element = items.find(item => item.dataset['keyboardTask'] === id && item.offsetParent !== null);
+      element?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   }
 
@@ -1775,16 +1795,16 @@ export class HomeComponent implements OnDestroy {
     if (this.activeSectionId() === sectionId) return;
     this.sectionMenuOpen.set(false);
     this.setActiveSection(sectionId);
-    this.activeKeyboardTask.set(null);
+    this.activeKeyboardTaskId.set(null);
 
     if (this.auth.isLoggedIn()) {
       this.sync.syncSections().then(async synced => {
-        this.sections.set(synced);
+        this.setSections(synced);
         await this.hydrateMissingSectionLists([sectionId]);
         return this.doSyncSection(sectionId);
       }).catch(() => {});
     } else {
-      this.ensureLocalDefaultLists(sectionId);
+      this.ensureLocalTaskList(sectionId);
     }
   }
 
@@ -1805,7 +1825,7 @@ export class HomeComponent implements OnDestroy {
     moveItemInArray(items, event.previousIndex, event.currentIndex);
     items.forEach((s, i) => s.position = i);
     this.storage.saveSections(items, { markOrderDirty: true });
-    this.sections.set(items);
+    this.setSections(items);
 
     if (this.auth.isLoggedIn()) {
       const localOrderRevision = this.storage.getSectionOrderLocalRevision();
@@ -1820,12 +1840,7 @@ export class HomeComponent implements OnDestroy {
 
   protected dropSubtask(taskId: string, event: CdkDragDrop<Subtask[]>): void {
     if (event.previousIndex === event.currentIndex) return;
-    this.reorderSubtasksInList(this.mainList(), taskId, event.previousIndex, event.currentIndex);
-  }
-
-  protected dropSecSubtask(taskId: string, event: CdkDragDrop<Subtask[]>): void {
-    if (event.previousIndex === event.currentIndex) return;
-    this.reorderSubtasksInList(this.backlogList(), taskId, event.previousIndex, event.currentIndex);
+    this.reorderSubtasksInList(this.taskList(), taskId, event.previousIndex, event.currentIndex);
   }
 
   private resetHorizontalListScroll(): void {
@@ -1840,7 +1855,7 @@ export class HomeComponent implements OnDestroy {
     if (document.body.scrollLeft !== 0) document.body.scrollLeft = 0;
 
     for (const element of document.querySelectorAll<HTMLElement>(
-      '.lists, .main-section, .secondary-section, .main-drop-zone, .sec-drop-zone, .task-list',
+      '.lists, .task-section, .task-drop-zone, .task-list',
     )) {
       if (element.scrollLeft !== 0) element.scrollLeft = 0;
     }
@@ -1879,7 +1894,7 @@ export class HomeComponent implements OnDestroy {
     const targets: Array<Window | HTMLElement> = [
       window,
       ...document.querySelectorAll<HTMLElement>(
-        '.lists, .main-section, .secondary-section, .main-drop-zone, .sec-drop-zone, .task-list',
+        '.lists, .task-section, .task-drop-zone, .task-list',
       ),
     ];
 
@@ -1961,7 +1976,7 @@ export class HomeComponent implements OnDestroy {
 
   private handleTaskLimitReached(): void {
     if (!this.freeOwnedTaskLimitApplies()) return;
-    this.showPremiumUpgradePrompt('create more tasks in each list');
+    this.showPremiumUpgradePrompt('create more tasks on each page');
   }
 
   private showPremiumUpgradePrompt(description: string): void {
@@ -1988,7 +2003,7 @@ export class HomeComponent implements OnDestroy {
 
     if (this.auth.isLoggedIn()) {
       this.sync.syncSections().then(synced => {
-        this.sections.set(synced);
+        this.setSections(synced);
         return this.doSyncSection(newSection.id);
       }).then(() => this.refreshSectionsFromStorage()).catch(() => {});
     }
@@ -1997,8 +2012,7 @@ export class HomeComponent implements OnDestroy {
   private createSection(title: string): StoredSection {
     const now = new Date().toISOString();
     const sectionId = crypto.randomUUID();
-    const mainListId = crypto.randomUUID();
-    const backlogListId = crypto.randomUUID();
+    const listId = crypto.randomUUID();
 
     const newSection: StoredSection = {
       id: sectionId,
@@ -2009,8 +2023,7 @@ export class HomeComponent implements OnDestroy {
       created: true,
       dirty: true,
       lists: [
-        { id: mainListId, title: DEFAULT_MAIN_TITLE, metadataLastModifiedAt: now, serverRevision: 0, itemsOrderRevision: 0, itemsBaseOrderRevision: 0, dirty: true, items: [], isBacklog: false },
-        { id: backlogListId, title: DEFAULT_BACKLOG_TITLE, metadataLastModifiedAt: now, serverRevision: 0, itemsOrderRevision: 0, itemsBaseOrderRevision: 0, dirty: true, items: [], isBacklog: true },
+        { id: listId, title: '', metadataLastModifiedAt: now, serverRevision: 0, itemsOrderRevision: 0, itemsBaseOrderRevision: 0, dirty: true, items: [] },
       ],
     };
 
@@ -2021,30 +2034,30 @@ export class HomeComponent implements OnDestroy {
     return newSection;
   }
 
-  private ensureDefaultSectionForItemCreation(list: TaskListKind): boolean {
+  private ensureSectionForTaskCreation(): boolean {
     const active = this.activeSection();
-    if (this.sectionHasList(active, list)) return true;
+    if (this.sectionHasTaskList(active)) return true;
 
     if (active) {
       if (this.auth.isLoggedIn()) return false;
-      this.ensureLocalDefaultLists(active.id);
-      return this.sectionHasList(this.activeSection(), list);
+      this.ensureLocalTaskList(active.id);
+      return this.sectionHasTaskList(this.activeSection());
     }
 
     if (this.sections().length === 0) {
       const created = this.createSection('my list');
-      return this.sectionHasList(created, list);
+      return this.sectionHasTaskList(created);
     }
 
     const first = this.sections()[0];
     if (!first) return false;
     this.setActiveSection(first.id);
-    if (this.auth.isLoggedIn()) return this.sectionHasList(first, list);
-    this.ensureLocalDefaultLists(first.id);
-    return this.sectionHasList(this.activeSection(), list);
+    if (this.auth.isLoggedIn()) return this.sectionHasTaskList(first);
+    this.ensureLocalTaskList(first.id);
+    return this.sectionHasTaskList(this.activeSection());
   }
 
-  private async ensureActiveListReadyForItemCreation(list: TaskListKind): Promise<boolean> {
+  private async ensureActiveTaskListReady(): Promise<boolean> {
     let active = this.activeSection();
     if (!active) {
       if (this.sections().length === 0 && !this.isPublicPage()) {
@@ -2055,7 +2068,7 @@ export class HomeComponent implements OnDestroy {
       }
     }
     if (!active) return false;
-    if (this.sectionHasList(active, list)) return true;
+    if (this.sectionHasTaskList(active)) return true;
 
     const sectionId = active.id;
     if (this.auth.isLoggedIn()) {
@@ -2067,13 +2080,11 @@ export class HomeComponent implements OnDestroy {
       }
 
       active = this.activeSection();
-      if (this.sectionHasList(active, list)) return true;
+      if (this.sectionHasTaskList(active)) return true;
     }
 
-    if (!this.isPublicPage() || list === 'main') {
-      this.ensureLocalDefaultLists(sectionId);
-    }
-    return this.sectionHasList(this.activeSection(), list);
+    this.ensureLocalTaskList(sectionId);
+    return this.sectionHasTaskList(this.activeSection());
   }
 
   protected handleAddSectionKeydown(event: KeyboardEvent): void {
@@ -2117,7 +2128,7 @@ export class HomeComponent implements OnDestroy {
         this.refreshSectionsFromStorage();
 
         if (this.auth.isLoggedIn() || sec.shareToken) {
-          this.sync.syncSections().then(synced => this.sections.set(synced)).catch(() => {});
+          this.sync.syncSections().then(synced => this.setSections(synced)).catch(() => {});
         }
       }
     }
@@ -2137,7 +2148,7 @@ export class HomeComponent implements OnDestroy {
     this.confirmingDeleteSectionId.set(sectionId);
     this.sectionDeleteConfirmFocus.set('delete');
     this.keyboardZone.set('pages');
-    this.activeKeyboardTask.set(null);
+    this.activeKeyboardTaskId.set(null);
   }
 
   protected cancelDeleteSection(): void {
@@ -2199,7 +2210,7 @@ export class HomeComponent implements OnDestroy {
     if (!this.canDeleteSection(this.sections().find(section => section.id === sectionId))) return;
     this.storage.removeSection(sectionId);
     this.refreshSectionsFromStorage();
-    this.activeKeyboardTask.set(null);
+    this.activeKeyboardTaskId.set(null);
 
     const remaining = this.sections();
     if (this.activeSectionId() === sectionId) {
@@ -2207,67 +2218,27 @@ export class HomeComponent implements OnDestroy {
     }
 
     if (this.auth.isLoggedIn()) {
-      this.sync.syncSections().then(synced => this.sections.set(synced)).catch(() => {});
+      this.sync.syncSections().then(synced => this.setSections(synced)).catch(() => {});
     }
   }
 
   // ─── List mutation helper ──────────────────────────────
 
-  private updateMainList(updater: (tasks: Task[]) => Task[], options?: { markOrderDirty?: boolean }): void {
+  private updateTaskList(updater: (tasks: Task[]) => Task[], options?: { markOrderDirty?: boolean }): void {
+    if (this.taskMoveInProgress()) return;
     const sec = this.activeSection();
-    const ml = this.mainList();
-    if (!sec || !ml) return;
+    const list = this.taskList();
+    if (!sec || !list) return;
 
     const syncSectionsFirst = sec.created === true;
     this.storage.setItemsForList(
       sec.id,
-      ml.id,
-      this.buildItemsFromTasks(ml.items, updater(this.visibleTasks(ml))),
+      list.id,
+      this.buildItemsFromTasks(list.items, updater(this.visibleTasks(list))),
       options,
     );
     this.refreshSectionsFromStorage();
-    this.syncItemsForList(sec.id, ml.id, syncSectionsFirst);
-  }
-
-  private updateBacklogList(updater: (tasks: Task[]) => Task[], options?: { markOrderDirty?: boolean }): void {
-    const sec = this.activeSection();
-    const bl = this.backlogList();
-    if (!sec || !bl) return;
-
-    const syncSectionsFirst = sec.created === true;
-    this.storage.setItemsForList(
-      sec.id,
-      bl.id,
-      this.buildItemsFromTasks(bl.items, updater(this.visibleTasks(bl))),
-      options,
-    );
-    this.refreshSectionsFromStorage();
-    this.syncItemsForList(sec.id, bl.id, syncSectionsFirst);
-  }
-
-  private updateBothLists(
-    mainUpdater: (tasks: Task[]) => Task[],
-    backlogUpdater: (tasks: Task[]) => Task[],
-    syncOrder?: string[],
-  ): void {
-    const sec = this.activeSection();
-    const ml = this.mainList();
-    const bl = this.backlogList();
-    if (!sec || !ml || !bl) return;
-
-    const syncSectionsFirst = sec.created === true;
-    this.storage.setItemsForList(sec.id, ml.id, this.buildItemsFromTasks(ml.items, mainUpdater(this.visibleTasks(ml))), { markOrderDirty: true });
-    this.storage.setItemsForList(sec.id, bl.id, this.buildItemsFromTasks(bl.items, backlogUpdater(this.visibleTasks(bl))), { markOrderDirty: true });
-    this.refreshSectionsFromStorage();
-    this.syncItemsForLists(sec.id, syncOrder ?? [ml.id, bl.id], syncSectionsFirst);
-  }
-
-  private updateBacklogMeta(title?: string): void {
-    const sec = this.activeSection();
-    const bl = this.backlogList();
-    if (!sec || !bl) return;
-
-    this.updateListMeta(sec.id, bl, title);
+    this.syncItemsForList(sec.id, list.id, syncSectionsFirst);
   }
 
   private visibleTasks(list: StoredList | null): Task[] {
@@ -2285,20 +2256,14 @@ export class HomeComponent implements OnDestroy {
     return this.isSectionOwner(section) && !this.auth.isPremium();
   }
 
-  private taskCountForList(list: TaskListKind): number {
-    return list === 'main' ? this.taskCount() : this.secondaryCount();
+  private canAddTask(section = this.activeSection()): boolean {
+    const list = section?.lists[0];
+    const taskCount = this.visibleTasks(list ?? null).length;
+    const limit = this.freeOwnedTaskLimitApplies(section) ? MAX_FREE_TASKS_PER_PAGE : MAX_TASKS_PER_PAGE;
+    return taskCount < limit;
   }
 
-  private maxTasksForList(list: TaskListKind): number {
-    if (this.freeOwnedTaskLimitApplies()) return MAX_FREE_TASKS_PER_OWNED_LIST;
-    return list === 'main' ? MAX_MAIN_TASKS : MAX_BACKLOG_TASKS;
-  }
-
-  private canAddTaskToList(list: TaskListKind): boolean {
-    return this.taskCountForList(list) < this.maxTasksForList(list);
-  }
-
-  private doneTasksForList(sourceList: TaskListKind, list: StoredList | null): DoneTask[] {
+  private doneTasksForList(list: StoredList | null): DoneTask[] {
     const tasks: DoneTask[] = [];
     for (const item of list?.items ?? []) {
       if (item.deleted) continue;
@@ -2310,7 +2275,6 @@ export class HomeComponent implements OnDestroy {
         doneAt,
         lastModifiedAt: item.lastModifiedAt,
         serverRevision: item.serverRevision,
-        sourceList,
       });
     }
     return tasks;
@@ -2346,6 +2310,16 @@ export class HomeComponent implements OnDestroy {
       subtasks,
       done: Boolean(record['done']),
       ...(typeof record['doneAt'] === 'string' && record['doneAt'] ? { doneAt: record['doneAt'] } : {}),
+      ...(typeof record['deadlineAt'] === 'string' && record['deadlineAt']
+        ? { deadlineAt: record['deadlineAt'] }
+        : record['deadlineAt'] === null ? { deadlineAt: null } : {}),
+      ...(typeof record['deadlineTimeZone'] === 'string' && record['deadlineTimeZone']
+        ? { deadlineTimeZone: record['deadlineTimeZone'] }
+        : record['deadlineTimeZone'] === null ? { deadlineTimeZone: null } : {}),
+      deadlineNotificationEnabled: Boolean(record['deadlineAt'] && record['deadlineNotificationEnabled']),
+      ...(typeof record['deadlineScheduleId'] === 'string' && record['deadlineScheduleId']
+        ? { deadlineScheduleId: record['deadlineScheduleId'] }
+        : {}),
     };
   }
 
@@ -2368,6 +2342,10 @@ export class HomeComponent implements OnDestroy {
       normalizedLeft.text === right.text &&
       normalizedLeft.done === right.done &&
       normalizedLeft.doneAt === right.doneAt &&
+      normalizedLeft.deadlineAt === right.deadlineAt &&
+      normalizedLeft.deadlineTimeZone === right.deadlineTimeZone &&
+      normalizedLeft.deadlineNotificationEnabled === right.deadlineNotificationEnabled &&
+      normalizedLeft.deadlineScheduleId === right.deadlineScheduleId &&
       normalizedLeft.subtasks.length === right.subtasks.length &&
       right.subtasks.every(subtask => {
         const other = leftSubtasks.get(subtask.id);
@@ -2425,21 +2403,6 @@ export class HomeComponent implements OnDestroy {
     return [...nextItems, ...preservedDoneItems, ...deletedItems, ...alreadyDeleted];
   }
 
-  private updateListMeta(sectionId: string, list: StoredList, title?: string): void {
-    const updatedList: StoredList = {
-      ...list,
-      ...(title !== undefined ? { title } : {}),
-      metadataLastModifiedAt: new Date().toISOString(),
-      dirty: true,
-    };
-    this.storage.upsertList(sectionId, updatedList);
-    this.refreshSectionsFromStorage();
-
-    if (this.auth.isLoggedIn() || this.storage.getSection(sectionId)?.shareToken) {
-      this.sync.syncSectionLists(sectionId).then(() => this.refreshSectionsFromStorage()).catch(() => {});
-    }
-  }
-
   private syncItemsForList(sectionId: string, listId: string, syncSectionsFirst = false): void {
     this.syncItemsForLists(sectionId, [listId], syncSectionsFirst);
   }
@@ -2454,7 +2417,7 @@ export class HomeComponent implements OnDestroy {
 
     const listSync = syncSectionsFirst && this.auth.isLoggedIn()
       ? this.sync.syncSections().then(synced => {
-          this.sections.set(synced);
+          this.setSections(synced);
           return this.sync.syncSectionLists(sectionId);
         })
       : this.sync.syncSectionLists(sectionId);
@@ -2471,13 +2434,6 @@ export class HomeComponent implements OnDestroy {
       })
       .then(() => this.refreshSectionsFromStorage())
       .catch(() => {});
-  }
-
-  private crossListSyncOrder(destination: 'main' | 'backlog'): string[] | undefined {
-    const ml = this.mainList();
-    const bl = this.backlogList();
-    if (!ml || !bl) return undefined;
-    return destination === 'main' ? [ml.id, bl.id] : [bl.id, ml.id];
   }
 
   private reorderTasksInList(sectionId: string, list: StoredList, tasks: Task[]): void {
@@ -2530,35 +2486,35 @@ export class HomeComponent implements OnDestroy {
     if (typeof document === 'undefined') return null;
 
     const elementAtPoint = document.elementFromPoint(clientPoint.x, clientPoint.y);
-    const dropZone = elementAtPoint?.closest<HTMLElement>('.main-drop-zone, .sec-drop-zone');
+    const dropZone = elementAtPoint?.closest<HTMLElement>('.task-drop-zone');
     const target = dropZone ? this.taskDropTargetFromDropZone(dropZone) : null;
     if (target) return target;
 
-    for (const list of ['main', 'secondary'] as const) {
-      const fallbackZone = document.getElementById(list === 'main' ? 'mainDropList' : 'secondaryDropList');
-      if (!fallbackZone) continue;
-      const rect = fallbackZone.getBoundingClientRect();
-      if (
-        clientPoint.x >= rect.left &&
-        clientPoint.x <= rect.right &&
-        clientPoint.y >= rect.top &&
-        clientPoint.y <= rect.bottom
-      ) {
-        return this.taskDropTargetFromDropZone(fallbackZone);
-      }
+    const fallbackZone = document.getElementById('taskDropList');
+    if (!fallbackZone) return null;
+    const rect = fallbackZone.getBoundingClientRect();
+    if (
+      clientPoint.x >= rect.left &&
+      clientPoint.x <= rect.right &&
+      clientPoint.y >= rect.top &&
+      clientPoint.y <= rect.bottom
+    ) {
+      return this.taskDropTargetFromDropZone(fallbackZone);
     }
 
     return null;
   }
 
   private taskDropTargetFromDropZone(dropZone: HTMLElement): TaskDropTarget | null {
-    if (dropZone.classList.contains('main-drop-zone')) {
-      return { list: 'main', dropZone, taskSelector: '.task-list > .task-item' };
-    }
-    if (dropZone.classList.contains('sec-drop-zone')) {
-      return { list: 'secondary', dropZone, taskSelector: '.task-list > .sec-task-item' };
-    }
-    return null;
+    return dropZone.classList.contains('task-drop-zone')
+      ? { dropZone, taskSelector: '.task-list > .task-item' }
+      : null;
+  }
+
+  private taskPageTargetFromClientPoint(clientPoint: { x: number; y: number }): string | null {
+    if (typeof document === 'undefined') return null;
+    const element = document.elementFromPoint(clientPoint.x, clientPoint.y);
+    return element?.closest<HTMLElement>('[data-task-drop-section]')?.dataset['taskDropSection'] ?? null;
   }
 
   private taskDropIndexFromClientPoint(
@@ -2624,30 +2580,19 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected readonly confirmingClear = signal(false);
-  protected readonly confirmingSecondaryClear = signal(false);
 
   protected startClear(): void { this.confirmingClear.set(true); }
   protected cancelClear(): void { this.confirmingClear.set(false); }
   protected confirmClear(): void {
-    this.updateMainList(() => []);
+    this.updateTaskList(() => []);
     this.confirmingClear.set(false);
   }
   protected clearDoneTasks(): void {
-    this.deleteDoneTasksFromList('main');
-  }
-
-  protected startSecondaryClear(): void { this.confirmingSecondaryClear.set(true); }
-  protected cancelSecondaryClear(): void { this.confirmingSecondaryClear.set(false); }
-  protected confirmSecondaryClear(): void {
-    this.updateBacklogList(() => []);
-    this.confirmingSecondaryClear.set(false);
-  }
-  protected clearDoneSecondary(): void {
-    this.deleteDoneTasksFromList('secondary');
+    this.deleteDoneTasks();
   }
 
   protected restoreDoneTask(task: DoneTask): void {
-    if (!this.canAddTaskToList(task.sourceList)) {
+    if (!this.canAddTask()) {
       this.handleTaskLimitReached();
       return;
     }
@@ -2655,7 +2600,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected restoreDoneSubtask(task: DoneTask, subtaskId: string): void {
-    if (!this.canAddTaskToList(task.sourceList)) {
+    if (!this.canAddTask()) {
       this.handleTaskLimitReached();
       return;
     }
@@ -2671,7 +2616,7 @@ export class HomeComponent implements OnDestroy {
 
   private restoreDoneTaskToSource(task: DoneTask, restoredTask: Task): void {
     const sec = this.activeSection();
-    const sourceList = this.listForKind(task.sourceList);
+    const sourceList = this.taskList();
     if (!sec || !sourceList) return;
 
     const sourceItem = sourceList.items.find(item => item.id === task.id);
@@ -2697,9 +2642,9 @@ export class HomeComponent implements OnDestroy {
     this.syncItemsForList(sec.id, sourceList.id, sec.created === true);
   }
 
-  private completeTask(listKind: TaskListKind, id: string): void {
+  private completeTask(id: string): void {
     const sec = this.activeSection();
-    const list = this.listForKind(listKind);
+    const list = this.taskList();
     if (!sec || !list) return;
 
     const now = new Date().toISOString();
@@ -2745,9 +2690,9 @@ export class HomeComponent implements OnDestroy {
     });
   }
 
-  private deleteDoneTasksFromList(listKind: TaskListKind): void {
+  private deleteDoneTasks(): void {
     const sec = this.activeSection();
-    const list = this.listForKind(listKind);
+    const list = this.taskList();
     if (!sec || !list) return;
 
     const now = new Date().toISOString();
@@ -2773,11 +2718,8 @@ export class HomeComponent implements OnDestroy {
     const section = this.storage.getSection(sectionId);
     if (!section) return [];
 
-    const lists = this.isPublicPage()
-      ? section.lists.filter(list => !list.isBacklog)
-      : section.lists;
     const doneItems: Array<{ list: StoredList; item: StoredItem; task: Task }> = [];
-    for (const list of lists) {
+    for (const list of section.lists) {
       for (const item of list.items) {
         if (item.deleted) continue;
         const task = this.normalizeTask(item.content, item.id);
@@ -2788,8 +2730,9 @@ export class HomeComponent implements OnDestroy {
 
     if (doneItems.length <= MAX_DONE_TASKS) return [];
 
-    const overflow = doneItems
-      .sort((left, right) => this.compareDoneTasksNewestFirst(
+    const overflow = completedItemsBeyondRetention(
+      doneItems,
+      (left, right) => this.compareDoneTasksNewestFirst(
         {
           id: left.item.id,
           doneAt: left.task.doneAt ?? left.item.lastModifiedAt,
@@ -2800,8 +2743,8 @@ export class HomeComponent implements OnDestroy {
           doneAt: right.task.doneAt ?? right.item.lastModifiedAt,
           lastModifiedAt: right.item.lastModifiedAt,
         },
-      ))
-      .slice(MAX_DONE_TASKS);
+      ),
+    );
 
     const overflowByList = new Map<string, Set<string>>();
     for (const { list, item } of overflow) {
@@ -2847,17 +2790,12 @@ export class HomeComponent implements OnDestroy {
   }
 
   private withoutDoneDate(task: Task): Task {
-    const { doneAt: _doneAt, sourceList: _sourceList, ...rest } = task as Task & Partial<DoneTask>;
+    const { doneAt: _doneAt, ...rest } = task;
     return rest;
   }
 
-  private listForKind(list: TaskListKind): StoredList | null {
-    return list === 'main' ? this.mainList() : this.backlogList();
-  }
-
   // ─── Scroll ─────────────────────────────────────────────
-  protected readonly mainSection = viewChild<ElementRef<HTMLElement>>('mainSection');
-  protected readonly secondarySection = viewChild<ElementRef<HTMLElement>>('secondarySection');
+  protected readonly taskSection = viewChild<ElementRef<HTMLElement>>('taskSection');
 
   // ─── User menu ──────────────────────────────────────────
   protected toggleMenu(): void {
@@ -2965,15 +2903,16 @@ export class HomeComponent implements OnDestroy {
     }, 1800);
   }
 
-  protected signOut(): void {
+  protected async signOut(): Promise<void> {
     this.menuOpen.set(false);
+    await this.deadlineNotifications.cancelAll();
     this.storage.setActivePartition(); // switch to anonymous
     this.auth.logout();
     this.refreshSectionsFromStorage();
     const loaded = this.storage.loadSections();
-    this.sections.set(loaded);
+    this.setSections(loaded);
     this.restoreActiveSection(loaded, [this.storage.getActiveSectionPreference()]);
-    this.clearKeyboardFocus('main');
+    this.clearKeyboardFocus();
   }
 
   protected openSettings(): void {
@@ -2991,7 +2930,7 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  // ─── Main task: add ─────────────────────────────────────
+  // ─── Task: add ──────────────────────────────────────────
   protected dismissPremiumUpgradePrompt(): void {
     this.premiumUpgradePromptOpen.set(false);
   }
@@ -3003,13 +2942,13 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected async startAdding(): Promise<void> {
-    this.focusListWithoutTask('main');
+    this.focusTaskList();
     if (this.isEditing()) return;
     if (!this.canAdd()) {
       this.handleTaskLimitReached();
       return;
     }
-    if (!(await this.ensureActiveListReadyForItemCreation('main'))) return;
+    if (!(await this.ensureActiveTaskListReady())) return;
     if (this.isEditing()) return;
     if (!this.canAdd()) {
       this.handleTaskLimitReached();
@@ -3030,7 +2969,7 @@ export class HomeComponent implements OnDestroy {
   protected confirmAdd(): void {
     const text = this.newTaskText().trim();
     if (!text) { this.cancelAdding(); return; }
-    if (!this.ensureDefaultSectionForItemCreation('main')) return;
+    if (!this.ensureSectionForTaskCreation()) return;
     if (!this.canAdd()) {
       this.cancelAdding();
       this.handleTaskLimitReached();
@@ -3040,8 +2979,8 @@ export class HomeComponent implements OnDestroy {
       .map(s => s.trim())
       .filter(s => s.length > 0)
       .map(s => ({ id: crypto.randomUUID(), text: s, done: false }));
-    this.updateMainList(tasks => [
-      { id: crypto.randomUUID(), text, subtasks, done: false },
+    this.updateTaskList(tasks => [
+      { id: crypto.randomUUID(), text, subtasks, done: false, deadlineNotificationEnabled: false },
       ...tasks,
     ], { markOrderDirty: true });
     this.cancelAdding();
@@ -3059,14 +2998,6 @@ export class HomeComponent implements OnDestroy {
     if (this.newSubtasks().length >= 10) return;
     this.newSubtasks.update(s => [...s, '']);
     if (focusNew) this.focusLastVisibleInput('.add-form:not(.add-form-sec) .input-sub');
-  }
-
-  private updateMainMeta(title?: string): void {
-    const sec = this.activeSection();
-    const ml = this.mainList();
-    if (!sec || !ml) return;
-
-    this.updateListMeta(sec.id, ml, title);
   }
 
   protected removeSubtaskField(index: number): void {
@@ -3095,57 +3026,33 @@ export class HomeComponent implements OnDestroy {
     else if (event.key === 'Escape') this.cancelAdding();
   }
 
-  // ─── Main title editing ─────────────────────────────────
-  protected startEditingMainTitle(): void {
-    if (this.isEditing()) return;
-    this.editingMainTitle.set(true);
-    this.focusVisibleInput('.main-title-input', true);
-  }
-
-  protected saveMainTitle(event: Event): void {
-    const value = (event.target as HTMLInputElement).value.trim();
-    if (value) {
-      this.updateMainMeta(value);
-    }
-    this.editingMainTitle.set(false);
-  }
-
-  protected handleMainTitleKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') this.saveMainTitle(event);
-    else if (event.key === 'Escape') this.editingMainTitle.set(false);
-  }
-
-  // ─── Main task: toggle / remove ─────────────────────────
+  // ─── Task text editing ──────────────────────────────────
   protected toggleTask(id: string): void {
-    this.completeTask('main', id);
+    this.completeTask(id);
   }
 
   protected removeTask(id: string): void {
-    this.updateMainList(tasks => tasks.filter(t => t.id !== id));
+    this.updateTaskList(tasks => tasks.filter(t => t.id !== id));
   }
 
-  // ─── Main task: inline edit ─────────────────────────────
+  // ─── Task: inline edit ──────────────────────────────────
   protected startEditingTask(id: string): void {
     if (this.isEditing()) return;
-    this.setActiveKeyboardTask('main', id);
+    this.setActiveKeyboardTask(id);
     this.editingTaskId.set(id);
     this.focusEditInput('task-' + id);
   }
 
-  protected handleTaskItemClick(event: MouseEvent, list: TaskListKind, id: string): void {
+  protected handleTaskItemClick(event: MouseEvent, id: string): void {
     if (event.defaultPrevented || this.suppressNextTaskClick) return;
     if (this.isTaskEditIgnoredEvent(event)) return;
-    if (list === 'main') {
-      this.startEditingTask(id);
-    } else {
-      this.startEditingSecondary(id);
-    }
+    this.startEditingTask(id);
   }
 
   protected saveTaskEdit(id: string, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
     if (value) {
-      this.updateMainList(tasks =>
+      this.updateTaskList(tasks =>
         tasks.map(t => (t.id === id ? { ...t, text: value } : t))
       );
     }
@@ -3170,7 +3077,7 @@ export class HomeComponent implements OnDestroy {
 
   // ─── Subtask: toggle / remove / edit ────────────────────
   protected toggleSubtask(taskId: string, subtaskId: string): void {
-    this.updateMainList(tasks =>
+    this.updateTaskList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, done: !s.done } : s)) }
@@ -3180,7 +3087,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected removeSubtask(taskId: string, subtaskId: string): void {
-    this.updateMainList(tasks =>
+    this.updateTaskList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) }
@@ -3198,7 +3105,7 @@ export class HomeComponent implements OnDestroy {
   protected saveSubtaskEdit(taskId: string, subtaskId: string, event: Event): void {
     const value = (event.target as HTMLInputElement).value.trim();
     if (value) {
-      this.updateMainList(tasks =>
+      this.updateTaskList(tasks =>
         tasks.map(t =>
           t.id === taskId
             ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, text: value } : s)) }
@@ -3245,7 +3152,7 @@ export class HomeComponent implements OnDestroy {
       this.cancelAddingSubtask();
       return;
     }
-    this.updateMainList(tasks =>
+    this.updateTaskList(tasks =>
       tasks.map(t =>
         t.id === taskId
           ? { ...t, subtasks: [...t.subtasks, { id: crypto.randomUUID(), text, done: false }] }
@@ -3280,329 +3187,237 @@ export class HomeComponent implements OnDestroy {
     this.newInlineSubtaskText.set((event.target as HTMLInputElement).value);
   }
 
-  // ─── Secondary tasks ───────────────────────────────────
-  protected async startAddingSecondary(): Promise<void> {
-    this.focusListWithoutTask('secondary');
+  protected openDeadlineEditor(task: Task): void {
     if (this.isEditing()) return;
-    if (!this.canAddSecondary()) {
-      this.handleTaskLimitReached();
-      return;
-    }
-    if (!(await this.ensureActiveListReadyForItemCreation('secondary'))) return;
-    if (this.isEditing()) return;
-    if (!this.canAddSecondary()) {
-      this.handleTaskLimitReached();
-      return;
-    }
-    this.addingSecondary.set(true);
-    this.newSecondaryText.set('');
-    this.newSecondarySubtasks.set([]);
-    setTimeout(() => document.querySelector<HTMLInputElement>('.add-form-sec .input-minimal')?.focus());
-  }
-
-  protected cancelAddingSecondary(): void {
-    this.addingSecondary.set(false);
-    this.newSecondaryText.set('');
-    this.newSecondarySubtasks.set([]);
-  }
-
-  protected confirmAddSecondary(): void {
-    const text = this.newSecondaryText().trim();
-    if (!text) { this.cancelAddingSecondary(); return; }
-    if (!this.ensureDefaultSectionForItemCreation('secondary')) return;
-    if (!this.canAddSecondary()) {
-      this.cancelAddingSecondary();
-      this.handleTaskLimitReached();
-      return;
-    }
-    const subtasks: Subtask[] = this.newSecondarySubtasks()
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-      .map(s => ({ id: crypto.randomUUID(), text: s, done: false }));
-    this.updateBacklogList(tasks => [
-      { id: crypto.randomUUID(), text, subtasks, done: false },
-      ...tasks,
-    ], { markOrderDirty: true });
-    this.cancelAddingSecondary();
-  }
-
-  protected onSecAddFormFocusOut(event: FocusEvent): void {
-    const form = (event.currentTarget as HTMLElement);
-    const next = event.relatedTarget as Node | null;
-    if (!next || !form.contains(next)) {
-      this.confirmAddSecondary();
-    }
-  }
-
-  protected onNewSecondaryInput(event: Event): void {
-    this.newSecondaryText.set((event.target as HTMLInputElement).value);
-  }
-
-  protected handleSecondaryKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') this.confirmAddSecondary();
-    else if (this.isVerticalArrowKey(event)) {
-      event.preventDefault();
-      this.confirmAddSecondary();
-    }
-    else if (event.key === 'Tab' && !event.shiftKey) {
-      event.preventDefault();
-      this.addSecSubtaskField(true);
-    }
-    else if (event.key === 'Escape') this.cancelAddingSecondary();
-  }
-
-  protected toggleSecondaryTask(id: string): void {
-    this.completeTask('secondary', id);
-  }
-
-  protected removeSecondaryTask(id: string): void {
-    this.updateBacklogList(tasks => tasks.filter(t => t.id !== id));
-  }
-
-  protected startEditingSecondary(id: string): void {
-    if (this.isEditing()) return;
-    this.setActiveKeyboardTask('secondary', id);
-    this.editingSecondaryId.set(id);
-    this.focusEditInput('sec-' + id);
-  }
-
-  protected saveSecondaryEdit(id: string, event: Event): void {
-    const value = (event.target as HTMLInputElement).value.trim();
-    if (value) {
-      this.updateBacklogList(tasks =>
-        tasks.map(t => (t.id === id ? { ...t, text: value } : t))
-      );
-    }
-    this.editingSecondaryId.set(null);
-  }
-
-  protected handleSecondaryEditKeydown(id: string, event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.saveSecondaryEdit(id, event);
-    } else if (this.isVerticalArrowKey(event)) {
-      event.preventDefault();
-      this.saveSecondaryEdit(id, event);
-    } else if (event.key === 'Tab') {
-      event.preventDefault();
-      this.startSubtaskFromSecondaryEdit(id, event.target);
-    }
-    else if (event.key === 'Escape') {
-      this.editingSecondaryId.set(null);
-    }
-  }
-
-  // ─── Secondary title editing ────────────────────────────
-  protected startEditingSecondaryTitle(): void {
-    if (this.isEditing()) return;
-    this.editingSecondaryTitle.set(true);
+    this.deadlineDialogReturnFocus = this.activeHtmlElement();
+    this.deadlineEditorTaskId.set(task.id);
+    this.deadlineDraftLocal.set(this.deadlineLocalValue(task.deadlineAt));
+    this.deadlineNotificationDraft.set(task.deadlineNotificationEnabled);
+    this.deadlinePermissionMessage.set('');
     afterNextRender(() => {
-      document.querySelector<HTMLInputElement>('.sec-title-input')?.focus();
+      this.deadlineDialog()?.nativeElement
+        .querySelector<HTMLInputElement>('[data-deadline-initial-focus]')
+        ?.focus();
     }, { injector: this.injector });
   }
 
-  protected saveSecondaryTitle(event: Event): void {
-    const value = (event.target as HTMLInputElement).value.trim();
-    if (value) {
-      this.updateBacklogMeta(value);
-    }
-    this.editingSecondaryTitle.set(false);
+  protected closeDeadlineEditor(): void {
+    const returnFocus = this.deadlineDialogReturnFocus;
+    this.deadlineDialogReturnFocus = null;
+    this.deadlineEditorTaskId.set(null);
+    this.deadlineDraftLocal.set('');
+    this.deadlineNotificationDraft.set(false);
+    this.deadlinePermissionMessage.set('');
+    this.restoreFocus(returnFocus);
   }
 
-  protected handleSecondaryTitleKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') this.saveSecondaryTitle(event);
-    else if (event.key === 'Escape') this.editingSecondaryTitle.set(false);
+  protected updateDeadlineDraft(event: Event): void {
+    this.deadlineDraftLocal.set((event.target as HTMLInputElement).value);
   }
 
-  // ─── Secondary subtasks ─────────────────────────────────
-  protected addSecSubtaskField(focusNew = false): void {
-    if (this.newSecondarySubtasks().length >= 10) return;
-    this.newSecondarySubtasks.update(s => [...s, '']);
-    if (focusNew) this.focusLastVisibleInput('.add-form-sec .input-sub');
-  }
+  protected async updateDeadlineNotificationDraft(event: Event): Promise<void> {
+    const enabled = (event.target as HTMLInputElement).checked;
+    this.deadlineNotificationDraft.set(enabled);
+    this.deadlinePermissionMessage.set('');
+    if (!enabled) return;
 
-  protected removeSecSubtaskField(index: number): void {
-    this.newSecondarySubtasks.update(s => s.filter((_, i) => i !== index));
-  }
-
-  protected updateNewSecSubtask(index: number, event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.newSecondarySubtasks.update(s => s.map((v, i) => (i === index ? value : v)));
-  }
-
-  protected toggleSecSubtask(taskId: string, subtaskId: string): void {
-    this.updateBacklogList(tasks =>
-      tasks.map(t =>
-        t.id === taskId
-          ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, done: !s.done } : s)) }
-          : t
-      )
-    );
-  }
-
-  protected removeSecSubtask(taskId: string, subtaskId: string): void {
-    this.updateBacklogList(tasks =>
-      tasks.map(t =>
-        t.id === taskId
-          ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) }
-          : t
-      )
-    );
-  }
-
-  protected startEditingSecSubtask(taskId: string, subtaskId: string): void {
-    if (this.isEditing()) return;
-    this.editingSecSubtask.set({ taskId, subtaskId });
-    this.focusEditInput('secsub-' + subtaskId);
-  }
-
-  protected saveSecSubtaskEdit(taskId: string, subtaskId: string, event: Event): void {
-    const value = (event.target as HTMLInputElement).value.trim();
-    if (value) {
-      this.updateBacklogList(tasks =>
-        tasks.map(t =>
-          t.id === taskId
-            ? { ...t, subtasks: t.subtasks.map(s => (s.id === subtaskId ? { ...s, text: value } : s)) }
-            : t
-        )
-      );
-    }
-    this.editingSecSubtask.set(null);
-  }
-
-  protected handleSecSubtaskEditKeydown(taskId: string, subtaskId: string, event: KeyboardEvent): void {
-    if (event.key === 'Enter') this.saveSecSubtaskEdit(taskId, subtaskId, event);
-    else if (this.isVerticalArrowKey(event)) {
-      event.preventDefault();
-      this.saveSecSubtaskEdit(taskId, subtaskId, event);
-    }
-    else if (event.key === 'Tab') {
-      event.preventDefault();
-      const value = (event.target as HTMLInputElement).value.trim();
-      this.saveSecSubtaskEdit(taskId, subtaskId, event);
-      if (value) queueMicrotask(() => this.startAddingSecSubtask(taskId, true));
-    }
-    else if (event.key === 'Escape') this.editingSecSubtask.set(null);
-  }
-
-  protected startAddingSecSubtask(taskId: string, fromTaskEdit = false): void {
-    if (!fromTaskEdit && this.isEditing()) return;
-    const task = this.secondaryTasks().find(t => t.id === taskId);
-    if (!task || task.subtasks.length >= 10) return;
-    this.addingSecSubtaskToId.set(taskId);
-    this.newInlineSecSubtaskText.set('');
-    this.focusVisibleInput('[data-inline-sec-subtask]');
-  }
-
-  protected cancelAddingSecSubtask(): void {
-    this.addingSecSubtaskToId.set(null);
-    this.newInlineSecSubtaskText.set('');
-  }
-
-  protected confirmAddSecSubtask(taskId: string): void {
-    const text = this.newInlineSecSubtaskText().trim();
-    if (!text) {
-      this.cancelAddingSecSubtask();
+    if (!this.auth.isLoggedIn() && !environment.isElectron) {
+      this.deadlineNotificationDraft.set(false);
+      this.deadlinePermissionMessage.set('sign in to receive notifications on this device');
       return;
     }
-    this.updateBacklogList(tasks =>
-      tasks.map(t =>
-        t.id === taskId
-          ? { ...t, subtasks: [...t.subtasks, { id: crypto.randomUUID(), text, done: false }] }
-          : t
-      )
-    );
-    this.cancelAddingSecSubtask();
-  }
 
-  protected handleInlineSecSubtaskKeydown(taskId: string, event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.confirmAddSecSubtask(taskId);
-    } else if (this.isVerticalArrowKey(event)) {
-      event.preventDefault();
-      this.confirmAddSecSubtask(taskId);
-    } else if (event.key === 'Tab') {
-      event.preventDefault();
-      const value = this.newInlineSecSubtaskText().trim();
-      if (!value) {
-        this.cancelAddingSecSubtask();
-        return;
+    const granted = await this.deadlineNotifications.requestPermission();
+    if (granted) {
+      if (this.deadlineNotifications.registrationState() === 'retrying') {
+        this.deadlinePermissionMessage.set('notifications allowed; delivery will retry when online');
       }
-      this.confirmAddSecSubtask(taskId);
-      queueMicrotask(() => this.startAddingSecSubtask(taskId, true));
-    } else if (event.key === 'Escape') {
-      this.cancelAddingSecSubtask();
+      return;
     }
+
+    const state = this.deadlineNotifications.permissionState();
+    this.deadlinePermissionMessage.set(state === 'unsupported'
+      ? 'notifications are unavailable on this device'
+      : 'notifications are blocked on this device');
   }
 
-  protected onInlineSecSubtaskInput(event: Event): void {
-    this.newInlineSecSubtaskText.set((event.target as HTMLInputElement).value);
+  protected saveDeadline(event: Event): void {
+    event.preventDefault();
+    const taskId = this.deadlineEditorTaskId();
+    const localValue = this.deadlineDraftLocal();
+    const deadline = new Date(localValue);
+    if (!taskId || !localValue || Number.isNaN(deadline.getTime())) {
+      this.deadlinePermissionMessage.set('choose a valid date and time');
+      return;
+    }
+
+    const deadlineAt = deadline.toISOString();
+    const deadlineTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const deadlineNotificationEnabled = this.deadlineNotificationDraft() &&
+      (this.auth.isLoggedIn() || environment.isElectron);
+    this.updateTaskList(tasks => tasks.map(task => {
+      if (task.id !== taskId) return task;
+      const scheduleChanged = task.deadlineAt !== deadlineAt ||
+        task.deadlineNotificationEnabled !== deadlineNotificationEnabled;
+      return {
+        ...task,
+        deadlineAt,
+        deadlineTimeZone,
+        deadlineNotificationEnabled,
+        ...(deadlineNotificationEnabled
+          ? {
+              deadlineScheduleId: scheduleChanged || !task.deadlineScheduleId
+                ? crypto.randomUUID()
+                : task.deadlineScheduleId,
+            }
+          : { deadlineScheduleId: undefined }),
+      };
+    }));
+    this.closeDeadlineEditor();
   }
 
-  // ─── Toggle secondary visibility ────────────────────────
-  protected toggleSecondaryVisibility(): void {
-    this.secondaryVisible.update(v => !v);
+  protected removeDeadline(): void {
+    const taskId = this.deadlineEditorTaskId();
+    if (!taskId) return;
+    this.updateTaskList(tasks => tasks.map(task => task.id === taskId
+      ? {
+          ...task,
+          deadlineAt: null,
+          deadlineTimeZone: null,
+          deadlineNotificationEnabled: false,
+          deadlineScheduleId: undefined,
+        }
+      : task));
+    this.closeDeadlineEditor();
   }
 
-  // ─── Task dot menu (mobile) ─────────────────────────────
+  protected deadlineLabel(deadlineAt: string): string {
+    const deadline = new Date(deadlineAt);
+    if (Number.isNaN(deadline.getTime())) return 'deadline';
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(deadline);
+  }
+
+  private deadlineLocalValue(deadlineAt?: string | null): string {
+    if (!deadlineAt) return '';
+    const deadline = new Date(deadlineAt);
+    if (Number.isNaN(deadline.getTime())) return '';
+    const local = new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60_000);
+    return local.toISOString().slice(0, 16);
+  }
+
   protected toggleTaskMenu(taskId: string, event: MouseEvent): void {
     event.stopPropagation();
     this.taskMenuOpenId.update(id => id === taskId ? null : taskId);
-    this.secTaskMenuOpenId.set(null);
   }
 
-  protected toggleSecTaskMenu(taskId: string, event: MouseEvent): void {
-    event.stopPropagation();
-    this.secTaskMenuOpenId.update(id => id === taskId ? null : taskId);
+  protected openTaskMoveDialog(task: Task): void {
+    if (this.isEditing() || this.taskMoveTargetSections().length === 0) return;
+    this.taskMoveDialogReturnFocus = this.activeHtmlElement();
     this.taskMenuOpenId.set(null);
+    this.taskMoveDialogTaskId.set(task.id);
+    afterNextRender(() => {
+      this.taskMoveDialog()?.nativeElement
+        .querySelector<HTMLButtonElement>('[data-task-move-initial-focus]')
+        ?.focus();
+    }, { injector: this.injector });
   }
 
-  // ─── Move between lists (mobile buttons) ──────────────
-  protected moveToBacklog(taskId: string): void {
-    if (this.isEditing()) return;
-    if (!this.canAddSecondary()) {
-      this.handleTaskLimitReached();
+  protected closeTaskMoveDialog(): void {
+    const returnFocus = this.taskMoveDialogReturnFocus;
+    this.taskMoveDialogReturnFocus = null;
+    this.taskMoveDialogTaskId.set(null);
+    this.restoreFocus(returnFocus);
+  }
+
+  protected async moveTaskToPage(task: Task, targetSectionId: string): Promise<void> {
+    const sourceSectionId = this.activeSectionId();
+    const sourceIndex = this.tasks().findIndex(candidate => candidate.id === task.id);
+    if (!sourceSectionId || sourceIndex < 0 || this.taskMoveInProgress()) return;
+
+    const drag: TaskDragState = {
+      sourceSectionId,
+      sourceIndex,
+      targetIndex: 0,
+      targetSectionId,
+      task,
+      pointerId: -1,
+      lastClientX: 0,
+      lastClientY: 0,
+      pointerOffsetX: 0,
+      pointerOffsetY: 0,
+      previewX: 0,
+      previewY: 0,
+      previewWidth: 0,
+      previewHeight: 0,
+    };
+
+    this.closeTaskMoveDialog();
+    this.taskMoveInProgress.set(true);
+    try {
+      await this.performTaskMoveToPage(drag, targetSectionId);
+    } finally {
+      this.taskMoveInProgress.set(false);
+    }
+  }
+
+  private handleModalKeydown(
+    event: KeyboardEvent,
+    dialog: HTMLElement | undefined,
+    close: () => void,
+  ): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
       return;
     }
-    const mainItems = [...this.tasks()];
-    const secItems = [...this.secondaryTasks()];
-    const idx = mainItems.findIndex(t => t.id === taskId);
-    if (idx === -1) return;
-    const [task] = mainItems.splice(idx, 1);
+    if (event.key !== 'Tab') return;
 
-    if (secItems.length >= MAX_BACKLOG_TASKS) {
-      const displaced = secItems.shift()!;
-      mainItems.push(displaced);
-    }
-
-    secItems.push(task);
-    this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('backlog'));
-  }
-
-  protected moveToMain(taskId: string): void {
-    if (this.isEditing()) return;
-    if (!this.canAdd()) {
-      this.handleTaskLimitReached();
+    const focusable = dialog ? this.dialogFocusableElements(dialog) : [];
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog?.focus();
       return;
     }
-    const secItems = [...this.secondaryTasks()];
-    const mainItems = [...this.tasks()];
-    const idx = secItems.findIndex(t => t.id === taskId);
-    if (idx === -1) return;
-    const [task] = secItems.splice(idx, 1);
 
-    if (mainItems.length >= MAX_MAIN_TASKS) {
-      const displaced = mainItems.pop()!;
-      secItems.unshift(displaced);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = this.activeHtmlElement();
+    if (!active || !dialog?.contains(active)) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
     }
-
-    mainItems.push(task);
-    this.updateBothLists(() => mainItems, () => secItems, this.crossListSyncOrder('main'));
   }
 
-  // ─── Drag & drop: main tasks ────────────────────────────
-  // ─── Focus helper ───────────────────────────────────────
+  private dialogFocusableElements(dialog: HTMLElement): HTMLElement[] {
+    return Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    )).filter(element => element.offsetParent !== null && element.getAttribute('aria-hidden') !== 'true');
+  }
+
+  private activeHtmlElement(): HTMLElement | null {
+    return typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  }
+
+  private restoreFocus(element: HTMLElement | null): void {
+    if (!element) return;
+    requestAnimationFrame(() => {
+      if (element.isConnected) element.focus();
+    });
+  }
+
   private focusVisibleInput(selector: string, select = false): void {
     requestAnimationFrame(() => setTimeout(() => {
       const all = document.querySelectorAll<HTMLInputElement>(selector);
@@ -3628,18 +3443,11 @@ export class HomeComponent implements OnDestroy {
   }
 
   private startSubtaskFromActiveTaskEdit(event: KeyboardEvent): boolean {
-    const mainTaskId = this.editingTaskId();
-    if (mainTaskId !== null && this.startSubtaskFromTaskEdit(mainTaskId, event.target)) {
+    const taskId = this.editingTaskId();
+    if (taskId !== null && this.startSubtaskFromTaskEdit(taskId, event.target)) {
       event.preventDefault();
       return true;
     }
-
-    const secondaryTaskId = this.editingSecondaryId();
-    if (secondaryTaskId !== null && this.startSubtaskFromSecondaryEdit(secondaryTaskId, event.target)) {
-      event.preventDefault();
-      return true;
-    }
-
     return false;
   }
 
@@ -3649,15 +3457,6 @@ export class HomeComponent implements OnDestroy {
 
     this.saveTaskEdit(taskId, { target: input } as unknown as Event);
     this.startAddingSubtask(taskId, true);
-    return true;
-  }
-
-  private startSubtaskFromSecondaryEdit(taskId: string, target: EventTarget | null): boolean {
-    const input = this.getEditInput(target, `sec-${taskId}`);
-    if (!input || !input.value.trim()) return false;
-
-    this.saveSecondaryEdit(taskId, { target: input } as unknown as Event);
-    this.startAddingSecSubtask(taskId, true);
     return true;
   }
 
@@ -3743,11 +3542,10 @@ export class HomeComponent implements OnDestroy {
 
     const listTarget = target.closest<HTMLElement>('[data-keyboard-list]');
     const list = listTarget?.dataset['keyboardList'];
-    if (list === 'main' || list === 'secondary') {
-      this.currentList.set(list);
-      this.keyboardZone.set(list);
+    if (list === 'tasks') {
+      this.keyboardZone.set('tasks');
       const taskId = listTarget?.dataset['keyboardTask'];
-      this.activeKeyboardTask.set(taskId ? { list, id: taskId } : null);
+      this.activeKeyboardTaskId.set(taskId ?? null);
       return;
     }
 

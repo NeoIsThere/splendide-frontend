@@ -14,8 +14,8 @@ interface SeoMetadata {
 const SITE_ORIGIN = 'https://splendide.app';
 const SITE_NAME = 'Splendide';
 const DEFAULT_TITLE = SITE_NAME;
-const DEFAULT_DESCRIPTION = 'Splendide is a minimalist task manager for calm now/later planning, subtasks, sync, and shareable pages.';
-const SOCIAL_DESCRIPTION = 'A minimalist task manager for calm now/later planning, subtasks, sync, and shareable pages.';
+const DEFAULT_DESCRIPTION = 'Splendide is a minimalist collaborative to-do list for calm, shared planning.';
+const SOCIAL_DESCRIPTION = 'A minimalist collaborative to-do list for calm, shared planning.';
 const PREVIEW_IMAGE = `${SITE_ORIGIN}/og-image.svg`;
 const INDEX_ROBOTS = 'index, follow, max-image-preview:large';
 const NOINDEX_ROBOTS = 'noindex, nofollow';
@@ -48,7 +48,7 @@ export class SeoService {
     this.meta.updateTag({ property: 'og:description', content: this.socialDescription(metadata) });
     this.meta.updateTag({ property: 'og:url', content: canonicalUrl });
     this.meta.updateTag({ property: 'og:image', content: PREVIEW_IMAGE });
-    this.meta.updateTag({ property: 'og:image:alt', content: 'Splendide task manager preview' });
+    this.meta.updateTag({ property: 'og:image:alt', content: 'Splendide collaborative to-do list preview' });
     this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
     this.meta.updateTag({ name: 'twitter:title', content: metadata.title });
     this.meta.updateTag({ name: 'twitter:description', content: this.socialDescription(metadata) });

@@ -16,12 +16,20 @@ html {
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100dvh;
+  background: var(--app-background);
+  color: var(--text);
+  transition: background 0.35s ease, color 0.25s ease;
+}
+
+app-root {
+  background: transparent !important;
 }
 
 html.native-mobile {
   width: 100%;
   height: 100%;
-  background: var(--bg);
+  background: var(--app-background);
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   scroll-behavior: auto;
@@ -42,7 +50,7 @@ html.native-mobile app-root {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg);
+  background: transparent !important;
   overscroll-behavior-y: none;
 }
 
@@ -308,14 +316,14 @@ html.native-mobile .task-drag-floating-preview {
   --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   --app-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
   --app-viewport-height: 100dvh;
+  --app-background: linear-gradient(145deg, #fdfdfd 0%, #f6f6f4 100%);
   --bg: #fafafa;
   --card: #ffffff;
   --text-primary: #1a1a1a;
   --text: #1a1a1a;
-  --text-muted: #777;
+  --text-muted: #666;
   --text-secondary: #444;
-  --text-muted-secondary: #999;
-  --text-sec-list: #888;
+  --text-muted-secondary: #707070;
   --border: #e0e0e0;
   --hover: rgba(0, 0, 0, 0.05);
   --accent: #1a1a1a;
@@ -324,8 +332,9 @@ html.native-mobile .task-drag-floating-preview {
 }
 
 // ─── Dark theme — monochrome (black + tones of grey/white) ─
-app-root.dark,
+:root.dark,
 body.dark {
+  --app-background: linear-gradient(145deg, #151515 0%, #0e0e0e 100%);
   --bg: #111;
   --card: #1a1a1a;
   --text-primary: #e0e0e0;
@@ -333,12 +342,100 @@ body.dark {
   --text-muted: #888;
   --text-secondary: #b0b0b0;
   --text-muted-secondary: #555;
-  --text-sec-list: #666;
   --border: #2a2a2a;
   --hover: rgba(255, 255, 255, 0.06);
   --accent: #e0e0e0;
   --link: #c084fc;
   --task-hover-bg: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-background-theme='neutral'] {
+  --app-background: linear-gradient(145deg, #fdfdfd 0%, #f4f4f2 100%);
+  --bg: #fafafa;
+  --card: #fff;
+}
+
+:root[data-background-theme='linen'] {
+  --app-background: linear-gradient(145deg, #fdfbf7 0%, #f3ece2 100%);
+  --bg: #faf7f1;
+  --card: #fffdf9;
+  --border: #ddd7ce;
+}
+
+:root[data-background-theme='mist'] {
+  --app-background: linear-gradient(145deg, #f9fcfd 0%, #e9f1f3 100%);
+  --bg: #f4f8fa;
+  --card: #fbfdfe;
+  --border: #d5e0e4;
+}
+
+:root[data-background-theme='sage'] {
+  --app-background: linear-gradient(145deg, #fafcf9 0%, #e8f0e6 100%);
+  --bg: #f4f8f3;
+  --card: #fbfdfb;
+  --border: #d6e0d4;
+}
+
+:root[data-background-theme='dawn'] {
+  --app-background: linear-gradient(145deg, #fffaf7 0%, #f4e7e2 100%);
+  --bg: #fcf6f3;
+  --card: #fffaf8;
+  --border: #e4d5d0;
+}
+
+:root[data-background-theme='lilac'] {
+  --app-background: linear-gradient(145deg, #fcfaff 0%, #eee6f3 100%);
+  --bg: #f8f5fb;
+  --card: #fdfbff;
+  --border: #ded5e5;
+}
+
+:root.dark[data-background-theme='neutral'],
+body.dark[data-background-theme='neutral'] {
+  --app-background: linear-gradient(145deg, #161616 0%, #0d0d0d 100%);
+  --bg: #111;
+  --card: #1a1a1a;
+  --border: #2a2a2a;
+}
+
+:root.dark[data-background-theme='linen'],
+body.dark[data-background-theme='linen'] {
+  --app-background: linear-gradient(145deg, #1d1915 0%, #100e0c 100%);
+  --bg: #181511;
+  --card: #211d18;
+  --border: #373027;
+}
+
+:root.dark[data-background-theme='mist'],
+body.dark[data-background-theme='mist'] {
+  --app-background: linear-gradient(145deg, #142027 0%, #0b1013 100%);
+  --bg: #10171b;
+  --card: #182229;
+  --border: #293840;
+}
+
+:root.dark[data-background-theme='sage'],
+body.dark[data-background-theme='sage'] {
+  --app-background: linear-gradient(145deg, #172219 0%, #0c110d 100%);
+  --bg: #111813;
+  --card: #19231b;
+  --border: #2b392e;
+}
+
+:root.dark[data-background-theme='dawn'],
+body.dark[data-background-theme='dawn'] {
+  --app-background: linear-gradient(145deg, #261817 0%, #110c0b 100%);
+  --bg: #1b1312;
+  --card: #251a18;
+  --border: #3d2b28;
+}
+
+:root.dark[data-background-theme='lilac'],
+body.dark[data-background-theme='lilac'] {
+  --app-background: linear-gradient(145deg, #201827 0%, #0f0b12 100%);
+  --bg: #17131b;
+  --card: #211a27;
+  --border: #372d40;
 }
 
 // ─── Auth pages ────────────────────────────────────────────

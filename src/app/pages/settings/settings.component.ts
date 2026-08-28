@@ -6,6 +6,7 @@ import { openExternalUrl } from '../../utils/external-link';
 import { environment } from '../../../environments/environment';
 import { MobileNotificationsService } from '../../services/mobile-notifications.service';
 import { MobilePurchasesService } from '../../services/mobile-purchases.service';
+import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.service';
 
 @Component({
   selector: 'app-settings',
@@ -23,6 +24,26 @@ import { MobilePurchasesService } from '../../services/mobile-purchases.service'
 
         <h1 class="auth-logo">splendide.</h1>
         <h2 class="auth-title">settings</h2>
+
+        <fieldset class="settings-section settings-appearance" aria-describedby="background-description">
+          <legend class="settings-section-title">background</legend>
+          <p id="background-description" class="settings-section-desc">choose a calm backdrop</p>
+          <div class="background-options">
+            @for (option of backgroundThemes; track option.id) {
+              <label class="background-option" [attr.data-background-option]="option.id">
+                <input
+                  type="radio"
+                  name="background-theme"
+                  [value]="option.id"
+                  [checked]="theme.backgroundTheme() === option.id"
+                  (change)="theme.selectBackgroundTheme(option.id)"
+                />
+                <span class="background-swatch" aria-hidden="true"></span>
+                <span class="background-label">{{ option.label }}</span>
+              </label>
+            }
+          </div>
+        </fieldset>
 
         <!-- ── Go Premium ───────────────────────────────── -->
         @if (!auth.isPremium()) {
@@ -261,6 +282,92 @@ import { MobilePurchasesService } from '../../services/mobile-purchases.service'
       }
     }
 
+    .settings-appearance {
+      min-width: 0;
+      margin: 0;
+      border-right: 0;
+      border-bottom: 0;
+      border-left: 0;
+    }
+
+    .settings-appearance .settings-section-title {
+      padding: 0;
+    }
+
+    .background-options {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(52px, 1fr));
+      gap: 8px;
+    }
+
+    .background-option {
+      position: relative;
+      display: flex;
+      min-width: 0;
+      min-height: 60px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .background-option input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+
+    .background-swatch {
+      display: block;
+      width: 36px;
+      height: 30px;
+      border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+      border-radius: 8px;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 24%, transparent);
+    }
+
+    .background-label {
+      overflow: hidden;
+      max-width: 100%;
+      font-size: 0.7rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .background-option input:checked + .background-swatch {
+      border-color: var(--text);
+      box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--text);
+    }
+
+    .background-option input:focus-visible + .background-swatch {
+      outline: 2px solid var(--text);
+      outline-offset: 3px;
+    }
+
+    [data-background-option='neutral'] .background-swatch { background: linear-gradient(145deg, #fff, #efefed); }
+    [data-background-option='linen'] .background-swatch { background: linear-gradient(145deg, #fffdf8, #eee4d7); }
+    [data-background-option='mist'] .background-swatch { background: linear-gradient(145deg, #fbfdfe, #dfecef); }
+    [data-background-option='sage'] .background-swatch { background: linear-gradient(145deg, #fbfdf9, #dfe9dd); }
+    [data-background-option='dawn'] .background-swatch { background: linear-gradient(145deg, #fffaf7, #f1dfda); }
+    [data-background-option='lilac'] .background-swatch { background: linear-gradient(145deg, #fdfbff, #e8def0); }
+
+    :host-context(.dark) [data-background-option='neutral'] .background-swatch { background: linear-gradient(145deg, #292929, #111); }
+    :host-context(.dark) [data-background-option='linen'] .background-swatch { background: linear-gradient(145deg, #302820, #17130f); }
+    :host-context(.dark) [data-background-option='mist'] .background-swatch { background: linear-gradient(145deg, #203038, #0f171b); }
+    :host-context(.dark) [data-background-option='sage'] .background-swatch { background: linear-gradient(145deg, #233127, #101712); }
+    :host-context(.dark) [data-background-option='dawn'] .background-swatch { background: linear-gradient(145deg, #382523, #1a1211); }
+    :host-context(.dark) [data-background-option='lilac'] .background-swatch { background: linear-gradient(145deg, #30253a, #16121a); }
+
+    @media (max-width: 520px) {
+      .background-options {
+        grid-template-columns: repeat(3, minmax(72px, 1fr));
+      }
+    }
+
     .settings-section-header {
       display: flex;
       flex-direction: column;
@@ -420,6 +527,8 @@ import { MobilePurchasesService } from '../../services/mobile-purchases.service'
 })
 export class SettingsComponent {
   protected readonly auth = inject(AuthService);
+  protected readonly theme = inject(ThemeService);
+  protected readonly backgroundThemes = BACKGROUND_THEME_OPTIONS;
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(MobileNotificationsService);

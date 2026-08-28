@@ -4,6 +4,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Keyboard } from '@capacitor/keyboard';
+import { StatusBar } from '@capacitor/status-bar';
 import { environment } from '../../environments/environment';
 import { ThemeService } from './theme.service';
 
@@ -35,7 +36,14 @@ export class NativePlatformService {
       if (event?.url) this.openDeepLink(event.url);
     });
     effect(() => {
-      void SystemBars.setStyle({ style: this.theme.dark() ? SystemBarsStyle.Dark : SystemBarsStyle.Light });
+      const isDark = this.theme.dark();
+      const backgroundTheme = this.theme.backgroundTheme();
+      void SystemBars.setStyle({ style: isDark ? SystemBarsStyle.Dark : SystemBarsStyle.Light });
+      if (this.platform === 'android') {
+        void StatusBar.setBackgroundColor({
+          color: this.theme.chromeColor(backgroundTheme, isDark),
+        }).catch(() => undefined);
+      }
     });
   }
 

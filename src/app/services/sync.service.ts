@@ -10,10 +10,24 @@ import {
   SectionsSyncResponse,
   ItemsSyncResponse,
   OrderSyncResponse,
+  MoveItemResponse,
+  MoveItemRollback,
 } from './storage.service';
 
 const SYNC_GENERATION_HEADER = 'X-Splendide-Sync-Generation';
 const SYNC_MODE_HEADER = 'X-Splendide-Sync-Mode';
+
+interface TaskContentSyncPayload {
+  id: string;
+  text: string;
+  done: boolean;
+  doneAt?: string;
+  subtasks: { id: string; text: string; done: boolean }[];
+  deadlineAt?: string | null;
+  deadlineTimeZone?: string | null;
+  deadlineNotificationEnabled?: boolean;
+  deadlineScheduleId?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class SyncService {
@@ -102,12 +116,11 @@ export class SyncService {
         serverRevision: section.serverRevision,
         ...(section.created ? { created: true } : {}),
         ...(section.dirty ? { dirty: true } : {}),
-        lists: [...section.lists]
-          .sort((left, right) => Number(left.isBacklog) - Number(right.isBacklog))
+        lists: section.lists
+          .slice(0, 1)
           .map(list => ({
             id: list.id,
             title: list.title,
-            isBacklog: list.isBacklog,
             metadataLastModifiedAt: list.metadataLastModifiedAt,
             serverRevision: list.serverRevision,
             ...(list.dirty ? { dirty: true } : {}),
@@ -117,6 +130,7 @@ export class SyncService {
               .map((item, itemIndex) => ({
                 id: item.id,
                 content: this.taskContentForSync(item),
+                ...this.deadlineFieldsForSync(item),
                 position: itemIndex,
                 lastModifiedAt: item.lastModifiedAt,
                 serverRevision: item.serverRevision,
@@ -176,10 +190,9 @@ export class SyncService {
             ...(section.created ? { created: true } : {}),
             ...(section.dirty ? { dirty: true } : {}),
             ...(!section.deleted && (section.created || section.serverRevision === 0) ? {
-              lists: section.lists.map(list => ({
+              lists: section.lists.slice(0, 1).map(list => ({
                 id: list.id,
                 title: list.title,
-                isBacklog: list.isBacklog,
                 metadataLastModifiedAt: list.metadataLastModifiedAt,
                 serverRevision: list.serverRevision,
                 ...(list.dirty ? { dirty: true } : {}),
@@ -228,10 +241,9 @@ export class SyncService {
   async syncSectionLists(sectionId: string): Promise<StoredList[]> {
     const generation = this.nextGeneration(this.listsSyncGeneration, sectionId);
     const localMutationRevision = this.storage.getLocalMutationRevision();
-    const payload = this.storage.getListsForSection(sectionId).map(list => ({
+    const payload = this.storage.getListsForSection(sectionId).slice(0, 1).map(list => ({
       id: list.id,
       title: list.title,
-      isBacklog: list.isBacklog,
       metadataLastModifiedAt: list.metadataLastModifiedAt,
       serverRevision: list.serverRevision,
       ...(list.dirty ? { dirty: true } : {}),
@@ -271,6 +283,7 @@ export class SyncService {
         return {
           id: item.id,
           content: this.taskContentForSync(item),
+          ...this.deadlineFieldsForSync(item),
           lastModifiedAt: item.lastModifiedAt,
           serverRevision: item.serverRevision,
           ...(item.deleted ? { deleted: true } : {}),
@@ -307,7 +320,7 @@ export class SyncService {
     return this.storage.getItemsForList(sectionId, listId);
   }
 
-  private taskContentForSync(item: StoredItem): { id: string; text: string; done: boolean; doneAt?: string; subtasks: { id: string; text: string; done: boolean }[] } {
+  private taskContentForSync(item: StoredItem): TaskContentSyncPayload {
     const record = this.asRecord(item.content);
     const subtasks = Array.isArray(record['subtasks'])
       ? record['subtasks'].map(subtask => {
@@ -320,12 +333,46 @@ export class SyncService {
         })
       : [];
 
+    const deadlineAt = record['deadlineAt'];
+    const hasValidDeadline = deadlineAt === null || (
+      typeof deadlineAt === 'string' &&
+      /(?:Z|[+-]\d{2}:\d{2})$/i.test(deadlineAt) &&
+      !Number.isNaN(Date.parse(deadlineAt))
+    );
+
     return {
       id: String(record['id'] ?? item.id),
       text: String(record['text'] ?? ''),
       done: Boolean(record['done']),
       ...(typeof record['doneAt'] === 'string' && record['doneAt'].length > 0 ? { doneAt: record['doneAt'] } : {}),
       subtasks,
+      ...('deadlineAt' in record ? { deadlineAt: hasValidDeadline ? deadlineAt as string | null : null } : {}),
+      ...('deadlineTimeZone' in record
+        ? {
+            deadlineTimeZone: typeof record['deadlineTimeZone'] === 'string' && record['deadlineTimeZone'].length > 0
+              ? record['deadlineTimeZone']
+              : null,
+          }
+        : {}),
+      ...('deadlineNotificationEnabled' in record
+        ? { deadlineNotificationEnabled: record['deadlineNotificationEnabled'] === true }
+        : {}),
+      ...(typeof record['deadlineScheduleId'] === 'string' && record['deadlineScheduleId'].length > 0
+        ? { deadlineScheduleId: record['deadlineScheduleId'] }
+        : {}),
+    };
+  }
+
+  private deadlineFieldsForSync(
+    item: StoredItem,
+  ): Pick<TaskContentSyncPayload, 'deadlineAt' | 'deadlineTimeZone' | 'deadlineNotificationEnabled'> {
+    const content = this.taskContentForSync(item);
+    return {
+      ...('deadlineAt' in content ? { deadlineAt: content.deadlineAt } : {}),
+      ...('deadlineTimeZone' in content ? { deadlineTimeZone: content.deadlineTimeZone } : {}),
+      ...('deadlineNotificationEnabled' in content
+        ? { deadlineNotificationEnabled: content.deadlineNotificationEnabled }
+        : {}),
     };
   }
 
@@ -378,5 +425,46 @@ export class SyncService {
     this.acceptSyncGenerationFromResponse(response);
     const body = response.body;
     return body && !this.isSectionsSnapshot(body) ? body : this.localItemOrderResponse(sectionId, listId);
+  }
+
+  async moveTaskToSection(
+    sourceSectionId: string,
+    itemId: string,
+    targetSectionId: string,
+    targetPosition: number,
+    rollback: MoveItemRollback,
+  ): Promise<MoveItemResponse | null> {
+    const sourceList = this.storage.getListsForSection(sourceSectionId)
+      .find(list => list.id === rollback.sourceList.id);
+    const targetList = this.storage.getListsForSection(targetSectionId)
+      .find(list => list.id === rollback.targetList.id);
+    if (!sourceList || !targetList) {
+      throw new Error('A task list is required in both pages before moving an item.');
+    }
+
+    this.reserveListItemsSync(sourceSectionId, sourceList.id);
+    this.reserveListItemsSync(targetSectionId, targetList.id);
+    const localMutationRevision = this.storage.getLocalMutationRevision();
+    const response = await firstValueFrom(
+      this.http.post<MoveItemResponse | SectionsSyncResponse>(
+        `${this.apiUrl}/sections/${encodeURIComponent(sourceSectionId)}/items/${encodeURIComponent(itemId)}/move`,
+        {
+          targetSectionId,
+          targetPosition,
+          baseSourceOrderRevision: rollback.baseSourceOrderRevision,
+          baseTargetOrderRevision: rollback.baseTargetOrderRevision,
+          expectedItemServerRevision: rollback.expectedItemServerRevision,
+        },
+        { observe: 'response', headers: this.syncHeaders() },
+      ),
+    );
+    if (this.applySnapshotIfPresent(response, localMutationRevision)) return null;
+    this.acceptSyncGenerationFromResponse(response);
+    const body = response.body;
+    if (!body || this.isSectionsSnapshot(body)) {
+      throw new Error('The server did not return the moved item.');
+    }
+    this.storage.applyMovedItemResponse(body, rollback);
+    return body;
   }
 }
