@@ -2475,6 +2475,24 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
+.desktop-move-btn {
+  flex: 0 0 auto;
+  opacity: 0;
+
+  &:focus-visible,
+  .task-item:hover &,
+  .task-item:focus-within &,
+  .task-item.keyboard-focused & {
+    opacity: 0.72;
+  }
+
+  @media (max-width: 768px) {
+    &:not(.desktop-move-btn-electron) {
+      display: none;
+    }
+  }
+}
+
 .task-deadline-label {
   display: block;
   width: fit-content;

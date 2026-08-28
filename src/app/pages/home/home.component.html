@@ -833,6 +833,32 @@
                       </svg>
                     </button>
 
+                    @if (taskMoveTargetSections().length > 0) {
+                      <button
+                        class="icon-btn-sm desktop-move-btn"
+                        [class.desktop-move-btn-electron]="isElectronApp"
+                        type="button"
+                        (click)="openTaskMoveDialog(task); $event.stopPropagation()"
+                        [attr.aria-label]="'move to another page: ' + task.text"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <rect x="3" y="4" width="9" height="16" rx="1" />
+                          <line x1="9" y1="12" x2="20" y2="12" />
+                          <polyline points="17 9 20 12 17 15" />
+                        </svg>
+                      </button>
+                    }
+
                     <button
                       class="icon-btn-sm remove-btn"
                       (click)="removeTask(task.id)"
@@ -854,41 +880,43 @@
                       </svg>
                     </button>
 
-                    <div class="task-dots-wrapper" data-task-menu>
-                      <button
-                        class="icon-btn-sm task-dots-btn"
-                        (click)="toggleTaskMenu(task.id, $event)"
-                        [attr.aria-label]="'options for: ' + task.text"
-                        [attr.aria-expanded]="taskMenuOpenId() === task.id"
-                        [attr.aria-controls]="'task-menu-' + task.id"
-                      >
-                        &#8226;&#8226;&#8226;
-                      </button>
-                      @if (taskMenuOpenId() === task.id) {
-                        <div class="task-dots-menu" [id]="'task-menu-' + task.id">
-                          <button
-                            class="task-dots-item"
-                            (click)="openDeadlineEditor(task); taskMenuOpenId.set(null)"
-                          >
-                            {{ task.deadlineAt ? 'edit deadline' : 'add deadline' }}
-                          </button>
-                          @if (taskMoveTargetSections().length > 0) {
+                    @if (!isElectronApp) {
+                      <div class="task-dots-wrapper mobile-only" data-task-menu>
+                        <button
+                          class="icon-btn-sm task-dots-btn"
+                          (click)="toggleTaskMenu(task.id, $event)"
+                          [attr.aria-label]="'options for: ' + task.text"
+                          [attr.aria-expanded]="taskMenuOpenId() === task.id"
+                          [attr.aria-controls]="'task-menu-' + task.id"
+                        >
+                          &#8226;&#8226;&#8226;
+                        </button>
+                        @if (taskMenuOpenId() === task.id) {
+                          <div class="task-dots-menu" [id]="'task-menu-' + task.id">
                             <button
                               class="task-dots-item"
-                              (click)="openTaskMoveDialog(task)"
+                              (click)="openDeadlineEditor(task); taskMenuOpenId.set(null)"
                             >
-                              move to page
+                              {{ task.deadlineAt ? 'edit deadline' : 'add deadline' }}
                             </button>
-                          }
-                          <button
-                            class="task-dots-item task-dots-item-danger"
-                            (click)="removeTask(task.id)"
-                          >
-                            delete
-                          </button>
-                        </div>
-                      }
-                    </div>
+                            @if (taskMoveTargetSections().length > 0) {
+                              <button
+                                class="task-dots-item"
+                                (click)="openTaskMoveDialog(task)"
+                              >
+                                move to page
+                              </button>
+                            }
+                            <button
+                              class="task-dots-item task-dots-item-danger"
+                              (click)="removeTask(task.id)"
+                            >
+                              delete
+                            </button>
+                          </div>
+                        }
+                      </div>
+                    }
                   </div>
 
                   @if (task.deadlineAt) {

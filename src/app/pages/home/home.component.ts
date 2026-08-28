@@ -225,6 +225,7 @@ export class HomeComponent implements OnDestroy {
   );
 
   protected readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth <= 768);
+  protected readonly isElectronApp = environment.isElectron;
   protected readonly dragging = signal(false);
   protected readonly taskDragState = signal<TaskDragState | null>(null);
   protected readonly taskPageDropTargetId = signal<string | null>(null);
@@ -251,6 +252,7 @@ export class HomeComponent implements OnDestroy {
   private shareToastTimer: ReturnType<typeof setTimeout> | null = null;
   private firstVisitCoachMarksPending = false;
   private coachMarksScheduled = false;
+  private coachDriver: ReturnType<typeof driver> | null = null;
   private horizontalScrollGuardFrame: number | null = null;
   private taskAutoScrollFrame: number | null = null;
   private taskLayoutAnimationFrame: number | null = null;
@@ -334,12 +336,14 @@ export class HomeComponent implements OnDestroy {
       }
       return;
     }
+    const interactiveTarget = this.isInteractiveTarget(event.target);
+    if (interactiveTarget && event.key === 'Tab') return;
     if (event.key === 'Tab') {
       event.preventDefault();
       if (!event.shiftKey && !this.isEditing()) this.addSubtaskForActiveTask();
       return;
     }
-    if (this.isInteractiveTarget(event.target)) {
+    if (interactiveTarget) {
       const arrowKey = event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
         event.key === 'ArrowLeft' || event.key === 'ArrowRight';
       if (!arrowKey || !this.isKeyboardManagedTarget(event.target)) return;
@@ -429,6 +433,7 @@ export class HomeComponent implements OnDestroy {
     const mobile = width <= 768;
     if (mobile === this.isMobile()) return;
     this.isMobile.set(mobile);
+    this.taskMenuOpenId.set(null);
     if (mobile) {
       this.stopHorizontalScrollGuard();
       this.unlockHorizontalDragScroll();
@@ -448,6 +453,8 @@ export class HomeComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPeriodicSync();
+    this.coachDriver?.destroy();
+    this.coachDriver = null;
     if (this.shareToastTimer !== null) {
       clearTimeout(this.shareToastTimer);
       this.shareToastTimer = null;
@@ -828,8 +835,7 @@ export class HomeComponent implements OnDestroy {
       document.querySelectorAll<HTMLElement>('[data-coach-create-section]'),
     ).find(element => element.offsetParent !== null || element.getClientRects().length > 0);
     const shareTarget = document.querySelector<HTMLElement>('[data-coach-share]');
-    const moveTarget = document.querySelector<HTMLElement>('.task-drop-zone [data-keyboard-task]');
-    if (!taskListTarget || !createSectionTarget || !moveTarget) return;
+    if (!taskListTarget || !createSectionTarget) return;
 
     const coachSteps: DriveStep[] = [
       {
@@ -841,17 +847,9 @@ export class HomeComponent implements OnDestroy {
         },
       },
       {
-        element: moveTarget,
-        popover: {
-          title: 'Drag a task onto another page',
-          side: 'right',
-          align: 'start',
-        },
-      },
-      {
         element: createSectionTarget,
         popover: {
-          title: 'Add a new page',
+          title: 'Add pages, then drag tasks onto their tabs',
           side: 'bottom',
           align: 'start',
         },
@@ -869,7 +867,8 @@ export class HomeComponent implements OnDestroy {
       });
     }
 
-    driver({
+    this.coachDriver?.destroy();
+    this.coachDriver = driver({
       allowClose: false,
       animate: true,
       overlayOpacity: 0.28,
@@ -878,7 +877,8 @@ export class HomeComponent implements OnDestroy {
       nextBtnText: 'next &rarr;',
       doneBtnText: 'done',
       steps: coachSteps,
-    }).drive();
+    });
+    this.coachDriver.drive();
   }
 
   protected setDragging(value: boolean): void {
@@ -905,7 +905,7 @@ export class HomeComponent implements OnDestroy {
     task: Task,
     sourceIndex: number,
   ): void {
-    if (this.isEditing()) return;
+    if (this.isEditing() || this.coachDriver?.isActive()) return;
     if (event.pointerType === 'touch') return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (this.isTaskDragIgnoredTarget(event.target)) return;
@@ -937,7 +937,7 @@ export class HomeComponent implements OnDestroy {
     task: Task,
     sourceIndex: number,
   ): void {
-    if (this.isEditing()) return;
+    if (this.isEditing() || this.coachDriver?.isActive()) return;
     if (event.touches.length !== 1) return;
     if (this.isTaskDragIgnoredTarget(event.target)) return;
 
