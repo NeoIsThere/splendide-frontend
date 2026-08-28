@@ -151,26 +151,15 @@
     @if (!isPublicPage()) {
       <div class="section-share-wrapper" data-public-share data-coach-share>
         @if (activeSectionIsOwner()) {
-          <div class="share-toggle-row share-toggle-control">
-            <label class="share-toggle-switch">
-              <input
-                class="share-toggle-input"
-                type="checkbox"
-                role="switch"
-                [checked]="activeSection()?.isShared === true"
-                (change)="setActiveSectionSharing($event)"
-                aria-label="toggle page sharing"
-              />
-              <span class="share-toggle-track" aria-hidden="true">
-                <span class="share-toggle-thumb"></span>
-              </span>
-            </label>
+          <div
+            class="share-toggle-row"
+            (mouseenter)="showShareLinkPanel()"
+            (focusin)="showShareLinkPanel()"
+          >
             <button
               class="share-panel-trigger"
               type="button"
               (click)="showSharePanel()"
-              (mouseenter)="showShareLinkPanel()"
-              (focus)="showShareLinkPanel()"
               [attr.aria-label]="
                 activeSection()?.isShared === true && shareSectionUrl()
                   ? 'show shared page link'
@@ -178,7 +167,6 @@
               "
               [attr.aria-expanded]="shareMenuOpen()"
             >
-              <span class="share-toggle-label">share</span>
               <span class="share-toggle-icon-wrap" aria-hidden="true">
                 <svg
                   class="share-trigger-icon"
@@ -199,6 +187,19 @@
                 </svg>
               </span>
             </button>
+            <label class="share-toggle-switch">
+              <input
+                class="share-toggle-input"
+                type="checkbox"
+                role="switch"
+                [checked]="activeSection()?.isShared === true"
+                (change)="setActiveSectionSharing($event)"
+                aria-label="toggle page sharing"
+              />
+              <span class="share-toggle-track" aria-hidden="true">
+                <span class="share-toggle-thumb"></span>
+              </span>
+            </label>
           </div>
         } @else if (activeSection()?.isShared && shareSectionUrl()) {
           <button
@@ -731,7 +732,12 @@
               </div>
             }
             <!-- Task list -->
-            <div class="task-list" role="list" aria-label="tasks">
+            <div
+              class="task-list"
+              role="list"
+              aria-label="tasks"
+              (scroll)="handleTaskDragScroll()"
+            >
               @for (task of tasks(); track task.id) {
                 @if (showTaskDragPlaceholder('main', $index)) {
                   <div
@@ -813,23 +819,6 @@
                         }
                       </span>
                     }
-
-                    <button
-                      class="task-drag-handle"
-                      type="button"
-                      data-task-drag-handle
-                      (click)="$event.preventDefault(); $event.stopPropagation()"
-                      [attr.aria-label]="'drag task: ' + task.text"
-                    >
-                      <svg viewBox="0 0 12 18" aria-hidden="true">
-                        <circle cx="3" cy="3" r="1.2" />
-                        <circle cx="9" cy="3" r="1.2" />
-                        <circle cx="3" cy="9" r="1.2" />
-                        <circle cx="9" cy="9" r="1.2" />
-                        <circle cx="3" cy="15" r="1.2" />
-                        <circle cx="9" cy="15" r="1.2" />
-                      </svg>
-                    </button>
 
                     <button
                       class="icon-btn-sm remove-btn"
@@ -1219,7 +1208,12 @@
                   </div>
                 }
               }
-              <div class="task-list" role="list" aria-label="secondary tasks">
+              <div
+                class="task-list"
+                role="list"
+                aria-label="secondary tasks"
+                (scroll)="handleTaskDragScroll()"
+              >
                 @for (task of secondaryTasks(); track task.id) {
                   @if (showTaskDragPlaceholder('secondary', $index)) {
                     <div
@@ -1301,23 +1295,6 @@
                           }
                         </span>
                       }
-
-                      <button
-                        class="task-drag-handle task-drag-handle-sec"
-                        type="button"
-                        data-task-drag-handle
-                        (click)="$event.preventDefault(); $event.stopPropagation()"
-                        [attr.aria-label]="'drag task: ' + task.text"
-                      >
-                        <svg viewBox="0 0 12 18" aria-hidden="true">
-                          <circle cx="3" cy="3" r="1.2" />
-                          <circle cx="9" cy="3" r="1.2" />
-                          <circle cx="3" cy="9" r="1.2" />
-                          <circle cx="9" cy="9" r="1.2" />
-                          <circle cx="3" cy="15" r="1.2" />
-                          <circle cx="9" cy="15" r="1.2" />
-                        </svg>
-                      </button>
 
                       <button
                         class="icon-btn-sm remove-btn"
@@ -1840,12 +1817,62 @@
         [class.task-drag-preview-card-sec]="drag.sourceList === 'secondary'"
       >
         <div class="task-drag-preview-main">
-          <span class="task-drag-preview-check" aria-hidden="true"></span>
-          <span class="task-drag-preview-text">{{ drag.task.text }}</span>
+          <span
+            class="check-btn task-drag-preview-check"
+            [class.checked]="drag.task.done"
+            aria-hidden="true"
+          >
+            @if (drag.task.done) {
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            }
+          </span>
+          <span class="task-text task-drag-preview-text" [class.struck]="drag.task.done">
+            {{ drag.task.text }}
+          </span>
         </div>
         @if (drag.task.subtasks.length > 0) {
-          <div class="task-drag-preview-subtasks">
-            {{ drag.task.subtasks.length }} subtask{{ drag.task.subtasks.length === 1 ? '' : 's' }}
+          <div class="task-drag-preview-subtask-list">
+            @for (sub of drag.task.subtasks; track sub.id) {
+              <div class="subtask-row task-drag-preview-subtask-row">
+                <span
+                  class="check-btn check-btn-sub task-drag-preview-subtask-check"
+                  [class.checked]="sub.done"
+                  aria-hidden="true"
+                >
+                  @if (sub.done) {
+                    <svg
+                      width="8"
+                      height="8"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  }
+                </span>
+                <span
+                  class="subtask-text task-drag-preview-subtask-text"
+                  [class.struck]="sub.done"
+                >
+                  {{ sub.text }}
+                </span>
+              </div>
+            }
           </div>
         }
       </div>

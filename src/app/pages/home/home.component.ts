@@ -63,15 +63,12 @@ interface PendingTaskDrag {
 }
 
 interface TaskDragState {
-  inputType: PendingTaskDrag['inputType'];
   sourceList: TaskListKind;
   sourceIndex: number;
   targetList: TaskListKind;
   targetIndex: number;
   task: Task;
   pointerId: number;
-  activationX: number;
-  activationY: number;
   lastClientX: number;
   lastClientY: number;
   pointerOffsetX: number;
@@ -98,7 +95,6 @@ const MAX_DONE_TASKS = 10;
 const PUBLIC_PERIODIC_SYNC_MS = 10_000;
 const PRIVATE_PERIODIC_SYNC_MS = 10_000;
 const MOBILE_TOUCH_DRAG_START_DELAY_MS = 120;
-const MOBILE_TOUCH_DRAG_MOVEMENT_SCALE = 0.86;
 const DESKTOP_TASK_AUTO_SCROLL_MAX_DELTA = 24;
 const MOBILE_TASK_AUTO_SCROLL_MAX_DELTA = 1;
 const PRIVATE_WELCOME_DIALOG_PENDING_KEY = 'splendide_private_welcome_dialog_pending';
@@ -873,9 +869,7 @@ export class HomeComponent implements OnDestroy {
     if (this.isEditing()) return;
     if (event.pointerType === 'touch') return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (!(event.target instanceof Element) || !event.target.closest('[data-task-drag-handle]')) {
-      return;
-    }
+    if (this.isTaskDragIgnoredTarget(event.target)) return;
 
     const element = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
     if (!element) return;
@@ -1059,15 +1053,12 @@ export class HomeComponent implements OnDestroy {
     this.clearTaskTouchDragStartTimer();
     this.suppressTaskClickOnce();
     this.taskDragState.set({
-      inputType: pending.inputType,
       sourceList: pending.sourceList,
       sourceIndex: pending.sourceIndex,
       targetList: pending.sourceList,
       targetIndex: pending.sourceIndex,
       task: pending.task,
       pointerId: pending.pointerId,
-      activationX: clientPoint.x,
-      activationY: clientPoint.y,
       lastClientX: clientPoint.x,
       lastClientY: clientPoint.y,
       pointerOffsetX: pending.offsetX,
@@ -1163,17 +1154,6 @@ export class HomeComponent implements OnDestroy {
     };
   }
 
-  private preciseTaskDragPoint(
-    drag: TaskDragState,
-    rawClientPoint: { x: number; y: number },
-  ): { x: number; y: number } {
-    if (drag.inputType !== 'touch' || !this.isMobile()) return rawClientPoint;
-    return {
-      x: rawClientPoint.x,
-      y: drag.activationY + (rawClientPoint.y - drag.activationY) * MOBILE_TOUCH_DRAG_MOVEMENT_SCALE,
-    };
-  }
-
   private rawTaskDragPoint(drag: TaskDragState): { x: number; y: number } {
     return {
       x: drag.lastClientX,
@@ -1226,11 +1206,7 @@ export class HomeComponent implements OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     const rawClientPoint = { x: touch.clientX, y: touch.clientY };
-    this.updateTaskDragForPoint(
-      this.preciseTaskDragPoint(drag, rawClientPoint),
-      true,
-      rawClientPoint,
-    );
+    this.updateTaskDragForPoint(rawClientPoint, true, rawClientPoint);
   }
 
   private finishTaskTouchDrag(event: TouchEvent): void {
@@ -1247,11 +1223,7 @@ export class HomeComponent implements OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     const rawClientPoint = { x: touch.clientX, y: touch.clientY };
-    this.updateTaskDragForPoint(
-      this.preciseTaskDragPoint(drag, rawClientPoint),
-      false,
-      rawClientPoint,
-    );
+    this.updateTaskDragForPoint(rawClientPoint, false, rawClientPoint);
     const finalDrag = this.taskDragState();
     const previousRects = this.captureTaskLayoutRects();
     if (finalDrag) this.commitTaskDrag(finalDrag);
@@ -1416,6 +1388,9 @@ export class HomeComponent implements OnDestroy {
   }
 
   private taskScrollTargetForDropZone(dropZone: HTMLElement): HTMLElement | null {
+    const taskList = dropZone.querySelector<HTMLElement>(':scope > .task-list');
+    if (taskList && taskList.scrollHeight > taskList.clientHeight + 1) return taskList;
+
     if (dropZone.scrollHeight > dropZone.clientHeight + 1) return dropZone;
 
     const lists = dropZone.closest<HTMLElement>('.lists');
@@ -2604,7 +2579,8 @@ export class HomeComponent implements OnDestroy {
     const taskList = dropZone.querySelector<HTMLElement>('.task-list');
     if (!taskList) return fallbackIndex;
 
-    const pointerYInList = clientPoint.y - taskList.getBoundingClientRect().top;
+    const pointerYInList =
+      clientPoint.y - taskList.getBoundingClientRect().top + taskList.scrollTop;
     const taskItems = Array.from(dropZone.querySelectorAll<HTMLElement>(taskSelector))
       .filter(element =>
         element !== draggedElement &&
@@ -3787,7 +3763,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   private isTaskDragIgnoredTarget(target: EventTarget | null): boolean {
-    return target instanceof HTMLElement && Boolean(
+    return target instanceof Element && Boolean(
       target.closest(
         'input, textarea, select, button, a, [contenteditable="true"], .subtask-list, .subtask-row, .task-link',
       )
