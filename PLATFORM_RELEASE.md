@@ -26,10 +26,10 @@ SwiftPM symlink required by `@capacitor-firebase/messaging`; the committed
 
 Then verify on physical/release-capable targets:
 
-- desktop web and mobile web install the push service worker, ask permission only after the deadline alert toggle is selected, and show a banner with sound;
+- desktop web and mobile web install the push service worker, ask permission only after explicit opt-in, and show a banner with sound; signed-out reminders register an anonymous, content-free deadline snapshot so background delivery does not require an account, while an in-app timer deduplicates foreground delivery;
 - Electron persists future schedules, refreshes the authenticated deadline snapshot while hidden, starts in the background at login after notification opt-in, cancels remote edits after synchronization, and opens the correct page/task;
-- Android creates the `deadlines` notification channel, receives FCM in foreground/background/terminated states, and opens the correct task;
-- iOS receives APNs-through-FCM in foreground/background/terminated states with alert, sound, and badge presentation;
+- Android creates the `deadlines` notification channel, uses local OS schedules for signed-out deadlines, receives FCM for signed-in deadlines in foreground/background/terminated states, and opens the correct task; local reminders are inexact and may be delayed by Doze;
+- iOS uses local OS schedules for signed-out deadlines and receives APNs-through-FCM for signed-in deadlines in foreground/background/terminated states with banner, sound, badge, and notification-list presentation;
 - sign out, rapid account switching, denied permission, offline deadline editing, rescheduling, completion, and deletion do not leave stale alerts.
 
 Android `versionCode` and iOS `CURRENT_PROJECT_VERSION` must increase for every store submission. The human-facing version must remain aligned with `package.json`.

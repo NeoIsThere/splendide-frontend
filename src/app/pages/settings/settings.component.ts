@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -7,6 +7,7 @@ import { environment } from '../../../environments/environment';
 import { MobileNotificationsService } from '../../services/mobile-notifications.service';
 import { MobilePurchasesService } from '../../services/mobile-purchases.service';
 import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.service';
+import { DeadlineNotificationsService } from '../../services/deadline-notifications.service';
 
 @Component({
   selector: 'app-settings',
@@ -22,8 +23,8 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
           </svg>
         </a>
 
-        <h1 class="auth-logo">splendide.</h1>
-        <h2 class="auth-title">settings</h2>
+        <p class="auth-logo">splendide.</p>
+        <h1 class="auth-title">settings</h1>
 
         <fieldset class="settings-section settings-appearance" aria-describedby="background-description">
           <legend class="settings-section-title">background</legend>
@@ -38,15 +39,47 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
                   [checked]="theme.backgroundTheme() === option.id"
                   (change)="theme.selectBackgroundTheme(option.id)"
                 />
-                <span class="background-swatch" aria-hidden="true"></span>
+                <span
+                  class="background-swatch"
+                  [style.background]="theme.dark() ? option.darkGradient : option.lightGradient"
+                  aria-hidden="true"
+                ></span>
                 <span class="background-label">{{ option.label }}</span>
               </label>
             }
           </div>
         </fieldset>
 
+        <section class="settings-section" aria-labelledby="device-notifications-title">
+          <div class="notification-row">
+            <div class="settings-section-header">
+              <h3 id="device-notifications-title" class="settings-section-title">notifications on this device</h3>
+              <p id="device-notifications-description" class="settings-section-desc" aria-live="polite">
+                {{ deviceNotificationDescription() }}
+              </p>
+            </div>
+            <label class="settings-switch">
+              <input
+                type="checkbox"
+                [checked]="deadlineNotifications.deviceNotificationsEnabled()"
+                [disabled]="deviceNotificationLoading()"
+                (change)="setDeviceNotifications($any($event.target).checked)"
+                aria-label="notifications on this device"
+                aria-describedby="device-notifications-description"
+              />
+              <span class="settings-switch-track" aria-hidden="true"><span></span></span>
+            </label>
+          </div>
+          @if (deviceNotificationError()) {
+            <p class="settings-error" role="alert">{{ deviceNotificationError() }}</p>
+          }
+          @if (!auth.isLoggedIn()) {
+            <p class="settings-section-note">stored on this device; no account required</p>
+          }
+        </section>
+
         <!-- ── Go Premium ───────────────────────────────── -->
-        @if (!auth.isPremium()) {
+        @if (auth.isLoggedIn() && !auth.isPremium()) {
           <section class="settings-section">
             <div class="settings-section-header">
               <h3 class="settings-section-title">More room for larger work sessions</h3>
@@ -57,12 +90,47 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
           </section>
         }
 
-        @if (isMobile) {
+        @if (!isMobile) {
+          <section class="settings-section desktop-shortcuts" aria-labelledby="keyboard-shortcuts-title">
+            <div class="settings-section-header">
+              <h3 id="keyboard-shortcuts-title" class="settings-section-title">keyboard shortcuts</h3>
+              <p class="settings-section-desc">move quickly without leaving the keyboard</p>
+            </div>
+            <dl class="shortcut-list">
+              <div class="shortcut-row">
+                <dt><kbd>↑</kbd><kbd>↓</kbd></dt>
+                <dd>move through pages and tasks</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>←</kbd><kbd>→</kbd></dt>
+                <dd>switch pages</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Enter</kbd></dt>
+                <dd>open or save</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Tab</kbd></dt>
+                <dd>add a subtask while writing a task</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Delete</kbd></dt>
+                <dd>remove the focused task or page</dd>
+              </div>
+              <div class="shortcut-row">
+                <dt><kbd>Esc</kbd></dt>
+                <dd>cancel editing or close dialogs</dd>
+              </div>
+            </dl>
+          </section>
+        }
+
+        @if (auth.isLoggedIn() && isMobile) {
           <section class="settings-section">
             <div class="notification-row">
               <div class="settings-section-header">
-                <h3 class="settings-section-title">Shared page notifications</h3>
-                <p class="settings-section-desc">Notify me when someone adds an item to a shared page</p>
+                <h3 class="settings-section-title">shared-page activity</h3>
+                <p class="settings-section-desc">an account setting for alerts when someone adds an item</p>
               </div>
               <label class="settings-switch">
                 <input
@@ -202,7 +270,8 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
         }
 
         <!-- ── Delete Account ───────────────────────────── -->
-        <section class="settings-section settings-section--danger">
+        @if (auth.isLoggedIn()) {
+          <section class="settings-section settings-section--danger">
           <div class="settings-section-header">
             <h3 class="settings-section-title settings-section-title--danger">Delete account</h3>
             <p class="settings-section-desc">
@@ -252,7 +321,13 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
               <p class="settings-error" role="alert">{{ deleteError() }}</p>
             }
           }
-        </section>
+          </section>
+        } @else {
+          <section class="settings-section settings-account-prompt">
+            <p class="settings-section-desc">sign in to sync your background and choose shared-page alerts</p>
+            <a class="settings-link" routerLink="/sign-in">sign in</a>
+          </section>
+        }
 
       </div>
     </div>
@@ -323,8 +398,8 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
 
     .background-swatch {
       display: block;
-      width: 36px;
-      height: 30px;
+      width: 42px;
+      height: 34px;
       border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
       border-radius: 8px;
       box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 24%, transparent);
@@ -348,20 +423,6 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
       outline-offset: 3px;
     }
 
-    [data-background-option='neutral'] .background-swatch { background: linear-gradient(145deg, #fff, #efefed); }
-    [data-background-option='linen'] .background-swatch { background: linear-gradient(145deg, #fffdf8, #eee4d7); }
-    [data-background-option='mist'] .background-swatch { background: linear-gradient(145deg, #fbfdfe, #dfecef); }
-    [data-background-option='sage'] .background-swatch { background: linear-gradient(145deg, #fbfdf9, #dfe9dd); }
-    [data-background-option='dawn'] .background-swatch { background: linear-gradient(145deg, #fffaf7, #f1dfda); }
-    [data-background-option='lilac'] .background-swatch { background: linear-gradient(145deg, #fdfbff, #e8def0); }
-
-    :host-context(.dark) [data-background-option='neutral'] .background-swatch { background: linear-gradient(145deg, #292929, #111); }
-    :host-context(.dark) [data-background-option='linen'] .background-swatch { background: linear-gradient(145deg, #302820, #17130f); }
-    :host-context(.dark) [data-background-option='mist'] .background-swatch { background: linear-gradient(145deg, #203038, #0f171b); }
-    :host-context(.dark) [data-background-option='sage'] .background-swatch { background: linear-gradient(145deg, #233127, #101712); }
-    :host-context(.dark) [data-background-option='dawn'] .background-swatch { background: linear-gradient(145deg, #382523, #1a1211); }
-    :host-context(.dark) [data-background-option='lilac'] .background-swatch { background: linear-gradient(145deg, #30253a, #16121a); }
-
     @media (max-width: 520px) {
       .background-options {
         grid-template-columns: repeat(3, minmax(72px, 1fr));
@@ -381,7 +442,14 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
       gap: 20px;
     }
 
-    .settings-switch { flex: 0 0 auto; cursor: pointer; }
+    .settings-switch {
+      position: relative;
+      display: inline-flex;
+      min-height: 44px;
+      flex: 0 0 auto;
+      align-items: center;
+      cursor: pointer;
+    }
     .settings-switch input { position: absolute; opacity: 0; pointer-events: none; }
     .settings-switch-track {
       display: block;
@@ -421,6 +489,87 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
       font-size: 0.85rem;
       color: var(--text-secondary);
       margin: 0;
+    }
+
+    .settings-section-note {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.76rem;
+    }
+
+    .shortcut-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+    }
+
+    .shortcut-row {
+      display: grid;
+      grid-template-columns: 94px 1fr;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .shortcut-row dt,
+    .shortcut-row dd {
+      margin: 0;
+    }
+
+    .shortcut-row dt {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .shortcut-row dd {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .shortcut-row kbd {
+      min-width: 24px;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--card);
+      color: var(--text-secondary);
+      box-shadow: inset 0 -1px 0 var(--border);
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 500;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .settings-account-prompt {
+      align-items: flex-start;
+    }
+
+    .settings-link {
+      min-height: 40px;
+      padding: 10px 0;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-underline-offset: 3px;
+    }
+
+    .settings-link:focus-visible {
+      border-radius: 4px;
+      outline: 2px solid var(--text);
+      outline-offset: 3px;
+    }
+
+    @media (max-width: 768px) {
+      .desktop-shortcuts {
+        display: none;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      .desktop-shortcuts {
+        display: none;
+      }
     }
 
     .settings-form {
@@ -528,6 +677,7 @@ import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.ser
 export class SettingsComponent {
   protected readonly auth = inject(AuthService);
   protected readonly theme = inject(ThemeService);
+  protected readonly deadlineNotifications = inject(DeadlineNotificationsService);
   protected readonly backgroundThemes = BACKGROUND_THEME_OPTIONS;
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
@@ -536,6 +686,43 @@ export class SettingsComponent {
   protected readonly isMobile = environment.isMobile;
   protected readonly notificationLoading = signal(false);
   protected readonly notificationError = signal('');
+  protected readonly deviceNotificationLoading = signal(false);
+  protected readonly deviceNotificationError = signal('');
+  protected readonly deviceNotificationDescription = computed(() => {
+    if (!this.deadlineNotifications.deviceNotificationsEnabled()) {
+      return 'task reminders and supported activity alerts are off';
+    }
+
+    switch (this.deadlineNotifications.permissionState()) {
+      case 'granted':
+        if (this.deadlineNotifications.registrationState() === 'retrying') {
+          return 'permission granted; delivery setup will retry when online';
+        }
+        return this.auth.isLoggedIn()
+          ? 'ready for task reminders and supported activity alerts'
+          : 'ready for task reminders on this device';
+      case 'denied':
+        return 'enabled here, but blocked in your device or browser settings';
+      case 'unsupported':
+        return 'enabled here, but unavailable on this device or browser';
+      case 'prompt':
+        return 'permission is waiting for your confirmation';
+    }
+  });
+
+  protected async setDeviceNotifications(enabled: boolean): Promise<void> {
+    this.deviceNotificationLoading.set(true);
+    this.deviceNotificationError.set('');
+    try {
+      await this.deadlineNotifications.setDeviceNotificationsEnabled(enabled);
+    } catch (error: unknown) {
+      this.deviceNotificationError.set(
+        error instanceof Error ? error.message : 'notification settings could not be updated',
+      );
+    } finally {
+      this.deviceNotificationLoading.set(false);
+    }
+  }
 
   protected async setSharedNotifications(enabled: boolean): Promise<void> {
     this.notificationLoading.set(true);

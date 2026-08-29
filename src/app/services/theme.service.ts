@@ -9,6 +9,8 @@ export type BackgroundThemeId = 'neutral' | 'linen' | 'mist' | 'sage' | 'dawn' |
 export interface BackgroundThemeOption {
   id: BackgroundThemeId;
   label: string;
+  lightGradient: string;
+  darkGradient: string;
   lightChromeColor: string;
   darkChromeColor: string;
 }
@@ -20,12 +22,54 @@ interface RemoteThemePreferences {
 }
 
 export const BACKGROUND_THEME_OPTIONS: readonly BackgroundThemeOption[] = [
-  { id: 'neutral', label: 'neutral', lightChromeColor: '#fafafa', darkChromeColor: '#111111' },
-  { id: 'linen', label: 'linen', lightChromeColor: '#fbf8f2', darkChromeColor: '#181511' },
-  { id: 'mist', label: 'mist', lightChromeColor: '#f4f8fa', darkChromeColor: '#10171b' },
-  { id: 'sage', label: 'sage', lightChromeColor: '#f4f8f3', darkChromeColor: '#111813' },
-  { id: 'dawn', label: 'dawn', lightChromeColor: '#fcf6f3', darkChromeColor: '#1b1312' },
-  { id: 'lilac', label: 'lilac', lightChromeColor: '#f8f5fb', darkChromeColor: '#17131b' },
+  {
+    id: 'neutral',
+    label: 'neutral',
+    lightGradient: 'linear-gradient(135deg, #ffffff 0%, #d7d8d4 100%)',
+    darkGradient: 'linear-gradient(135deg, #292a2c 0%, #090a0b 100%)',
+    lightChromeColor: '#ffffff',
+    darkChromeColor: '#292a2c',
+  },
+  {
+    id: 'linen',
+    label: 'linen',
+    lightGradient: 'linear-gradient(135deg, #fff7e8 0%, #e4c79f 100%)',
+    darkGradient: 'linear-gradient(135deg, #3b2d20 0%, #100c08 100%)',
+    lightChromeColor: '#fff7e8',
+    darkChromeColor: '#3b2d20',
+  },
+  {
+    id: 'mist',
+    label: 'mist',
+    lightGradient: 'linear-gradient(135deg, #effbff 0%, #b7d7e4 100%)',
+    darkGradient: 'linear-gradient(135deg, #173846 0%, #071116 100%)',
+    lightChromeColor: '#effbff',
+    darkChromeColor: '#173846',
+  },
+  {
+    id: 'sage',
+    label: 'sage',
+    lightGradient: 'linear-gradient(135deg, #f1f9ec 0%, #b9d3b4 100%)',
+    darkGradient: 'linear-gradient(135deg, #1e3a28 0%, #08110b 100%)',
+    lightChromeColor: '#f1f9ec',
+    darkChromeColor: '#1e3a28',
+  },
+  {
+    id: 'dawn',
+    label: 'dawn',
+    lightGradient: 'linear-gradient(135deg, #fff1e9 0%, #e7b4a4 100%)',
+    darkGradient: 'linear-gradient(135deg, #472620 0%, #130a09 100%)',
+    lightChromeColor: '#fff1e9',
+    darkChromeColor: '#472620',
+  },
+  {
+    id: 'lilac',
+    label: 'lilac',
+    lightGradient: 'linear-gradient(135deg, #f8efff 0%, #cbb4df 100%)',
+    darkGradient: 'linear-gradient(135deg, #392348 0%, #0f0914 100%)',
+    lightChromeColor: '#f8efff',
+    darkChromeColor: '#392348',
+  },
 ];
 
 const BACKGROUND_THEME_IDS = new Set<BackgroundThemeId>(

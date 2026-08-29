@@ -64,6 +64,7 @@ export class AuthService {
     } else {
       this.sessionReady = Promise.resolve();
     }
+    window.addEventListener('storage', event => this.syncSessionFromStorage(event));
   }
 
   async waitForSessionReady(): Promise<void> {
@@ -360,6 +361,32 @@ export class AuthService {
         hasMobileSubscription: parsed.hasMobileSubscription ?? false,
       }) : null;
     } catch { return null; }
+  }
+
+  private syncSessionFromStorage(event: StorageEvent): void {
+    if (event.storageArea !== localStorage) return;
+    if (event.key === 'splendide_token') {
+      if (event.newValue === this._token()) return;
+      this._token.set(event.newValue);
+      if (!event.newValue) {
+        this._user.set(null);
+        this.posthog.reset();
+        this.storage.setActivePartition();
+        return;
+      }
+      // Never keep the former account paired with a token written by another
+      // tab. The matching user storage event or this refresh establishes the
+      // new identity and triggers notification/session reconciliation.
+      this._user.set(null);
+      void this.fetchUser();
+      return;
+    }
+    if (event.key !== 'splendide_user' || !this._token()) return;
+    const user = this.loadUser();
+    if (!user) return;
+    this._user.set(user);
+    this.applyUserThemePreference(user);
+    this.posthog.identifyUser(user);
   }
 
   private normalizeUserPreferences(user: User): User {

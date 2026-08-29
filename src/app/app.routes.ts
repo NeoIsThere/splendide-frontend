@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard } from './guards/auth.guard';
+import { authGuard, guestGuard, sessionReadyGuard } from './guards/auth.guard';
 import { environment } from '../environments/environment';
 
 const loadPaymentComponent = () => environment.isMobile
@@ -68,7 +68,7 @@ export const routes: Routes = [
   {
     path: 'settings',
     loadComponent: () => import('./pages/settings/settings.component').then(m => m.SettingsComponent),
-    canActivate: [authGuard],
+    canActivate: [sessionReadyGuard],
   },
   {
     path: '**',

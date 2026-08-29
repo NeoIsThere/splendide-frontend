@@ -15,6 +15,12 @@ export const authGuard: CanActivateFn = async () => {
   return router.createUrlTree(['/sign-in']);
 };
 
+export const sessionReadyGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  await auth.waitForSessionReady();
+  return true;
+};
+
 export const guestGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);

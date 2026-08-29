@@ -86,7 +86,6 @@ interface TaskDragState {
 type KeyboardZone = 'pages' | 'tasks';
 type SectionDeleteOption = 'delete' | 'cancel';
 type InfoDialogKind = 'shared-page' | 'private-welcome';
-type InfoDialogView = 'about' | 'shortcuts';
 type ShareDialogMode = 'enabled' | 'disabled' | 'viewer';
 
 const MAX_SECTIONS = 100;
@@ -131,7 +130,6 @@ export class HomeComponent implements OnDestroy {
   protected readonly premiumUpgradePromptOpen = signal(false);
   protected readonly premiumUpgradePromptDescription = signal('create more pages for larger work sessions');
   protected readonly infoDialog = signal<InfoDialogKind | null>(null);
-  protected readonly infoDialogView = signal<InfoDialogView>('about');
   protected readonly isPublicPage = computed(() => false);
 
   // ─── Sections ───────────────────────────────────────────
@@ -182,6 +180,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly deadlinePermissionMessage = signal('');
   protected readonly deadlineDialog = viewChild<ElementRef<HTMLElement>>('deadlineDialog');
   protected readonly taskMoveDialog = viewChild<ElementRef<HTMLElement>>('taskMoveDialog');
+  private readonly userMenuTrigger = viewChild<ElementRef<HTMLButtonElement>>('userMenuTrigger');
 
   protected readonly taskCount = computed(() => this.tasks().length);
   protected readonly completedCount = computed(() => this.tasks().filter(t => t.done).length);
@@ -300,6 +299,12 @@ export class HomeComponent implements OnDestroy {
   @HostListener('document:keydown', ['$event'])
   protected handleDocumentKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || event.isComposing) return;
+    if (this.menuOpen() && event.key === 'Escape') {
+      event.preventDefault();
+      this.menuOpen.set(false);
+      queueMicrotask(() => this.userMenuTrigger()?.nativeElement.focus());
+      return;
+    }
     if (this.deadlineEditorTaskId() !== null) {
       this.handleModalKeydown(event, this.deadlineDialog()?.nativeElement, () => this.closeDeadlineEditor());
       return;
@@ -700,7 +705,6 @@ export class HomeComponent implements OnDestroy {
       // If local storage is unavailable, rely on the session storage result.
     }
     if (hasPendingDialog) {
-      this.infoDialogView.set('about');
       this.infoDialog.set('private-welcome');
     }
   }
@@ -1263,10 +1267,8 @@ export class HomeComponent implements OnDestroy {
     const rawClientPoint = { x: touch.clientX, y: touch.clientY };
     this.updateTaskDragForPoint(rawClientPoint, false, rawClientPoint);
     const finalDrag = this.taskDragState();
-    const previousRects = this.captureTaskLayoutRects();
     if (finalDrag) this.commitTaskDrag(finalDrag);
     this.clearTaskPointerDrag();
-    this.animateTaskLayoutChange(previousRects);
     this.suppressTaskClickOnce();
   }
 
@@ -2177,17 +2179,11 @@ export class HomeComponent implements OnDestroy {
 
   protected openPrivateWelcomeInfo(): void {
     this.menuOpen.set(false);
-    this.infoDialogView.set('about');
     this.infoDialog.set('private-welcome');
-  }
-
-  protected showKeyboardShortcutsInfo(): void {
-    this.infoDialogView.set('shortcuts');
   }
 
   protected closeInfoDialog(): void {
     this.infoDialog.set(null);
-    this.infoDialogView.set('about');
     this.maybeScheduleFirstVisitCoachMarks();
   }
 
@@ -2799,11 +2795,12 @@ export class HomeComponent implements OnDestroy {
 
   // ─── User menu ──────────────────────────────────────────
   protected toggleMenu(): void {
-    if (!this.auth.isLoggedIn()) {
-      this.router.navigate(['/sign-in']);
-      return;
-    }
     this.menuOpen.update(v => !v);
+  }
+
+  protected goToSignIn(): void {
+    this.menuOpen.set(false);
+    void this.router.navigate(['/sign-in']);
   }
 
   protected toggleDark(): void {
@@ -2905,7 +2902,7 @@ export class HomeComponent implements OnDestroy {
 
   protected async signOut(): Promise<void> {
     this.menuOpen.set(false);
-    await this.deadlineNotifications.cancelAll();
+    await this.deadlineNotifications.detachCurrentAccountNotifications();
     this.storage.setActivePartition(); // switch to anonymous
     this.auth.logout();
     this.refreshSectionsFromStorage();
@@ -2913,6 +2910,7 @@ export class HomeComponent implements OnDestroy {
     this.setSections(loaded);
     this.restoreActiveSection(loaded, [this.storage.getActiveSectionPreference()]);
     this.clearKeyboardFocus();
+    await this.deadlineNotifications.reconcileDeadlines(loaded);
   }
 
   protected openSettings(): void {
@@ -2994,7 +2992,7 @@ export class HomeComponent implements OnDestroy {
     }
   }
 
-  protected addSubtaskField(focusNew = false): void {
+  protected addSubtaskField(focusNew = true): void {
     if (this.newSubtasks().length >= 10) return;
     this.newSubtasks.update(s => [...s, '']);
     if (focusNew) this.focusLastVisibleInput('.add-form:not(.add-form-sec) .input-sub');
@@ -3221,13 +3219,7 @@ export class HomeComponent implements OnDestroy {
     this.deadlinePermissionMessage.set('');
     if (!enabled) return;
 
-    if (!this.auth.isLoggedIn() && !environment.isElectron) {
-      this.deadlineNotificationDraft.set(false);
-      this.deadlinePermissionMessage.set('sign in to receive notifications on this device');
-      return;
-    }
-
-    const granted = await this.deadlineNotifications.requestPermission();
+    const granted = await this.deadlineNotifications.setDeviceNotificationsEnabled(true);
     if (granted) {
       if (this.deadlineNotifications.registrationState() === 'retrying') {
         this.deadlinePermissionMessage.set('notifications allowed; delivery will retry when online');
@@ -3253,8 +3245,7 @@ export class HomeComponent implements OnDestroy {
 
     const deadlineAt = deadline.toISOString();
     const deadlineTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const deadlineNotificationEnabled = this.deadlineNotificationDraft() &&
-      (this.auth.isLoggedIn() || environment.isElectron);
+    const deadlineNotificationEnabled = this.deadlineNotificationDraft();
     this.updateTaskList(tasks => tasks.map(task => {
       if (task.id !== taskId) return task;
       const scheduleChanged = task.deadlineAt !== deadlineAt ||
@@ -3419,20 +3410,20 @@ export class HomeComponent implements OnDestroy {
   }
 
   private focusVisibleInput(selector: string, select = false): void {
-    requestAnimationFrame(() => setTimeout(() => {
+    afterNextRender(() => {
       const all = document.querySelectorAll<HTMLInputElement>(selector);
       const el = Array.from(all).find(i => i.offsetParent !== null) ?? all[0];
       el?.focus();
       if (select) el?.select();
-    }));
+    }, { injector: this.injector });
   }
 
   private focusLastVisibleInput(selector: string): void {
-    requestAnimationFrame(() => setTimeout(() => {
+    afterNextRender(() => {
       const all = Array.from(document.querySelectorAll<HTMLInputElement>(selector));
       const visible = all.filter(i => i.offsetParent !== null);
       (visible.at(-1) ?? all.at(-1))?.focus();
-    }));
+    }, { injector: this.injector });
   }
 
   private focusEditInput(editId: string): void {

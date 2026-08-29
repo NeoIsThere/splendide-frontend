@@ -19,9 +19,11 @@
         @if (!isPublicPage()) {
           <div class="user-menu-wrapper">
             <button
+              #userMenuTrigger
               class="icon-btn"
               (click)="toggleMenu()"
               aria-label="user menu"
+              aria-controls="user-menu"
               [attr.aria-expanded]="menuOpen()"
             >
               <svg
@@ -40,41 +42,49 @@
               </svg>
             </button>
 
-            @if (menuOpen() && auth.isLoggedIn()) {
+            @if (menuOpen()) {
               <div class="user-menu-backdrop" (click)="toggleMenu()"></div>
-              <div class="user-menu">
-                <p class="user-menu-email">{{ auth.user()?.email }}</p>
-                @if (auth.isPremium()) {
-                  <p class="user-menu-badge">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <polygon
-                        points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                      />
-                    </svg>
-                    premium
-                  </p>
+              <div class="user-menu" id="user-menu">
+                @if (auth.isLoggedIn()) {
+                  <p class="user-menu-email">{{ auth.user()?.email }}</p>
+                  @if (auth.isPremium()) {
+                    <p class="user-menu-badge">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <polygon
+                          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                        />
+                      </svg>
+                      premium
+                    </p>
+                  } @else {
+                    <p class="user-menu-badge">free</p>
+                  }
+                  @if (auth.isPremium()) {
+                    <button class="user-menu-item" (click)="manageSubscription()">
+                      manage subscription
+                    </button>
+                  } @else {
+                    <button class="user-menu-item" (click)="goToPremiumUpgrade()">upgrade</button>
+                  }
                 } @else {
-                  <p class="user-menu-badge">free</p>
-                }
-                @if (auth.isPremium()) {
-                  <button class="user-menu-item" (click)="manageSubscription()">
-                    manage subscription
-                  </button>
-                } @else {
-                  <button class="user-menu-item" (click)="goToPremiumUpgrade()">upgrade</button>
+                  <p class="user-menu-email">local workspace</p>
                 }
                 <button class="user-menu-item" (click)="openSettings()">settings</button>
-                <button class="user-menu-item" (click)="signOut()">sign out</button>
+                @if (auth.isLoggedIn()) {
+                  <button class="user-menu-item" (click)="signOut()">sign out</button>
+                } @else {
+                  <button class="user-menu-item" (click)="goToSignIn()">sign in</button>
+                }
               </div>
             }
           </div>
@@ -783,6 +793,8 @@
                         type="text"
                         [value]="task.text"
                         [attr.data-edit-id]="'task-' + task.id"
+                        (pointerdown)="$event.stopPropagation()"
+                        (touchstart)="$event.stopPropagation()"
                         (blur)="saveTaskEdit(task.id, $event)"
                         (keydown)="handleTaskEditKeydown(task.id, $event)"
                         aria-label="edit task"
@@ -1048,6 +1060,7 @@
                         type="text"
                         placeholder="subtask"
                         data-inline-subtask
+                        autofocus
                         [value]="newInlineSubtaskText()"
                         (input)="onInlineSubtaskInput($event)"
                         (keydown)="handleInlineSubtaskKeydown(task.id, $event)"
@@ -1377,43 +1390,14 @@
           splendide.
         </h2>
         <div class="splendide-info-description" id="private-welcome-description">
-          @if (infoDialogView() === 'shortcuts') {
-            <dl class="shortcut-list">
-              <div class="shortcut-row">
-                <dt><kbd>↑</kbd><kbd>↓</kbd></dt>
-                <dd>move through pages and tasks</dd>
-              </div>
-              <div class="shortcut-row">
-                <dt><kbd>←</kbd><kbd>→</kbd></dt>
-                <dd>switch pages</dd>
-              </div>
-              <div class="shortcut-row">
-                <dt><kbd>Enter</kbd></dt>
-                <dd>open or save</dd>
-              </div>
-              <div class="shortcut-row">
-                <dt><kbd>Tab</kbd></dt>
-                <dd>add a subtask while writing a task</dd>
-              </div>
-              <div class="shortcut-row">
-                <dt><kbd>Delete</kbd></dt>
-                <dd>remove the focused task or page</dd>
-              </div>
-              <div class="shortcut-row">
-                <dt><kbd>Esc</kbd></dt>
-                <dd>cancel editing or close dialogs</dd>
-              </div>
-            </dl>
-          } @else {
-            <p>Splendide is a minimalist work organizer.</p>
-            <p>Built for people who want less noise.</p>
-            <div class="private-info-tip">
-              <p>
-                A mobile app is coming. Don't hesitate to
-                <a href="mailto:support&#64;email.splendide.app">suggest new features</a>.
-              </p>
-            </div>
-          }
+          <p>Splendide is a minimalist work organizer.</p>
+          <p>Built for people who want less noise.</p>
+          <div class="private-info-tip">
+            <p>
+              A mobile app is coming. Don't hesitate to
+              <a href="mailto:support&#64;email.splendide.app">suggest new features</a>.
+            </p>
+          </div>
         </div>
       } @else {
         <h2 class="splendide-info-title shared-info-title" id="shared-page-info-title">
@@ -1436,11 +1420,6 @@
       <button class="splendide-info-primary" type="button" (click)="closeInfoDialog()">
         Got it
       </button>
-      @if (infoDialog() === 'private-welcome' && infoDialogView() !== 'shortcuts') {
-        <button class="splendide-info-secondary" type="button" (click)="showKeyboardShortcutsInfo()">
-          keyboard shortcuts
-        </button>
-      }
     </section>
   }
 

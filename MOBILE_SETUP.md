@@ -83,7 +83,11 @@ Download and place the configuration files here:
 
 For iOS, create an APNs authentication key in the Apple Developer portal and upload it in Firebase under Project settings > Cloud Messaging. In Xcode, enable the Push Notifications capability for the App target.
 
-For the backend, create a Firebase Admin service account, store its JSON securely on the server, and point `GOOGLE_APPLICATION_CREDENTIALS` to it. The app requests notification permission only after an explicit user action: enabling **Shared page notifications** in settings or enabling **notify me** for a task deadline. A denied permission does not prevent saving the deadline.
+For the backend, create a Firebase Admin service account, store its JSON securely on the server, and point `GOOGLE_APPLICATION_CREDENTIALS` to it. The app requests notification permission only after an explicit user action: enabling device notifications, enabling **Shared page notifications** in settings, or enabling **notify me** for a task deadline. A denied permission does not prevent saving the deadline.
+
+Task deadlines do not require an account. Signed-out Android and iOS installations schedule their visible banner, sound, and notification-center entry locally with `@capacitor/local-notifications`; edits, completion, deletion, and disabling device notifications reconcile or cancel only Splendide's owned deadline schedules. Signed-out web installations send an anonymous snapshot containing only task/page identifiers and deadline timestamps—never task text—to the backend for background Web Push, with a service-worker installation marker that suppresses stale deliveries after sign-in or opt-out. Signed-in installations continue to use Firebase/server delivery so the same synchronized deadline reaches the user's registered devices. Signing out detaches the account token and its schedules without erasing the device-level opt-in, then the anonymous local snapshot is reconciled.
+
+Android local reminders deliberately use inexact alarms, avoiding the unrelated exact-alarm settings prompt; Doze may therefore delay delivery. iOS local reminders use the system scheduler. Always run `npm run mobile:sync` after dependency changes, and run the final iOS sync on macOS because Windows cannot create the SwiftPM symlink used by Firebase Messaging.
 
 Shared-page notifications have no body. Their visible title is exactly:
 

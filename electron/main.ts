@@ -257,13 +257,22 @@ async function showDeadlineNotification(taskId: string, eventId: string): Promis
   await saveDeadlineNotificationState().catch(() => undefined);
   deadlineTimers.delete(taskId);
 
+  // A disable, sign-out, deletion, or reschedule can run while the state write
+  // above is pending. Re-read the live snapshot immediately before the
+  // synchronous OS display so an obsolete task cannot escape cancellation.
+  const current = deadlineState.schedules.find(item =>
+    item.taskId === taskId &&
+    item.eventId === eventId &&
+    item.deadlineAt === schedule.deadlineAt,
+  );
+  if (!deadlineState.enabled || !current) return;
   if (!Notification.isSupported()) return;
   const notification = new Notification({
-    title: schedule.pageTitle,
-    body: schedule.taskText,
+    title: current.pageTitle,
+    body: current.taskText,
     silent: false,
   });
-  notification.on('click', () => sendDeadlineTargetToRenderer(deadlineTarget(schedule)));
+  notification.on('click', () => sendDeadlineTargetToRenderer(deadlineTarget(current)));
   notification.on('failed', (_event, error) => logDesktop('Deadline notification failed', error));
   notification.show();
 }

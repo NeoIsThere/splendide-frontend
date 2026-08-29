@@ -861,6 +861,14 @@ export class StorageService {
       .sort((a, b) => a.position - b.position);
   }
 
+  /** Reads one storage partition without changing the active session scope. */
+  loadSectionsForPartition(userId?: string): StoredSection[] {
+    const partition = this.readPartition(this.buildKey(userId)) ?? this.migrateLegacyPartition(userId);
+    return (partition?.sections ?? [])
+      .filter(section => !section.deleted)
+      .sort((left, right) => left.position - right.position);
+  }
+
   loadAllSectionsForSync(): StoredSection[] {
     return this.load().sections;
   }
