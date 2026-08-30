@@ -76,8 +76,6 @@
                   } @else {
                     <button class="user-menu-item" (click)="goToPremiumUpgrade()">upgrade</button>
                   }
-                } @else {
-                  <p class="user-menu-email">local workspace</p>
                 }
                 <button class="user-menu-item" (click)="openSettings()">settings</button>
                 @if (auth.isLoggedIn()) {
@@ -164,65 +162,12 @@
   <div class="my-below-top-bar">
     @if (!isPublicPage()) {
       <div class="section-share-wrapper" data-public-share data-coach-share>
-        @if (activeSectionIsOwner()) {
-          <div
-            class="share-toggle-row"
-            (mouseenter)="showShareLinkPanel()"
-            (focusin)="showShareLinkPanel()"
-          >
-            <button
-              class="share-panel-trigger"
-              type="button"
-              (click)="showSharePanel()"
-              [attr.aria-label]="
-                activeSection()?.isShared === true && shareSectionUrl()
-                  ? 'show shared page link'
-                  : 'show page sharing status'
-              "
-              [attr.aria-expanded]="shareMenuOpen()"
-            >
-              <span class="share-toggle-icon-wrap" aria-hidden="true">
-                <svg
-                  class="share-trigger-icon"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="18" cy="5" r="3" />
-                  <circle cx="6" cy="12" r="3" />
-                  <circle cx="18" cy="19" r="3" />
-                  <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
-                  <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
-                </svg>
-              </span>
-            </button>
-            <label class="share-toggle-switch">
-              <input
-                class="share-toggle-input"
-                type="checkbox"
-                role="switch"
-                [checked]="activeSection()?.isShared === true"
-                (change)="setActiveSectionSharing($event)"
-                aria-label="toggle page sharing"
-              />
-              <span class="share-toggle-track" aria-hidden="true">
-                <span class="share-toggle-thumb"></span>
-              </span>
-            </label>
-          </div>
-        } @else if (activeSection()?.isShared && shareSectionUrl()) {
+        @if (activeSectionIsOwner() || (activeSection()?.isShared && shareSectionUrl())) {
           <button
-            class="open-shared-btn section-share-trigger"
+            class="share-panel-trigger section-share-trigger"
             type="button"
-            (click)="showShareLinkPanel()"
-            (mouseenter)="showShareLinkPanel()"
-            (focus)="showShareLinkPanel()"
-            aria-label="share page"
+            (click)="showSharePanel()"
+            [attr.aria-label]="activeSection()?.isShared ? 'show sharing details' : 'show sharing settings'"
             [attr.aria-expanded]="shareMenuOpen()"
           >
             <svg
@@ -243,17 +188,32 @@
               <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
               <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
             </svg>
-            share
           </button>
         }
         @if (shareMenuOpen()) {
-          <div class="public-share-popover section-share-popover">
-            @if (shareDialogMode() === 'disabled') {
-              <p class="public-share-title">sharing off</p>
-              <p class="public-share-copy">nobody has access to this page anymore</p>
-            } @else if (activeSection()?.isShared && shareSectionUrl()) {
-              <p class="public-share-title">page shared</p>
-              <p class="public-share-copy">anyone with the link can edit this page</p>
+          <div class="public-share-popover section-share-popover" role="dialog" aria-label="page sharing">
+            <div class="public-share-state-row">
+              <p class="public-share-title">
+                {{ activeSection()?.isShared ? 'Sharing enabled' : 'Sharing disabled' }}
+              </p>
+              @if (activeSectionIsOwner()) {
+                <label class="share-toggle-switch">
+                  <input
+                    class="share-toggle-input"
+                    type="checkbox"
+                    role="switch"
+                    [checked]="activeSection()?.isShared === true"
+                    (change)="setActiveSectionSharing($event)"
+                    aria-label="toggle page sharing"
+                  />
+                  <span class="share-toggle-track" aria-hidden="true">
+                    <span class="share-toggle-thumb"></span>
+                  </span>
+                </label>
+              }
+            </div>
+            @if (activeSection()?.isShared && shareSectionUrl()) {
+              <p class="public-share-copy">Anyone with the link can edit the list</p>
               <div class="public-share-link-row">
                 <input
                   class="public-share-link"
@@ -265,7 +225,7 @@
                 <button class="public-copy-btn" (click)="copySectionShareLink()">copy</button>
               </div>
             } @else {
-              <p class="public-share-title">not shared</p>
+              <p class="public-share-copy">Only you can access this note</p>
             }
             @if (shareToastVisible()) {
               <span class="public-share-toast" aria-live="polite">link copied</span>
@@ -311,22 +271,49 @@
         </div>
         <div class="section-nav-center">
           @if (addingSectionTitle() !== null) {
-            <input
-              class="section-add-input"
-              [value]="addingSectionTitle()"
-              (input)="onAddSectionInput($event)"
-              (keydown)="handleAddSectionKeydown($event)"
-              (blur)="confirmAddSection()"
-              placeholder="page name"
-            />
+            <div class="mobile-page-edit">
+              <input
+                class="section-add-input"
+                [value]="addingSectionTitle()"
+                (input)="onAddSectionInput($event)"
+                (keydown)="handleAddSectionKeydown($event)"
+                (blur)="confirmAddSection()"
+                placeholder="page name"
+              />
+              <button
+                class="icon-btn-sm validate-edit-btn validate-page-btn"
+                type="button"
+                (pointerdown)="$event.preventDefault()"
+                (click)="confirmAddSection()"
+                aria-label="confirm page name"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
+            </div>
           } @else if (editingSectionId() === activeSectionId()) {
-            <input
-              class="section-page-input"
-              [attr.data-edit-section]="activeSectionId()"
-              [value]="activeSection()?.title"
-              (blur)="saveSectionEdit(activeSectionId()!, $event)"
-              (keydown)="handleSectionEditKeydown(activeSectionId()!, $event)"
-            />
+            <div class="mobile-page-edit">
+              <input
+                #mobileSectionEditInput
+                class="section-page-input"
+                [attr.data-edit-section]="activeSectionId()"
+                [value]="activeSection()?.title"
+                (blur)="saveSectionEdit(activeSectionId()!, $event)"
+                (keydown)="handleSectionEditKeydown(activeSectionId()!, $event)"
+              />
+              <button
+                class="icon-btn-sm validate-edit-btn validate-page-btn"
+                type="button"
+                (pointerdown)="$event.preventDefault()"
+                (click)="saveSectionEditFromButton(activeSectionId()!, mobileSectionEditInput)"
+                aria-label="confirm page name"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
+            </div>
           } @else {
             <button
               class="section-nav-title"
@@ -633,16 +620,29 @@
             <!-- Add task form -->
             @if (adding()) {
               <div class="add-form" (focusout)="onAddFormFocusOut($event)">
-                <input
-                  class="input-minimal"
-                  type="text"
-                  placeholder="task"
-                  [value]="newTaskText()"
-                  (input)="onNewTaskInput($event)"
-                  (keydown)="handleAddKeydown($event)"
-                  aria-label="new task"
-                  maxlength="120"
-                />
+                <div class="mobile-add-input-row">
+                  <input
+                    class="input-minimal"
+                    type="text"
+                    placeholder="task"
+                    [value]="newTaskText()"
+                    (input)="onNewTaskInput($event)"
+                    (keydown)="handleAddKeydown($event)"
+                    aria-label="new task"
+                    maxlength="120"
+                  />
+                  <button
+                    class="icon-btn-sm validate-edit-btn mobile-only"
+                    type="button"
+                    (pointerdown)="$event.preventDefault()"
+                    (click)="confirmAdd()"
+                    aria-label="confirm task"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </button>
+                </div>
                 @for (sub of newSubtasks(); track $index) {
                   <div class="subtask-input-row">
                     <input
@@ -673,6 +673,17 @@
                       >
                         <line x1="18" y1="6" x2="6" y2="18" />
                         <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                    <button
+                      class="icon-btn-sm validate-edit-btn mobile-only"
+                      type="button"
+                      (pointerdown)="$event.preventDefault()"
+                      (click)="confirmAdd()"
+                      aria-label="confirm task and subtasks"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
                       </svg>
                     </button>
                   </div>
@@ -844,7 +855,6 @@
                         <path d="M12 7v5l3 2" />
                       </svg>
                     </button>
-
                     @if (taskMoveTargetSections().length > 0) {
                       <button
                         class="icon-btn-sm desktop-move-btn"
@@ -873,6 +883,7 @@
 
                     <button
                       class="icon-btn-sm remove-btn"
+                      [class.mobile-edit-remove]="editingTaskId() === task.id"
                       (click)="removeTask(task.id)"
                       [attr.aria-label]="'remove: ' + task.text"
                     >
@@ -891,6 +902,20 @@
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
                     </button>
+
+                    @if (editingTaskId() === task.id) {
+                      <button
+                        class="icon-btn-sm validate-edit-btn mobile-only"
+                        type="button"
+                        (pointerdown)="$event.preventDefault(); $event.stopPropagation()"
+                        (click)="saveTaskEditFromButton(task.id); $event.stopPropagation()"
+                        aria-label="confirm task text"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
+                    }
 
                     @if (!isElectronApp) {
                       <div class="task-dots-wrapper mobile-only" data-task-menu>
@@ -916,7 +941,7 @@
                                 class="task-dots-item"
                                 (click)="openTaskMoveDialog(task)"
                               >
-                                move to page
+                                move to ...
                               </button>
                             }
                             <button
@@ -1048,6 +1073,22 @@
                             <line x1="6" y1="6" x2="18" y2="18" />
                           </svg>
                         </button>
+                        @if (
+                          editingSubtask()?.taskId === task.id &&
+                          editingSubtask()?.subtaskId === sub.id
+                        ) {
+                          <button
+                            class="icon-btn-sm validate-edit-btn mobile-only"
+                            type="button"
+                            (pointerdown)="$event.preventDefault(); $event.stopPropagation()"
+                            (click)="saveSubtaskEditFromButton(task.id, sub.id); $event.stopPropagation()"
+                            aria-label="confirm subtask text"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </button>
+                        }
                       </div>
                     }
                   </div>
@@ -1068,6 +1109,29 @@
                         aria-label="new subtask"
                         maxlength="120"
                       />
+                      <button
+                        class="icon-btn-sm remove-btn inline-subtask-action mobile-only"
+                        type="button"
+                        (pointerdown)="$event.preventDefault()"
+                        (click)="cancelAddingSubtask()"
+                        aria-label="cancel subtask"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                      <button
+                        class="icon-btn-sm validate-edit-btn mobile-only"
+                        type="button"
+                        (pointerdown)="$event.preventDefault()"
+                        (click)="confirmAddSubtask(task.id)"
+                        aria-label="confirm subtask"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
                     </div>
                   }
 
@@ -1106,46 +1170,46 @@
                   aria-hidden="true"
                 ></div>
               }
+              @if (taskCount() > 0) {
+                @if (confirmingClear()) {
+                  <div class="clear-confirm clear-list-control" data-confirm-clear>
+                    <span class="clear-confirm-label">delete:</span>
+                    @if (completedCount() > 0 && completedCount() < taskCount()) {
+                      <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">
+                        done only
+                      </button>
+                    }
+                    <button class="clear-yes" (click)="confirmClear()">all</button>
+                    <button class="clear-no" (click)="cancelClear()">cancel</button>
+                  </div>
+                } @else {
+                  <div class="clear-actions clear-list-control" data-confirm-clear>
+                    <button class="clear-btn" (click)="startClear()" aria-label="clear the list">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                        <path d="M9 6V4h6v2" />
+                      </svg>
+                    </button>
+
+                  </div>
+                }
+              }
             </div>
           </div>
           <!-- /.task-drop-zone -->
-
-          @if (taskCount() > 0) {
-            @if (confirmingClear()) {
-              <div class="clear-confirm" data-confirm-clear>
-                <span class="clear-confirm-label">delete:</span>
-                @if (completedCount() > 0 && completedCount() < taskCount()) {
-                  <button class="clear-yes" (click)="clearDoneTasks(); cancelClear()">
-                    done only
-                  </button>
-                }
-                <button class="clear-yes" (click)="confirmClear()">all</button>
-                <button class="clear-no" (click)="cancelClear()">cancel</button>
-              </div>
-            } @else {
-              <div class="clear-actions" data-confirm-clear>
-                <button class="clear-btn" (click)="startClear()" aria-label="clear the list">
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
-                    <path d="M9 6V4h6v2" />
-                  </svg>
-                </button>
-              </div>
-            }
-          }
         </div>
       </div>
 
@@ -1331,7 +1395,7 @@
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
-      <h2 id="task-move-dialog-title">move to page</h2>
+      <h2 id="task-move-dialog-title">move to ...</h2>
       <p id="task-move-dialog-description" class="deadline-task-name">{{ task.text }}</p>
       <div class="task-move-page-list">
         @for (section of taskMoveTargetSections(); track section.id) {

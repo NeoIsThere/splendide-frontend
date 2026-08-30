@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
@@ -69,6 +70,8 @@ public class DeadlineNotificationsPlugin extends Plugin {
 
         NotificationCompat.Builder notification = new NotificationCompat.Builder(getContext(), channelId)
             .setSmallIcon(R.drawable.ic_stat_splendide)
+            .setLargeIcon(BitmapFactory.decodeResource(getContext().getResources(), R.drawable.ic_notification_splendide))
+            .setColor(ContextCompat.getColor(getContext(), R.color.notification_icon))
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))

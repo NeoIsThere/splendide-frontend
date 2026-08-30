@@ -316,25 +316,25 @@ html.native-mobile .task-drag-floating-preview {
   --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   --app-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
   --app-viewport-height: 100dvh;
-  --app-background: linear-gradient(135deg, #ffffff 0%, #d7d8d4 100%);
-  --bg: #fafafa;
+  --app-background: linear-gradient(135deg, #dfe4e7 0%, #b4c0c7 52%, #9aa8b1 100%);
+  --bg: #d9e0e4;
   --card: #ffffff;
   --text-primary: #1a1a1a;
   --text: #1a1a1a;
-  --text-muted: #484848;
-  --text-secondary: #444;
-  --text-muted-secondary: #707070;
+  --text-muted: #202020;
+  --text-secondary: #202020;
+  --text-muted-secondary: #202020;
   --border: #e0e0e0;
   --hover: rgba(0, 0, 0, 0.05);
   --accent: #1a1a1a;
-  --link: #6d28d9;
+  --link: #21134d;
   --task-hover-bg: rgba(0, 0, 0, 0.035);
 }
 
 // ─── Dark theme — monochrome (black + tones of grey/white) ─
 :root.dark,
 body.dark {
-  --app-background: linear-gradient(135deg, #292a2c 0%, #090a0b 100%);
+  --app-background: linear-gradient(135deg, #3f4b55 0%, #252f38 52%, #10151a 100%);
   --bg: #111;
   --card: #1a1a1a;
   --text-primary: #e0e0e0;
@@ -350,49 +350,49 @@ body.dark {
 }
 
 :root[data-background-theme='neutral'] {
-  --app-background: linear-gradient(135deg, #ffffff 0%, #d7d8d4 100%);
-  --bg: #fafafa;
+  --app-background: linear-gradient(135deg, #dfe4e7 0%, #b4c0c7 52%, #9aa8b1 100%);
+  --bg: #d9e0e4;
   --card: #fff;
 }
 
 :root[data-background-theme='linen'] {
-  --app-background: linear-gradient(135deg, #fff7e8 0%, #e4c79f 100%);
-  --bg: #faf7f1;
+  --app-background: linear-gradient(135deg, #efc48e 0%, #dda16f 52%, #c98569 100%);
+  --bg: #e4b078;
   --card: #fffdf9;
   --border: #ddd7ce;
 }
 
 :root[data-background-theme='mist'] {
-  --app-background: linear-gradient(135deg, #effbff 0%, #b7d7e4 100%);
-  --bg: #f4f8fa;
+  --app-background: linear-gradient(135deg, #acd8e8 0%, #89bfd4 52%, #6fa9c5 100%);
+  --bg: #96c7da;
   --card: #fbfdfe;
   --border: #d5e0e4;
 }
 
 :root[data-background-theme='sage'] {
-  --app-background: linear-gradient(135deg, #f1f9ec 0%, #b9d3b4 100%);
-  --bg: #f4f8f3;
+  --app-background: linear-gradient(135deg, #b9d7aa 0%, #94bf93 52%, #79aa83 100%);
+  --bg: #a4c999;
   --card: #fbfdfb;
   --border: #d6e0d4;
 }
 
 :root[data-background-theme='dawn'] {
-  --app-background: linear-gradient(135deg, #fff1e9 0%, #e7b4a4 100%);
-  --bg: #fcf6f3;
+  --app-background: linear-gradient(135deg, #f1b08f 0%, #e58e83 52%, #d87580 100%);
+  --bg: #e79a82;
   --card: #fffaf8;
   --border: #e4d5d0;
 }
 
 :root[data-background-theme='lilac'] {
-  --app-background: linear-gradient(135deg, #f8efff 0%, #cbb4df 100%);
-  --bg: #f8f5fb;
+  --app-background: linear-gradient(135deg, #d0b1e2 0%, #b596d2 52%, #9b7bc0 100%);
+  --bg: #bea0d6;
   --card: #fdfbff;
   --border: #ded5e5;
 }
 
 :root.dark[data-background-theme='neutral'],
 body.dark[data-background-theme='neutral'] {
-  --app-background: linear-gradient(135deg, #292a2c 0%, #090a0b 100%);
+  --app-background: linear-gradient(135deg, #3f4b55 0%, #252f38 52%, #10151a 100%);
   --bg: #111;
   --card: #1a1a1a;
   --border: #2a2a2a;
@@ -400,7 +400,7 @@ body.dark[data-background-theme='neutral'] {
 
 :root.dark[data-background-theme='linen'],
 body.dark[data-background-theme='linen'] {
-  --app-background: linear-gradient(135deg, #3b2d20 0%, #100c08 100%);
+  --app-background: linear-gradient(135deg, #5a3a25 0%, #33241a 52%, #130d09 100%);
   --bg: #181511;
   --card: #211d18;
   --border: #373027;
@@ -408,7 +408,7 @@ body.dark[data-background-theme='linen'] {
 
 :root.dark[data-background-theme='mist'],
 body.dark[data-background-theme='mist'] {
-  --app-background: linear-gradient(135deg, #173846 0%, #071116 100%);
+  --app-background: linear-gradient(135deg, #24566b 0%, #163646 52%, #071116 100%);
   --bg: #10171b;
   --card: #182229;
   --border: #293840;
@@ -416,7 +416,7 @@ body.dark[data-background-theme='mist'] {
 
 :root.dark[data-background-theme='sage'],
 body.dark[data-background-theme='sage'] {
-  --app-background: linear-gradient(135deg, #1e3a28 0%, #08110b 100%);
+  --app-background: linear-gradient(135deg, #2f5a3c 0%, #1c3626 52%, #08110b 100%);
   --bg: #111813;
   --card: #19231b;
   --border: #2b392e;
@@ -424,7 +424,7 @@ body.dark[data-background-theme='sage'] {
 
 :root.dark[data-background-theme='dawn'],
 body.dark[data-background-theme='dawn'] {
-  --app-background: linear-gradient(135deg, #472620 0%, #130a09 100%);
+  --app-background: linear-gradient(135deg, #6a342e 0%, #3f211f 52%, #130a09 100%);
   --bg: #1b1312;
   --card: #251a18;
   --border: #3d2b28;
@@ -432,7 +432,7 @@ body.dark[data-background-theme='dawn'] {
 
 :root.dark[data-background-theme='lilac'],
 body.dark[data-background-theme='lilac'] {
-  --app-background: linear-gradient(135deg, #392348 0%, #0f0914 100%);
+  --app-background: linear-gradient(135deg, #543269 0%, #34213f 52%, #0f0914 100%);
   --bg: #17131b;
   --card: #211a27;
   --border: #372d40;

@@ -66,27 +66,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   height: 34px;
 }
 
-.open-shared-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  padding: 5px 8px 0 0;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: color 0.2s $ease;
-
-  &:hover,
-  &:focus-visible {
-    color: var(--text);
-    outline: none;
-  }
-}
-
 .share-trigger-icon {
   flex: 0 0 auto;
 }
@@ -667,6 +646,17 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
+.mobile-page-edit {
+  position: relative;
+  width: 100%;
+}
+
+.validate-page-btn {
+  position: absolute;
+  top: 3px;
+  left: calc(100% + 4px);
+}
+
 .layout.task-move-busy {
   cursor: progress;
   pointer-events: none;
@@ -696,7 +686,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .public-share-title {
-  margin: 0 0 4px;
+  margin: 0;
   color: var(--text);
   font-size: 0.92rem;
   font-weight: 600;
@@ -709,15 +699,12 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   line-height: 1.35;
 }
 
-.share-toggle-row {
+.public-share-state-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 16px;
   min-height: 30px;
-  margin-top: 0;
-  cursor: default;
-  color: var(--text-secondary);
-  padding-right: 8px;
 }
 
 .share-toggle-switch {
@@ -1489,6 +1476,24 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   gap: 12px;
 }
 
+.validate-edit-btn {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  color: var(--text);
+}
+
+.mobile-add-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  > .input-minimal {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
 // ─── Check button ──────────────────────────────────────────
 .check-btn {
   flex-shrink: 0;
@@ -1700,6 +1705,24 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .task-main > .remove-btn {
   @media (max-width: 768px) {
     display: none;
+
+    &.mobile-edit-remove {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      opacity: 0.72;
+    }
+  }
+}
+
+.inline-subtask-action {
+  opacity: 0.72;
+}
+
+@media (max-width: 768px) {
+  .task-main:has(> .edit-input) > :is(.desktop-deadline-btn, .desktop-move-btn, .task-dots-wrapper) {
+    display: none !important;
   }
 }
 
@@ -2246,6 +2269,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   line-height: 1;
   margin-top: 10px;
   flex: 0 0 auto;
+}
+
+.clear-list-control {
+  width: fit-content;
+  margin-left: 10px;
 }
 
 // ─── Footer ────────────────────────────────────────────────

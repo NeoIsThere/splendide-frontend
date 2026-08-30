@@ -40,6 +40,8 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
     LocalNotifications: {
+      smallIcon: 'ic_stat_splendide',
+      iconColor: '#789db4',
       presentationOptions: ['badge', 'sound', 'banner', 'list'],
     },
     SocialLogin: {

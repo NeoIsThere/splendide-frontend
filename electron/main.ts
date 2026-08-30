@@ -270,6 +270,7 @@ async function showDeadlineNotification(taskId: string, eventId: string): Promis
   const notification = new Notification({
     title: current.pageTitle,
     body: current.taskText,
+    icon: path.join(rendererRoot(), 'icons', 'icon-256.png'),
     silent: false,
   });
   notification.on('click', () => sendDeadlineTargetToRenderer(deadlineTarget(current)));
@@ -710,6 +711,7 @@ function createWindow(showWhenReady = true): BrowserWindow {
     minHeight: 640,
     show: false,
     title: 'Splendide',
+    icon: path.join(rendererRoot(), 'icons', 'icon-256.png'),
     backgroundColor: '#fafafa',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

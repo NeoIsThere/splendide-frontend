@@ -54,9 +54,11 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
           <div class="notification-row">
             <div class="settings-section-header">
               <h3 id="device-notifications-title" class="settings-section-title">notifications on this device</h3>
-              <p id="device-notifications-description" class="settings-section-desc" aria-live="polite">
-                {{ deviceNotificationDescription() }}
-              </p>
+              @if (!isMobile) {
+                <p id="device-notifications-description" class="settings-section-desc" aria-live="polite">
+                  {{ deviceNotificationDescription() }}
+                </p>
+              }
             </div>
             <label class="settings-switch">
               <input
@@ -65,7 +67,7 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
                 [disabled]="deviceNotificationLoading()"
                 (change)="setDeviceNotifications($any($event.target).checked)"
                 aria-label="notifications on this device"
-                aria-describedby="device-notifications-description"
+                [attr.aria-describedby]="isMobile ? null : 'device-notifications-description'"
               />
               <span class="settings-switch-track" aria-hidden="true"><span></span></span>
             </label>
@@ -73,7 +75,7 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
           @if (deviceNotificationError()) {
             <p class="settings-error" role="alert">{{ deviceNotificationError() }}</p>
           }
-          @if (!auth.isLoggedIn()) {
+          @if (!auth.isLoggedIn() && !isMobile) {
             <p class="settings-section-note">stored on this device; no account required</p>
           }
         </section>
@@ -321,11 +323,6 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
               <p class="settings-error" role="alert">{{ deleteError() }}</p>
             }
           }
-          </section>
-        } @else {
-          <section class="settings-section settings-account-prompt">
-            <p class="settings-section-desc">sign in to sync your background and choose shared-page alerts</p>
-            <a class="settings-link" routerLink="/sign-in">sign in</a>
           </section>
         }
 
@@ -683,7 +680,9 @@ export class SettingsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(MobileNotificationsService);
   private readonly mobilePurchases = inject(MobilePurchasesService);
-  protected readonly isMobile = environment.isMobile;
+  protected readonly isMobile = environment.isMobile || (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
   protected readonly notificationLoading = signal(false);
   protected readonly notificationError = signal('');
   protected readonly deviceNotificationLoading = signal(false);

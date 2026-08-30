@@ -286,6 +286,13 @@ test('anonymous pushes require the active installation and event snapshot', asyn
   await harness.dispatchPush(anonymousPush('exact-snapshot', installationId, '42'));
   await harness.dispatchPush(anonymousPush('delayed-unchanged', installationId, '41'));
   assert.equal(harness.displays.length, 2);
+  assert.deepEqual(
+    harness.displays.map(({ options }) => ({ icon: options.icon, badge: options.badge })),
+    [
+      { icon: '/icons/icon-192.png', badge: '/icons/notification-badge-96.png' },
+      { icon: '/icons/icon-192.png', badge: '/icons/notification-badge-96.png' },
+    ],
+  );
 });
 
 test('anonymous foreground fallback is active-event gated and rejects legacy unscoped messages', async () => {

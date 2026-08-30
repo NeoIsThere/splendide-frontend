@@ -86,7 +86,6 @@ interface TaskDragState {
 type KeyboardZone = 'pages' | 'tasks';
 type SectionDeleteOption = 'delete' | 'cancel';
 type InfoDialogKind = 'shared-page' | 'private-welcome';
-type ShareDialogMode = 'enabled' | 'disabled' | 'viewer';
 
 const MAX_SECTIONS = 100;
 const MAX_FREE_SECTIONS = 2;
@@ -125,7 +124,6 @@ export class HomeComponent implements OnDestroy {
   protected readonly dark = this.theme.dark;
   protected readonly publicLoadFailed = signal(false);
   protected readonly shareMenuOpen = signal(false);
-  protected readonly shareDialogMode = signal<ShareDialogMode>('enabled');
   protected readonly shareToastVisible = signal(false);
   protected readonly premiumUpgradePromptOpen = signal(false);
   protected readonly premiumUpgradePromptDescription = signal('create more pages for larger work sessions');
@@ -227,6 +225,7 @@ export class HomeComponent implements OnDestroy {
   protected readonly isElectronApp = environment.isElectron;
   protected readonly dragging = signal(false);
   protected readonly taskDragState = signal<TaskDragState | null>(null);
+  private readonly pendingCrossPageTaskId = signal<string | null>(null);
   protected readonly taskPageDropTargetId = signal<string | null>(null);
   protected readonly taskMoveAnnouncement = signal('');
   protected readonly taskMoveInProgress = signal(false);
@@ -1017,7 +1016,7 @@ export class HomeComponent implements OnDestroy {
   }
 
   protected isTaskDragSource(taskId: string): boolean {
-    return this.taskDragState()?.task.id === taskId;
+    return this.taskDragState()?.task.id === taskId || this.pendingCrossPageTaskId() === taskId;
   }
 
   protected taskDragPlaceholderHeight(): number {
@@ -1068,10 +1067,8 @@ export class HomeComponent implements OnDestroy {
     event.stopPropagation();
     this.updateTaskDragForPoint({ x: event.clientX, y: event.clientY }, false);
     const finalDrag = this.taskDragState();
-    const previousRects = this.captureTaskLayoutRects();
     if (finalDrag) this.commitTaskDrag(finalDrag);
     this.clearTaskPointerDrag();
-    this.animateTaskLayoutChange(previousRects);
     this.suppressTaskClickOnce();
   }
 
@@ -1462,9 +1459,11 @@ export class HomeComponent implements OnDestroy {
     if (!targetSectionId || targetSectionId === drag.sourceSectionId || this.taskMoveInProgress()) return;
 
     this.taskMoveInProgress.set(true);
+    this.pendingCrossPageTaskId.set(drag.task.id);
     try {
       await this.performTaskMoveToPage(drag, targetSectionId);
     } finally {
+      this.pendingCrossPageTaskId.set(null);
       this.taskMoveInProgress.set(false);
     }
   }
@@ -2137,6 +2136,10 @@ export class HomeComponent implements OnDestroy {
     this.editingSectionId.set(null);
   }
 
+  protected saveSectionEditFromButton(sectionId: string, input: HTMLInputElement): void {
+    this.saveSectionEdit(sectionId, { target: input } as unknown as Event);
+  }
+
   protected handleSectionEditKeydown(sectionId: string, event: KeyboardEvent): void {
     if (event.key === 'Enter') this.saveSectionEdit(sectionId, event);
     else if (event.key === 'Escape') this.editingSectionId.set(null);
@@ -2807,18 +2810,8 @@ export class HomeComponent implements OnDestroy {
     this.theme.toggle();
   }
 
-  protected toggleShareMenu(): void {
-    this.showSharePanel();
-  }
-
   protected showSharePanel(): void {
-    this.shareDialogMode.set('viewer');
     this.shareMenuOpen.set(true);
-  }
-
-  protected showShareLinkPanel(): void {
-    if (this.activeSection()?.isShared !== true || !this.shareSectionUrl()) return;
-    this.showSharePanel();
   }
 
   protected shareSectionUrl(): string {
@@ -2847,7 +2840,6 @@ export class HomeComponent implements OnDestroy {
       const updated = await this.sync.enableSectionSharing(section.id);
       this.refreshSectionsFromStorage();
       this.setActiveSection(updated.id);
-      this.shareDialogMode.set('enabled');
       this.shareMenuOpen.set(true);
     } catch {
       // The user can retry.
@@ -2861,7 +2853,6 @@ export class HomeComponent implements OnDestroy {
       const updated = await this.sync.disableSectionSharing(section.id);
       this.refreshSectionsFromStorage();
       this.setActiveSection(updated.id);
-      this.shareDialogMode.set('disabled');
       this.shareMenuOpen.set(true);
     } catch {
       // The user can retry.
@@ -3057,6 +3048,11 @@ export class HomeComponent implements OnDestroy {
     this.editingTaskId.set(null);
   }
 
+  protected saveTaskEditFromButton(id: string): void {
+    const input = this.getEditInput(null, `task-${id}`);
+    if (input) this.saveTaskEdit(id, { target: input } as unknown as Event);
+  }
+
   protected handleTaskEditKeydown(id: string, event: KeyboardEvent): void {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -3112,6 +3108,11 @@ export class HomeComponent implements OnDestroy {
       );
     }
     this.editingSubtask.set(null);
+  }
+
+  protected saveSubtaskEditFromButton(taskId: string, subtaskId: string): void {
+    const input = this.getEditInput(null, `sub-${subtaskId}`);
+    if (input) this.saveSubtaskEdit(taskId, subtaskId, { target: input } as unknown as Event);
   }
 
   protected handleSubtaskEditKeydown(taskId: string, subtaskId: string, event: KeyboardEvent): void {

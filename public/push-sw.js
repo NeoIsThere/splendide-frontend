@@ -253,8 +253,8 @@ async function showDeadlineOnceInCurrentOperation({
   if (await deadlineWasDelivered(cache, eventId, now)) return false;
   await self.registration.showNotification(title, {
     body,
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/notification-badge-96.png',
     tag: String(tag || eventId),
     renotify: renotify === true,
     silent: false,
