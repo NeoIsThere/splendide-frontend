@@ -205,7 +205,7 @@ export class AuthService {
     this._token.set(res.accessToken);
     localStorage.setItem('splendide_token', res.accessToken);
     if (res.refreshToken) {
-      // The previous signed refresh token remains valid until its expiry, so a
+      // The previous refresh token belongs to the same revocable session, so a
       // transient Keychain/Keystore write failure must not discard the active
       // access token or force the user through sign-in again.
       await this.saveNativeRefreshToken(res.refreshToken).catch(() => undefined);
@@ -299,9 +299,13 @@ export class AuthService {
   }
 
   logout(): void {
+    const token = this.getToken();
     void this.unregisterCurrentDevice();
     this.clearLocalSession();
-    this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true }).subscribe();
+    this.http.post(`${this.apiUrl}/auth/logout`, {}, {
+      withCredentials: true,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).subscribe({ error: () => undefined });
     this.router.navigate(['/']);
   }
 

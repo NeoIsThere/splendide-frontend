@@ -37,3 +37,13 @@ Android `versionCode` and iOS `CURRENT_PROJECT_VERSION` must increase for every 
 ## Data-model release
 
 All section requests declare `dataModel=single-list-v3`. After the backend migration, earlier clients receive HTTP 426 and cannot overwrite the one-list model. Ship the signed 1.1.0 native binaries before activating the migration, and deploy the new web bundle with the migrated backend.
+
+## Session and checkout update (October 2026)
+
+Apply backend migration `20261008120000_revocable_sessions_and_checkout` before starting the updated API. It adds revocable sign-in sessions and durable checkout coordination; it does not rewrite task data. Existing tokens require one sign-in after deployment because they have no session identifier.
+
+Release the accompanying client change on web, Electron, Android, and iOS: logout must send the captured access token before clearing its local credential. Older native clients do not send that credential on logout. Browser refresh cookies now use `/api/auth`, and the API clears both the old and new cookie paths. Password reset revokes every session; password change preserves only the current session.
+
+The backend Docker runtime is Node 22, matching the minimum already required by Firebase Admin 14. Security updates keep the direct dependencies on their existing major versions. Scoped overrides update `deepmerge-ts` for Prisma configuration, `uuid` for gaxios 6, and `esbuild` for tsx. Recheck these overrides when upgrading their parent packages.
+
+The integration suite creates and removes an isolated MySQL database. Its Stripe calls are mocked, including concurrency, lost responses, checkout expiry, and subscription recovery; run the normal Stripe test-mode release check before a billing rollout. Native Gradle/Xcode builds and a Docker image build still require their respective toolchains.

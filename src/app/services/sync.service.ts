@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { syncBatches } from '../utils/sync-batches';
 import {
   StorageService,
   StoredSection,
@@ -279,6 +280,7 @@ export class SyncService {
     const localMutationRevision = this.storage.getLocalMutationRevision();
     const items = this.storage.getItemsForList(sectionId, listId)
       .filter(item => !(item.created && item.deleted))
+      .filter(item => item.dirty || this.shouldSyncAsCreated(item))
       .map(item => {
         return {
           id: item.id,
@@ -292,29 +294,31 @@ export class SyncService {
         };
       });
     const order = this.storage.getListOrderSync(sectionId, listId);
-    const payload = {
-      items,
-      ...(order ? { order } : {}),
-    };
-
     const shareToken = this.shareTokenForAnonymousSection(sectionId);
-    const response = await firstValueFrom(
-      this.http.post<ItemsSyncResponse | SectionsSyncResponse>(
-        shareToken
-          ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/lists/${listId}/sync`
-          : `${this.apiUrl}/sections/${sectionId}/lists/${listId}/sync`,
-        payload,
-        shareToken
-          ? { observe: 'response' }
-          : { observe: 'response', headers: this.syncHeaders() },
-      ),
-    );
-    if (this.applySnapshotIfPresent(response, localMutationRevision)) {
-      return this.storage.getItemsForList(sectionId, listId);
+    const batches = syncBatches(items);
+    let synced: ItemsSyncResponse | null = null;
+    for (const [index, batch] of batches.entries()) {
+      if (generation !== this.itemsSyncGeneration.get(key)) break;
+      const response = await firstValueFrom(
+        this.http.post<ItemsSyncResponse | SectionsSyncResponse>(
+          shareToken
+            ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/lists/${listId}/sync`
+            : `${this.apiUrl}/sections/${sectionId}/lists/${listId}/sync`,
+          { items: batch, ...(order && index === batches.length - 1 ? { order } : {}) },
+          shareToken
+            ? { observe: 'response' }
+            : { observe: 'response', headers: this.syncHeaders() },
+        ),
+      );
+      if (this.applySnapshotIfPresent(response, localMutationRevision)) {
+        return this.storage.getItemsForList(sectionId, listId);
+      }
+      // Merge only the final snapshot: an intermediate response must not erase
+      // a local edit in a batch that has not been uploaded yet.
+      if (response.body && !this.isSectionsSnapshot(response.body)) synced = response.body;
     }
-    const synced = response.body;
 
-    if (synced && !this.isSectionsSnapshot(synced) && generation === this.itemsSyncGeneration.get(key)) {
+    if (synced && generation === this.itemsSyncGeneration.get(key)) {
       this.storage.applySyncedItems(sectionId, listId, synced, revision);
     }
     return this.storage.getItemsForList(sectionId, listId);
