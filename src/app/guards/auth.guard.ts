@@ -21,6 +21,15 @@ export const sessionReadyGuard: CanActivateFn = async () => {
   return true;
 };
 
+export const adminGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  await auth.waitForSessionReady();
+  if (!auth.isLoggedIn()) return router.createUrlTree(['/sign-in']);
+  const user = await auth.fetchUser();
+  return user?.accountType === 'admin' || router.createUrlTree(['/']);
+};
+
 export const guestGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);

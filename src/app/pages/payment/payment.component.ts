@@ -294,7 +294,11 @@ function guessCurrency(): string {
     <div class="payment-page">
       <h1 class="logo">splendide.</h1>
       <div class="content">
-        @if (mode() === 'success') {
+        @if (auth.user()?.premiumOverride !== null && auth.user()?.premiumOverride !== undefined) {
+          <h2 class="result-title">access managed by an administrator</h2>
+          <p class="result-text">your account has {{ auth.isPremium() ? 'premium' : 'free' }} access. existing subscriptions are unchanged.</p>
+          <a class="result-link" routerLink="/settings">account settings</a>
+        } @else if (mode() === 'success') {
           <h2 class="result-title">welcome to premium</h2>
           @if (premiumActivationPending()) {
             <p class="result-text">activating your subscription</p>
@@ -388,7 +392,7 @@ function guessCurrency(): string {
   `,
 })
 export class PaymentComponent implements OnInit, OnDestroy {
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly premiumActivation = inject(PremiumActivationService);

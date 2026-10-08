@@ -1,0 +1,180 @@
+<main class="admin-page">
+  <header>
+    <a class="back" routerLink="/" aria-label="back to tasks">←</a>
+    <div>
+      <p class="logo">splendide.</p>
+      <h1>admin</h1>
+    </div>
+  </header>
+
+  <form class="search" (submit)="$event.preventDefault(); load(1, true)">
+    <label for="user-search">find users</label>
+    <div class="search-controls">
+      <input
+        id="user-search"
+        type="search"
+        [formControl]="search"
+        maxlength="100"
+        placeholder="name or email"
+        autocomplete="off"
+        [readOnly]="!!selected()"
+      />
+      <button type="submit" [disabled]="loading() || !!selected()">search</button>
+    </div>
+  </form>
+  <div class="list-heading">
+    <h2>
+      users <span>({{ result().total }})</span>
+    </h2>
+    <button type="button" (click)="load(result().page)" [disabled]="loading() || !!selected()">
+      refresh
+    </button>
+  </div>
+  <p class="note">last active reflects authenticated activity, updated about every five minutes.</p>
+  @if (message()) {
+    <p role="status">{{ message() }}</p>
+  }
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (loading()) {
+    <p role="status">loading users…</p>
+  }
+  <ul class="users" [attr.aria-busy]="loading()">
+    @for (user of result().users; track user.id) {
+      <li>
+        <div class="user-row">
+          <div class="identity">
+            <h3>{{ user.name || 'unnamed user' }}</h3>
+            <p>{{ user.email }}</p>
+            <p class="note">
+              {{ user.accountType }} · {{ user.isPremium ? 'premium' : 'free'
+              }}{{ user.premiumOverride !== null ? ' · admin override' : '' }}
+            </p>
+          </div>
+          <dl>
+            <div>
+              <dt>joined</dt>
+              <dd>
+                <time [attr.datetime]="user.createdAt">{{
+                  user.createdAt | date: 'mediumDate'
+                }}</time>
+              </dd>
+            </div>
+            <div>
+              <dt>last active</dt>
+              <dd>
+                @if (user.lastSeenAt) {
+                  <time [attr.datetime]="user.lastSeenAt">{{
+                    user.lastSeenAt | date: 'medium'
+                  }}</time>
+                } @else {
+                  not recorded
+                }
+              </dd>
+            </div>
+          </dl>
+          <button
+            #editButton
+            type="button"
+            (click)="edit(user, editButton)"
+            [disabled]="loading() || !!selected()"
+            [attr.aria-label]="'edit ' + user.email"
+            [attr.aria-expanded]="selected()?.id === user.id"
+          >
+            edit
+          </button>
+        </div>
+        @if (selected()?.id === user.id) {
+          <form
+            class="editor"
+            [formGroup]="form"
+            (ngSubmit)="save()"
+            aria-label="edit user profile"
+          >
+            <fieldset [disabled]="saving()">
+              <legend>edit profile</legend>
+              <div class="fields">
+                <label for="admin-name"
+                  >name<input
+                    id="admin-name"
+                    formControlName="name"
+                    maxlength="100"
+                    autocomplete="off"
+                /></label>
+                <label for="admin-email"
+                  >email<input
+                    id="admin-email"
+                    type="email"
+                    formControlName="email"
+                    maxlength="255"
+                    autocomplete="off"
+                    required
+                    [attr.aria-invalid]="form.controls.email.touched && form.controls.email.invalid"
+                    aria-describedby="email-note"
+                /></label>
+                <div class="premium-field">
+                  <label for="admin-premium">premium access</label
+                  ><select
+                    id="admin-premium"
+                    formControlName="premium"
+                    aria-describedby="premium-note"
+                  >
+                    <option value="billing">follow billing</option>
+                    <option value="premium">premium</option>
+                    <option value="free">free</option>
+                  </select>
+                </div>
+              </div>
+              <p id="email-note" class="note">
+                changing the email signs this user out on every device.
+              </p>
+              @if (form.controls.email.touched && form.controls.email.invalid) {
+                <p class="error" role="alert">enter a valid email address.</p>
+              }
+              <p id="premium-note" class="note">
+                premium and free override access only. existing subscriptions and charges stay
+                unchanged. follow billing restores access from Stripe, the mobile store or a VIP
+                  code. Switching to free can remove pages over the free limit.
+              </p>
+              @if (user.stripePremium || user.mobilePremium) {
+                <p class="note">
+                  active billing entitlement: {{ user.stripePremium ? 'Stripe' : ''
+                  }}{{ user.stripePremium && user.mobilePremium ? ' and ' : ''
+                  }}{{ user.mobilePremium ? 'mobile store' : '' }}.
+                </p>
+              }
+              <div class="actions">
+                <button type="submit">{{ saving() ? 'saving…' : 'save changes' }}</button
+                ><button type="button" (click)="cancel()">cancel</button>
+              </div>
+            </fieldset>
+            @if (editError()) {
+              <p class="error" role="alert">{{ editError() }}</p>
+            }
+          </form>
+        }
+      </li>
+    } @empty {
+      @if (!loading() && !error()) {
+        <li class="empty">no users found.</li>
+      }
+    }
+  </ul>
+  <nav class="pagination" aria-label="user pages">
+    <button
+      type="button"
+      (click)="load(result().page - 1)"
+      [disabled]="loading() || !!selected() || result().page <= 1"
+    >
+      previous</button
+    ><span>page {{ result().page }} of {{ pages() }}</span
+    ><button
+      type="button"
+      (click)="load(result().page + 1)"
+      [disabled]="loading() || !!selected() || result().page >= pages()"
+    >
+      next
+    </button>
+  </nav>
+</main>

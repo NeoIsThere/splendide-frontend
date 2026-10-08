@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MobilePurchasesService } from '../../services/mobile-purchases.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-mobile-payment',
@@ -10,7 +11,11 @@ import { MobilePurchasesService } from '../../services/mobile-purchases.service'
     <main class="mobile-payment-page">
       <a class="back" routerLink="/" aria-label="back to tasks">←</a>
       <div class="content">
-        @if (complete()) {
+        @if (auth.user()?.premiumOverride !== null && auth.user()?.premiumOverride !== undefined) {
+          <h1>access managed by an administrator</h1>
+          <p>your account has {{ auth.isPremium() ? 'premium' : 'free' }} access. existing subscriptions are unchanged.</p>
+          <a class="primary" routerLink="/settings">account settings</a>
+        } @else if (complete()) {
           <h1>welcome to premium</h1>
           <p>your subscription is active. you have more room for tasks and pages</p>
           <a class="primary" routerLink="/">enjoy it</a>
@@ -77,6 +82,7 @@ import { MobilePurchasesService } from '../../services/mobile-purchases.service'
   `,
 })
 export class MobilePaymentComponent {
+  protected readonly auth = inject(AuthService);
   protected readonly purchases = inject(MobilePurchasesService);
   protected readonly intervals = ['monthly', 'yearly'] as const;
   protected readonly selected = signal<'monthly' | 'yearly'>('yearly');

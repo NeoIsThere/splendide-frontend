@@ -56,7 +56,10 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
         </section>
 
         <!-- ── Go Premium ───────────────────────────────── -->
-        @if (auth.isLoggedIn() && !auth.isPremium()) {
+        @if (auth.user()?.premiumOverride !== null && auth.user()?.premiumOverride !== undefined) {
+          <p class="settings-section-desc">premium access is managed by an administrator. existing subscriptions are unchanged.</p>
+        }
+        @if (auth.isLoggedIn() && !auth.isPremium() && auth.user()?.premiumOverride !== false) {
           <section class="settings-section">
             <div class="settings-section-header">
               <h3 class="settings-section-title">More room for larger work sessions</h3>

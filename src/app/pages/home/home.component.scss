@@ -1434,6 +1434,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
+.admin-link { min-width: 44px; min-height: 44px; text-decoration: none; }
+
 .task-drop-zone > .add-placeholder {
   flex: 0 0 auto;
 }

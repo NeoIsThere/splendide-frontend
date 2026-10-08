@@ -19,6 +19,8 @@ export interface User {
   email: string;
   name: string | null;
   isPremium: boolean;
+  accountType: 'user' | 'admin';
+  premiumOverride: boolean | null;
   hasPassword: boolean;
   syncGeneration: number;
   darkMode: boolean | null;
@@ -51,6 +53,7 @@ export class AuthService {
   readonly user = this._user.asReadonly();
   readonly isLoggedIn = computed(() => !!this._token());
   readonly isPremium = computed(() => this._user()?.isPremium ?? false);
+  readonly isAdmin = computed(() => this.isLoggedIn() && this._user()?.accountType === 'admin');
 
   constructor() {
     const cachedUser = this._user();
@@ -266,6 +269,8 @@ export class AuthService {
     const res = await firstValueFrom(this.http.post<{ isPremium: boolean; hasMobileSubscription: boolean }>(`${this.apiUrl}/mobile-billing/sync`, {}));
     this._user.update(user => user ? {
       ...user,
+      accountType: user.accountType === 'admin' ? 'admin' : 'user',
+      premiumOverride: typeof user.premiumOverride === 'boolean' ? user.premiumOverride : null,
       isPremium: res.isPremium,
       hasMobileSubscription: res.hasMobileSubscription,
     } : user);

@@ -37,6 +37,9 @@ export class MobilePurchasesService {
   }
 
   async purchase(interval: 'monthly' | 'yearly'): Promise<void> {
+    const user = await this.auth.fetchUser();
+    if (!user) throw new Error('could not verify account access. please try again');
+    if (user.premiumOverride !== null) throw new Error('premium access is managed by an administrator');
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('sign in before subscribing');
     await this.configureForUser(userId);

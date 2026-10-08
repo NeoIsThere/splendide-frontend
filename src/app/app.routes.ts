@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard, sessionReadyGuard } from './guards/auth.guard';
+import { adminGuard, authGuard, guestGuard, sessionReadyGuard } from './guards/auth.guard';
 import { environment } from '../environments/environment';
 
 const loadPaymentComponent = () => environment.isMobile
@@ -7,6 +7,11 @@ const loadPaymentComponent = () => environment.isMobile
   : import('./pages/payment/payment.component').then(component => component.PaymentComponent);
 
 export const routes: Routes = [
+  {
+    path: 'admin',
+    loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent),
+    canActivate: [adminGuard],
+  },
   {
     path: '',
     loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent),
