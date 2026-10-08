@@ -2506,7 +2506,7 @@ export class HomeComponent implements OnDestroy {
 
   private taskDropTargetFromDropZone(dropZone: HTMLElement): TaskDropTarget | null {
     return dropZone.classList.contains('task-drop-zone')
-      ? { dropZone, taskSelector: '.task-list > .task-item' }
+      ? { dropZone, taskSelector: '.task-list-items > .task-item' }
       : null;
   }
 

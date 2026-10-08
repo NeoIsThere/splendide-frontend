@@ -384,28 +384,11 @@
                   </button>
                   @if (canDeleteSection(activeSection())) {
                     <button
-                      class="section-menu-item section-menu-item-icon section-menu-item-icon-only danger"
+                      class="section-menu-item danger"
                       (click)="startDeletingActiveSectionFromMenu()"
                       [attr.aria-label]="'delete page: ' + (activeSection()?.title || 'untitled page')"
                     >
-                      <svg
-                        class="section-menu-icon"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        <path d="M10 11v6" />
-                        <path d="M14 11v6" />
-                        <path d="M9 6V4h6v2" />
-                      </svg>
+                      delete page
                     </button>
                   }
                 </div>
@@ -552,6 +535,7 @@
                     (click)="startDeleteSection(sec.id)"
                     aria-label="delete page"
                   >
+                    <span class="native-page-delete-label">delete page</span>
                     <svg
                       width="16"
                       height="16"
@@ -754,10 +738,9 @@
             <!-- Task list -->
             <div
               class="task-list"
-              role="list"
-              aria-label="tasks"
               (scroll)="handleTaskDragScroll()"
             >
+              <div class="task-list-items" role="list" aria-label="tasks">
               @for (task of tasks(); track task.id) {
                 @if (showTaskDragPlaceholder($index)) {
                   <div
@@ -863,35 +846,8 @@
                         <path d="M12 7v5l3 2" />
                       </svg>
                     </button>
-                    @if (taskMoveTargetSections().length > 0) {
-                      <button
-                        class="icon-btn-sm desktop-move-btn"
-                        [class.desktop-move-btn-electron]="isElectronApp"
-                        type="button"
-                        (click)="openTaskMoveDialog(task); $event.stopPropagation()"
-                        [attr.aria-label]="'move to another page: ' + task.text"
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          aria-hidden="true"
-                        >
-                          <rect x="3" y="4" width="9" height="16" rx="1" />
-                          <line x1="9" y1="12" x2="20" y2="12" />
-                          <polyline points="17 9 20 12 17 15" />
-                        </svg>
-                      </button>
-                    }
-
                     <button
                       class="icon-btn-sm remove-btn"
-                      [class.mobile-edit-remove]="editingTaskId() === task.id"
                       (click)="removeTask(task.id)"
                       [attr.aria-label]="'remove: ' + task.text"
                     >
@@ -966,7 +922,7 @@
                               </button>
                             }
                             <button
-                              class="task-dots-item"
+                              class="task-dots-item danger"
                               type="button"
                               (click)="removeTask(task.id)"
                               [attr.aria-label]="'delete task: ' + task.text"
@@ -1172,6 +1128,17 @@
                       subtask
                     </button>
                   }
+                  @if (editingTaskId() === task.id) {
+                    <button
+                      class="mobile-delete-task-btn mobile-only"
+                      type="button"
+                      (pointerdown)="$event.preventDefault(); $event.stopPropagation()"
+                      (click)="removeTask(task.id); $event.stopPropagation()"
+                      [attr.aria-label]="'delete task: ' + task.text"
+                    >
+                      delete task
+                    </button>
+                  }
                 </div>
               } @empty {
                 <!-- empty -->
@@ -1183,6 +1150,7 @@
                   aria-hidden="true"
                 ></div>
               }
+              </div>
               @if (taskCount() > 0) {
                 @if (confirmingClear()) {
                   <div class="clear-confirm clear-list-control" data-confirm-clear>

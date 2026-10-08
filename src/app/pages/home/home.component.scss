@@ -345,7 +345,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   justify-content: flex-start;
   align-items: center;
   padding: 8px 10px;
-  min-height: 34px;
+  min-height: 44px;
   border-radius: 4px;
   font: inherit;
   font-size: 0.82rem;
@@ -365,7 +365,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 
   &.danger {
-    color: #c44;
+    color: var(--danger);
   }
 }
 
@@ -390,17 +390,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   font-size: 1.2rem;
   line-height: 16px;
   color: var(--text-muted);
-}
-
-.section-menu-icon {
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
-}
-
-.section-menu-item-icon-only {
-  justify-content: center;
-  min-height: 44px;
 }
 
 .section-delete-popover {
@@ -431,7 +420,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 [data-confirm-delete-section] .clear-yes {
-  color: #c44;
+  color: var(--danger);
 }
 
 .public-toolbar {
@@ -1431,10 +1420,19 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
     min-height: 180px;
     overflow-y: visible;
     overscroll-behavior: auto;
+    gap: 4px;
   }
 }
 
+.native-page-delete-label {
+  display: none;
+}
+
 .admin-link { min-width: 44px; min-height: 44px; text-decoration: none; }
+
+.task-list-items {
+  display: contents;
+}
 
 .task-drop-zone > .add-placeholder {
   flex: 0 0 auto;
@@ -1461,7 +1459,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   @media (max-width: 768px) {
     margin: 0;
     min-height: 44px;
-    padding: 0 8px;
+    padding: 4px 12px;
     touch-action: pan-y;
   }
 }
@@ -1716,12 +1714,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
     opacity 0.2s $ease,
     color 0.2s $ease !important;
 
-  .task-item:hover &,
-  .task-item:focus-within &,
-  .task-item.keyboard-focused & {
-    opacity: 1;
-  }
-
   &:hover {
     color: #c44 !important;
   }
@@ -1730,17 +1722,44 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
+.task-item:hover > .task-main > .remove-btn,
+.task-item:focus-within > .task-main > .remove-btn,
+.task-item.keyboard-focused > .task-main > .remove-btn,
+.subtask-row:hover > .remove-btn,
+.subtask-row:focus-within > .remove-btn {
+  opacity: 1;
+}
+
+// Touch keeps child actions available when their parent is selected.
+@media (max-width: 768px) {
+  .task-item:hover .subtask-row > .remove-btn,
+  .task-item:focus-within .subtask-row > .remove-btn,
+  .task-item.keyboard-focused .subtask-row > .remove-btn {
+    opacity: 1;
+  }
+}
+
 .task-main > .remove-btn {
   @media (max-width: 768px) {
     display: none;
+  }
+}
 
-    &.mobile-edit-remove {
-      display: grid;
-      width: 30px;
-      height: 30px;
-      flex: 0 0 30px;
-      opacity: 0.72;
-    }
+.mobile-delete-task-btn {
+  display: block;
+  min-height: 44px;
+  margin-left: 28px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
   }
 }
 
@@ -1749,7 +1768,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 @media (max-width: 768px) {
-  .task-main:has(> .edit-input) > :is(.desktop-deadline-btn, .desktop-move-btn, .task-dots-wrapper) {
+  .task-main:has(> .edit-input) > :is(.desktop-deadline-btn, .task-dots-wrapper) {
     display: none !important;
   }
 }
@@ -1841,6 +1860,10 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   &:hover {
     background: var(--hover);
   }
+
+  &.danger {
+    color: var(--danger);
+  }
 }
 
 .add-placeholder {
@@ -1880,8 +1903,9 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 
   @media (max-width: 768px) {
-    min-height: 44px;
-    padding: 0 8px;
+    min-height: 52px;
+    padding: 4px 12px;
+    margin-bottom: 4px;
 
     &:hover {
       background: transparent;
@@ -2494,24 +2518,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
   @media (max-width: 768px) {
     display: none;
-  }
-}
-
-.desktop-move-btn {
-  flex: 0 0 auto;
-  opacity: 0;
-
-  &:focus-visible,
-  .task-item:hover &,
-  .task-item:focus-within &,
-  .task-item.keyboard-focused & {
-    opacity: 0.72;
-  }
-
-  @media (max-width: 768px) {
-    &:not(.desktop-move-btn-electron) {
-      display: none;
-    }
   }
 }
 

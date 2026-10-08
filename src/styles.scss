@@ -206,9 +206,33 @@ html.native-mobile app-home .mobile-only {
   display: revert !important;
 }
 
-html.native-mobile app-home .task-main > :is(.desktop-deadline-btn, .desktop-move-btn),
+html.native-mobile app-home .section-page-actions {
+  height: 44px;
+}
+
+html.native-mobile app-home .section-page .remove-btn-section {
+  min-height: 44px;
+  color: var(--danger) !important;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+html.native-mobile app-home .section-page.active .remove-btn-section,
+html.native-mobile app-home .section-page .remove-btn-section:focus-visible {
+  opacity: 1 !important;
+}
+
+html.native-mobile app-home .native-page-delete-label {
+  display: inline;
+}
+
+html.native-mobile app-home .remove-btn-section > svg {
+  display: none;
+}
+
+html.native-mobile app-home .task-main > .desktop-deadline-btn,
 html.native-mobile app-home .desktop-add-subtask-btn,
-html.native-mobile app-home .task-main > .remove-btn:not(.mobile-edit-remove) {
+html.native-mobile app-home .task-main > .remove-btn {
   display: none !important;
 }
 
@@ -217,12 +241,30 @@ html.native-mobile app-home .task-main {
   min-height: 44px;
 }
 
-html.native-mobile app-home .task-main > .remove-btn.mobile-edit-remove {
-  display: grid !important;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  opacity: 0.72;
+html.native-mobile app-home .task-item {
+  padding: 4px 12px;
+}
+
+html.native-mobile app-home .task-list {
+  gap: 4px;
+}
+
+html.native-mobile app-home .add-placeholder {
+  min-height: 52px;
+  padding: 4px 12px;
+  margin-bottom: 4px;
+}
+
+html.native-mobile app-home .task-item:is(:hover, :focus-within, .keyboard-focused) .subtask-row > .remove-btn {
+  opacity: 1;
+}
+
+html.native-mobile app-home .mobile-delete-task-btn {
+  display: block !important;
+}
+
+html.native-mobile app-home .task-main:has(> .edit-input) > .task-dots-wrapper {
+  display: none !important;
 }
 
 html.native-mobile app-home .task-dots-btn {
@@ -370,15 +412,17 @@ html.native-mobile .task-drag-floating-preview {
   --app-background: #fafafa;
   --bg: #fafafa;
   --card: #ffffff;
-  --text-primary: #2c2c2c;
-  --text: #2c2c2c;
-  --text-muted: #2c2c2c;
-  --text-secondary: #2c2c2c;
-  --text-muted-secondary: #2c2c2c;
+  --text-primary: #363636;
+  --text: #363636;
+  --text-muted: #363636;
+  --text-secondary: #363636;
+  --text-muted-secondary: #363636;
   --border: #dcdcdc;
   --hover: rgba(0, 0, 0, 0.05);
-  --accent: #2c2c2c;
-  --link: #2c2c2c;
+  --accent: #363636;
+  --link: #363636;
+  --danger: #b83232;
+  --active-page-bg: #dedede;
   --task-hover-bg: rgba(0, 0, 0, 0.035);
 }
 
@@ -388,15 +432,17 @@ body.dark {
   --app-background: #111111;
   --bg: #111;
   --card: #1a1a1a;
-  --text-primary: #dadada;
-  --text: #dadada;
-  --text-muted: #dadada;
-  --text-secondary: #dadada;
-  --text-muted-secondary: #dadada;
+  --text-primary: #cecece;
+  --text: #cecece;
+  --text-muted: #cecece;
+  --text-secondary: #cecece;
+  --text-muted-secondary: #cecece;
   --border: #262626;
   --hover: rgba(255, 255, 255, 0.06);
-  --accent: #dadada;
-  --link: #dadada;
+  --accent: #cecece;
+  --link: #cecece;
+  --danger: #f08080;
+  --active-page-bg: #3c3c3c;
   --task-hover-bg: rgba(255, 255, 255, 0.05);
 }
 
