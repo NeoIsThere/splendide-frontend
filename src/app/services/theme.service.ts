@@ -25,50 +25,50 @@ export const BACKGROUND_THEME_OPTIONS: readonly BackgroundThemeOption[] = [
   {
     id: 'neutral',
     label: 'neutral',
-    lightGradient: 'linear-gradient(135deg, #dfe4e7 0%, #b4c0c7 52%, #9aa8b1 100%)',
-    darkGradient: 'linear-gradient(135deg, #3f4b55 0%, #252f38 52%, #10151a 100%)',
-    lightChromeColor: '#dfe4e7',
-    darkChromeColor: '#3f4b55',
+    lightGradient: '#fafafa',
+    darkGradient: '#111111',
+    lightChromeColor: '#fafafa',
+    darkChromeColor: '#111111',
   },
   {
     id: 'linen',
     label: 'linen',
-    lightGradient: 'linear-gradient(135deg, #efc48e 0%, #dda16f 52%, #c98569 100%)',
-    darkGradient: 'linear-gradient(135deg, #5a3a25 0%, #33241a 52%, #130d09 100%)',
-    lightChromeColor: '#efc48e',
-    darkChromeColor: '#5a3a25',
+    lightGradient: 'linear-gradient(135deg, #f4c27b 0%, #e09a58 52%, #c67b59 100%)',
+    darkGradient: 'linear-gradient(135deg, #6a4424 0%, #3d2817 52%, #120b07 100%)',
+    lightChromeColor: '#f4c27b',
+    darkChromeColor: '#6a4424',
   },
   {
     id: 'mist',
     label: 'mist',
-    lightGradient: 'linear-gradient(135deg, #acd8e8 0%, #89bfd4 52%, #6fa9c5 100%)',
-    darkGradient: 'linear-gradient(135deg, #24566b 0%, #163646 52%, #071116 100%)',
-    lightChromeColor: '#acd8e8',
-    darkChromeColor: '#24566b',
+    lightGradient: 'linear-gradient(135deg, #99dcef 0%, #63b9d8 52%, #4e93b2 100%)',
+    darkGradient: 'linear-gradient(135deg, #20647f 0%, #113f53 52%, #05141b 100%)',
+    lightChromeColor: '#99dcef',
+    darkChromeColor: '#20647f',
   },
   {
     id: 'sage',
     label: 'sage',
-    lightGradient: 'linear-gradient(135deg, #b9d7aa 0%, #94bf93 52%, #79aa83 100%)',
-    darkGradient: 'linear-gradient(135deg, #2f5a3c 0%, #1c3626 52%, #08110b 100%)',
-    lightChromeColor: '#b9d7aa',
-    darkChromeColor: '#2f5a3c',
+    lightGradient: 'linear-gradient(135deg, #b5df9c 0%, #78bc82 52%, #5a936d 100%)',
+    darkGradient: 'linear-gradient(135deg, #306b42 0%, #183f28 52%, #05120b 100%)',
+    lightChromeColor: '#b5df9c',
+    darkChromeColor: '#306b42',
   },
   {
     id: 'dawn',
     label: 'dawn',
-    lightGradient: 'linear-gradient(135deg, #f1b08f 0%, #e58e83 52%, #d87580 100%)',
-    darkGradient: 'linear-gradient(135deg, #6a342e 0%, #3f211f 52%, #130a09 100%)',
-    lightChromeColor: '#f1b08f',
-    darkChromeColor: '#6a342e',
+    lightGradient: 'linear-gradient(135deg, #f6ab80 0%, #e77b70 52%, #cb6478 100%)',
+    darkGradient: 'linear-gradient(135deg, #7c3b32 0%, #4a211e 52%, #160807 100%)',
+    lightChromeColor: '#f6ab80',
+    darkChromeColor: '#7c3b32',
   },
   {
     id: 'lilac',
     label: 'lilac',
-    lightGradient: 'linear-gradient(135deg, #d0b1e2 0%, #b596d2 52%, #9b7bc0 100%)',
-    darkGradient: 'linear-gradient(135deg, #543269 0%, #34213f 52%, #0f0914 100%)',
-    lightChromeColor: '#d0b1e2',
-    darkChromeColor: '#543269',
+    lightGradient: 'linear-gradient(135deg, #d7abea 0%, #ac7dd4 52%, #9072ba 100%)',
+    darkGradient: 'linear-gradient(135deg, #64377c 0%, #3b214a 52%, #110716 100%)',
+    lightChromeColor: '#d7abea',
+    darkChromeColor: '#64377c',
   },
 ];
 
@@ -104,14 +104,15 @@ export class ThemeService {
         // The active theme still applies when storage is unavailable.
       }
 
-      this.doc.documentElement.dataset['backgroundTheme'] = backgroundTheme;
+      // Keep saved color preferences for later; appearance currently offers only light/dark.
+      this.doc.documentElement.dataset['backgroundTheme'] = 'neutral';
       this.doc.documentElement.classList.toggle('dark', isDark);
       this.doc.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
-      this.doc.body.dataset['backgroundTheme'] = backgroundTheme;
+      this.doc.body.dataset['backgroundTheme'] = 'neutral';
       this.doc.body.classList.toggle('dark', isDark);
       this.doc.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
         'content',
-        this.chromeColor(backgroundTheme, isDark),
+        this.chromeColor(isDark),
       );
     });
 
@@ -134,18 +135,12 @@ export class ThemeService {
     this.dark.set(value);
   }
 
-  selectBackgroundTheme(value: BackgroundThemeId): void {
-    this.setBackgroundTheme(value);
-    this.saveCurrentPreferenceToAccount();
-  }
-
   setBackgroundTheme(value: BackgroundThemeId): void {
     this.backgroundTheme.set(isBackgroundThemeId(value) ? value : 'neutral');
   }
 
-  chromeColor(theme: BackgroundThemeId = this.backgroundTheme(), dark = this.dark()): string {
-    const option = BACKGROUND_THEME_OPTIONS.find(candidate => candidate.id === theme)
-      ?? BACKGROUND_THEME_OPTIONS[0];
+  chromeColor(dark = this.dark()): string {
+    const option = BACKGROUND_THEME_OPTIONS[0];
     return dark ? option.darkChromeColor : option.lightChromeColor;
   }
 

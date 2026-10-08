@@ -37,11 +37,10 @@ export class NativePlatformService {
     });
     effect(() => {
       const isDark = this.theme.dark();
-      const backgroundTheme = this.theme.backgroundTheme();
       void SystemBars.setStyle({ style: isDark ? SystemBarsStyle.Dark : SystemBarsStyle.Light });
       if (this.platform === 'android') {
         void StatusBar.setBackgroundColor({
-          color: this.theme.chromeColor(backgroundTheme, isDark),
+          color: this.theme.chromeColor(isDark),
         }).catch(() => undefined);
       }
     });

@@ -151,8 +151,8 @@
               aria-hidden="true"
             >
               <circle cx="12" cy="12" r="10" />
-              <path d="M9.1 9a3 3 0 1 1 5.1 2.1c-.9.8-1.2 1.2-1.2 2.4" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
+              <path d="M9.09 9a3 3 0 1 1 5.83 1c0 2-2.92 2.75-2.92 4" />
+              <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
             </svg>
           </button>
         }
@@ -376,8 +376,9 @@
                   </button>
                   @if (canDeleteSection(activeSection())) {
                     <button
-                      class="section-menu-item section-menu-item-icon danger"
+                      class="section-menu-item section-menu-item-icon section-menu-item-icon-only danger"
                       (click)="startDeletingActiveSectionFromMenu()"
+                      [attr.aria-label]="'delete page: ' + (activeSection()?.title || 'untitled page')"
                     >
                       <svg
                         class="section-menu-icon"
@@ -397,7 +398,6 @@
                         <path d="M14 11v6" />
                         <path d="M9 6V4h6v2" />
                       </svg>
-                      <span>delete page</span>
                     </button>
                   }
                 </div>
@@ -921,6 +921,7 @@
                       <div class="task-dots-wrapper mobile-only" data-task-menu>
                         <button
                           class="icon-btn-sm task-dots-btn"
+                          type="button"
                           (click)="toggleTaskMenu(task.id, $event)"
                           [attr.aria-label]="'options for: ' + task.text"
                           [attr.aria-expanded]="taskMenuOpenId() === task.id"
@@ -930,25 +931,39 @@
                         </button>
                         @if (taskMenuOpenId() === task.id) {
                           <div class="task-dots-menu" [id]="'task-menu-' + task.id">
+                            @if (task.subtasks.length < 10 && addingSubtaskToId() !== task.id) {
+                              <button
+                                class="task-dots-item"
+                                type="button"
+                                (click)="startAddingSubtask(task.id); taskMenuOpenId.set(null)"
+                              >
+                                add subtask
+                              </button>
+                            }
                             <button
                               class="task-dots-item"
+                              type="button"
                               (click)="openDeadlineEditor(task); taskMenuOpenId.set(null)"
+                              [attr.aria-label]="task.deadlineAt ? 'edit deadline for: ' + task.text : 'add deadline for: ' + task.text"
                             >
                               {{ task.deadlineAt ? 'edit deadline' : 'add deadline' }}
                             </button>
                             @if (taskMoveTargetSections().length > 0) {
                               <button
                                 class="task-dots-item"
+                                type="button"
                                 (click)="openTaskMoveDialog(task)"
                               >
                                 move to ...
                               </button>
                             }
                             <button
-                              class="task-dots-item task-dots-item-danger"
+                              class="task-dots-item"
+                              type="button"
                               (click)="removeTask(task.id)"
+                              [attr.aria-label]="'delete task: ' + task.text"
                             >
-                              delete
+                              delete task
                             </button>
                           </div>
                         }
@@ -1135,24 +1150,14 @@
                     </div>
                   }
 
-                  <!-- Add subtask button -->
                   @if (task.subtasks.length < 10 && addingSubtaskToId() !== task.id) {
                     <button
-                      class="add-subtask-btn"
-                      (click)="startAddingSubtask(task.id)"
-                      aria-label="add subtask"
+                      class="add-subtask-btn desktop-add-subtask-btn"
+                      type="button"
+                      (click)="startAddingSubtask(task.id); $event.stopPropagation()"
+                      [attr.aria-label]="'add subtask to: ' + task.text"
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <line x1="12" y1="5" x2="12" y2="19" />
                         <line x1="5" y1="12" x2="19" y2="12" />
                       </svg>

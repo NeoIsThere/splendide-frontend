@@ -398,6 +398,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   height: 16px;
 }
 
+.section-menu-item-icon-only {
+  justify-content: center;
+  min-height: 44px;
+}
+
 .section-delete-popover {
   position: absolute;
   top: calc(100% + 6px);
@@ -601,10 +606,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
   a {
     color: var(--link);
-    text-decoration: none;
+    text-decoration: underline;
+    text-underline-offset: 0.14em;
 
     &:hover {
-      text-decoration: underline;
+      text-decoration-thickness: 2px;
     }
   }
 
@@ -757,7 +763,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   flex: 0 0 34px;
   width: 34px;
   height: 18px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent);
   border-radius: 999px;
   background: transparent;
   transition:
@@ -772,20 +778,20 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: var(--accent);
   transition:
     transform 0.2s $ease,
     background 0.2s $ease;
 }
 
 .share-toggle-input:checked + .share-toggle-track {
-  background: rgba(128, 80, 180, 0.14);
-  border-color: rgba(128, 80, 180, 0.36);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .share-toggle-input:checked + .share-toggle-track .share-toggle-thumb {
   transform: translateX(16px);
-  background: #8b5cf6;
+  background: var(--card);
 }
 
 .share-toggle-input:focus-visible + .share-toggle-track {
@@ -878,7 +884,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  padding: 0 0 8px 32px;
+  padding: 0 0 0 32px;
   overflow: visible;
   position: relative;
   z-index: 30;
@@ -965,7 +971,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 }
 
 .section-page-actions {
-  height: 30px;
+  height: 26px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1362,12 +1368,13 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
-  margin: 10px 0 5px 0;
+  margin: 2px 0;
+  line-height: 1;
   flex: 0 0 auto;
 }
 
 .counter-invisible {
-  visibility: hidden;
+  display: none;
 }
 
 // ─── Section title ─────────────────────────────────────────
@@ -1431,18 +1438,9 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   flex: 0 0 auto;
 }
 
-.task-drop-zone > .add-placeholder {
-  @media (max-width: 768px) {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--bg);
-  }
-}
-
 // ─── Task item ─────────────────────────────────────────────
 .task-item {
-  padding: 14px 10px;
+  padding: 10px;
   margin: 0;
   border-radius: 6px;
   user-select: none;
@@ -1451,10 +1449,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
     opacity 0.4s $ease,
     background 0.15s $ease,
     box-shadow 0.15s $ease;
-
-  &.done {
-    opacity: 0.5;
-  }
 
   &:hover,
   &:focus-within,
@@ -1465,15 +1459,30 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   @media (max-width: 768px) {
     margin: 0;
     min-height: 44px;
-    padding: 8px;
+    padding: 0 8px;
     touch-action: pan-y;
   }
 }
 
 .task-main {
+  --task-text-padding: 0px;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  @media (max-width: 768px) {
+    --task-text-padding: calc((44px - 1.575rem) / 2);
+    min-height: 44px;
+  }
+
+  &:has(> .task-text) {
+    align-items: flex-start;
+
+    > .check-btn {
+      // Center the checkbox against the first 1.5-line-height text line.
+      margin-top: calc(var(--task-text-padding) + (1.575rem - 16px) / 2);
+    }
+  }
 }
 
 .validate-edit-btn {
@@ -1500,8 +1509,9 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   width: 16px;
   height: 16px;
   border-radius: 3px;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--text);
   background: transparent;
+  color: var(--text);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -1519,9 +1529,9 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
     background 0.2s $ease;
 
   &.checked {
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    color: var(--accent);
+    border-color: var(--text);
+    background: transparent;
+    color: var(--text);
   }
 
   &.checked svg {
@@ -1544,6 +1554,8 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   flex: 1;
   min-width: 0;
   font-size: 1.05rem;
+  line-height: 1.5;
+  padding-block: var(--task-text-padding);
   font-weight: 500;
   cursor: text;
   overflow-wrap: break-word;
@@ -1626,11 +1638,12 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .task-link {
   color: var(--link);
   font-weight: inherit;
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
   cursor: pointer;
 
   &:hover {
-    text-decoration: underline;
+    text-decoration-thickness: 2px;
   }
 
   &:focus-visible {
@@ -1653,6 +1666,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   align-items: center;
   gap: 4px;
   opacity: 0;
+  pointer-events: none;
   transition:
     opacity 0.2s $ease,
     color 0.2s $ease;
@@ -1661,6 +1675,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   .task-item:focus-within &,
   .task-item.keyboard-focused & {
     opacity: 0.6;
+    pointer-events: auto;
   }
 
   &:hover {
@@ -1672,13 +1687,24 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
     opacity: 1;
     outline: 2px solid var(--text);
     outline-offset: 2px;
+    pointer-events: auto;
+  }
+
+  @media (max-width: 768px) {
+    display: none;
   }
 }
 
 .add-subtask-btn-form {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  gap: 4px;
   opacity: 0.6;
   margin-left: 0;
   margin-top: 8px;
+  padding: 2px 0;
+  pointer-events: auto;
 }
 
 // ─── Remove button ─────────────────────────────────────────
@@ -1754,6 +1780,9 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 
   @media (max-width: 768px) {
+    width: 44px;
+    height: 44px;
+    padding: 0;
     opacity: 1;
   }
 }
@@ -1795,6 +1824,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .task-dots-item {
   display: block;
   width: 100%;
+  min-height: 44px;
   text-align: left;
   border: none;
   background: none;
@@ -1811,17 +1841,14 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 }
 
-.task-dots-item-danger {
-  color: #c44;
-}
-
 .add-placeholder {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   column-gap: 4px;
   row-gap: 0;
-  padding: 14px 10px;
+  min-height: 44px;
+  padding: 10px;
   margin: 0;
   border-radius: 6px;
   cursor: pointer;
@@ -1841,7 +1868,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
   &::after {
     content: 'subtask';
-    visibility: hidden;
+    display: none;
     flex: 0 0 100%;
     margin-top: 6px;
     margin-left: 32px;
@@ -1852,7 +1879,11 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
   @media (max-width: 768px) {
     min-height: 44px;
-    padding: 8px;
+    padding: 0 8px;
+
+    &:hover {
+      background: transparent;
+    }
 
     &::after {
       display: none;
@@ -2156,7 +2187,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 .task-drag-preview-card {
   width: 100%;
   height: 100%;
-  padding: 14px 10px;
+  padding: 10px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2319,7 +2350,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
 
 .done-list-title {
   color: var(--text-muted);
-  opacity: 0.58;
 }
 
 .done-list {
@@ -2329,7 +2359,6 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   gap: 2px;
   min-height: 0;
   margin-top: 30px;
-  opacity: 0.58;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -2348,7 +2377,7 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   align-items: flex-start;
   gap: 10px;
   min-width: 0;
-  padding: 10px 8px;
+  padding: 8px;
   margin: 0;
   border-radius: 6px;
   color: var(--text-muted);
@@ -2360,14 +2389,28 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   }
 
   .check-btn.checked {
-    border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-color: var(--text);
+    background: transparent;
+  }
+
+  @media (max-width: 768px) {
+    min-height: 44px;
+    padding: 0 8px;
+    align-items: flex-start;
+
+    > .check-btn {
+      margin-top: 14px;
+    }
   }
 }
 
 .done-task-body {
   min-width: 0;
   flex: 1;
+
+  @media (max-width: 768px) {
+    padding: 11px 0 10px;
+  }
 }
 
 .done-task-text {
@@ -2391,10 +2434,18 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   gap: 8px;
   min-width: 0;
   padding-left: 2px;
+
+  @media (max-width: 768px) {
+    min-height: 44px;
+  }
 }
 
 .done-subtask-check {
   margin-top: 1px;
+
+  @media (max-width: 768px) {
+    margin-top: 14px;
+  }
 }
 
 .done-subtask-text {
@@ -2405,6 +2456,10 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   font-weight: 400;
   overflow-wrap: break-word;
   word-break: break-word;
+
+  @media (max-width: 768px) {
+    padding: 11px 0 10px;
+  }
 
   &.struck {
     text-decoration: line-through;
@@ -2556,6 +2611,10 @@ $quiet-scrollbar-thumb: rgba(128, 128, 128, 0.14);
   gap: 9px;
   font-size: 0.85rem;
   cursor: pointer;
+
+  input {
+    accent-color: var(--accent);
+  }
 }
 
 .deadline-actions {

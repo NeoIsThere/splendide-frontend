@@ -6,7 +6,6 @@ import { openExternalUrl } from '../../utils/external-link';
 import { environment } from '../../../environments/environment';
 import { MobileNotificationsService } from '../../services/mobile-notifications.service';
 import { MobilePurchasesService } from '../../services/mobile-purchases.service';
-import { BACKGROUND_THEME_OPTIONS, ThemeService } from '../../services/theme.service';
 import { DeadlineNotificationsService } from '../../services/deadline-notifications.service';
 
 @Component({
@@ -25,30 +24,6 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
 
         <p class="auth-logo">splendide.</p>
         <h1 class="auth-title">settings</h1>
-
-        <fieldset class="settings-section settings-appearance" aria-describedby="background-description">
-          <legend class="settings-section-title">background</legend>
-          <p id="background-description" class="settings-section-desc">choose a calm backdrop</p>
-          <div class="background-options">
-            @for (option of backgroundThemes; track option.id) {
-              <label class="background-option" [attr.data-background-option]="option.id">
-                <input
-                  type="radio"
-                  name="background-theme"
-                  [value]="option.id"
-                  [checked]="theme.backgroundTheme() === option.id"
-                  (change)="theme.selectBackgroundTheme(option.id)"
-                />
-                <span
-                  class="background-swatch"
-                  [style.background]="theme.dark() ? option.darkGradient : option.lightGradient"
-                  aria-hidden="true"
-                ></span>
-                <span class="background-label">{{ option.label }}</span>
-              </label>
-            }
-          </div>
-        </fieldset>
 
         <section class="settings-section" aria-labelledby="device-notifications-title">
           <div class="notification-row">
@@ -354,78 +329,6 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
       }
     }
 
-    .settings-appearance {
-      min-width: 0;
-      margin: 0;
-      border-right: 0;
-      border-bottom: 0;
-      border-left: 0;
-    }
-
-    .settings-appearance .settings-section-title {
-      padding: 0;
-    }
-
-    .background-options {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(52px, 1fr));
-      gap: 8px;
-    }
-
-    .background-option {
-      position: relative;
-      display: flex;
-      min-width: 0;
-      min-height: 60px;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      border-radius: 8px;
-      color: var(--text-secondary);
-      cursor: pointer;
-    }
-
-    .background-option input {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-    }
-
-    .background-swatch {
-      display: block;
-      width: 42px;
-      height: 34px;
-      border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
-      border-radius: 8px;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 24%, transparent);
-    }
-
-    .background-label {
-      overflow: hidden;
-      max-width: 100%;
-      font-size: 0.7rem;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .background-option input:checked + .background-swatch {
-      border-color: var(--text);
-      box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--text);
-    }
-
-    .background-option input:focus-visible + .background-swatch {
-      outline: 2px solid var(--text);
-      outline-offset: 3px;
-    }
-
-    @media (max-width: 520px) {
-      .background-options {
-        grid-template-columns: repeat(3, minmax(72px, 1fr));
-      }
-    }
-
     .settings-section-header {
       display: flex;
       flex-direction: column;
@@ -450,24 +353,32 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
     .settings-switch input { position: absolute; opacity: 0; pointer-events: none; }
     .settings-switch-track {
       display: block;
+      box-sizing: border-box;
       width: 46px;
       height: 28px;
-      padding: 3px;
+      padding: 2px;
+      border: 1px solid var(--accent);
       border-radius: 999px;
-      background: var(--border);
-      transition: background .18s ease;
+      background: transparent;
+      transition: background .18s ease, border-color .18s ease;
     }
     .settings-switch-track span {
       display: block;
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      background: var(--card, #fff);
+      background: var(--accent);
       box-shadow: 0 1px 3px rgba(0, 0, 0, .22);
-      transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+      transition: transform .2s cubic-bezier(.2, .8, .2, 1), background .18s ease;
     }
-    .settings-switch input:checked + .settings-switch-track { background: var(--accent); }
-    .settings-switch input:checked + .settings-switch-track span { transform: translateX(18px); }
+    .settings-switch input:checked + .settings-switch-track {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+    .settings-switch input:checked + .settings-switch-track span {
+      transform: translateX(18px);
+      background: var(--card, #fff);
+    }
     .settings-switch input:focus-visible + .settings-switch-track { outline: 2px solid var(--text); outline-offset: 3px; }
     .settings-switch input:disabled + .settings-switch-track { opacity: .55; }
 
@@ -673,9 +584,7 @@ import { DeadlineNotificationsService } from '../../services/deadline-notificati
 })
 export class SettingsComponent {
   protected readonly auth = inject(AuthService);
-  protected readonly theme = inject(ThemeService);
   protected readonly deadlineNotifications = inject(DeadlineNotificationsService);
-  protected readonly backgroundThemes = BACKGROUND_THEME_OPTIONS;
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(MobileNotificationsService);
