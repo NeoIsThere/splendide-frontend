@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 
@@ -21,7 +21,8 @@ type State = 'loading' | 'success' | 'invalid' | 'expired';
 
           @case ('success') {
             <h2 class="auth-title">email verified</h2>
-            <p class="verify-msg">your account is ready. redirecting</p>
+            <p class="verify-msg" role="status">your account is ready. sign in on the device whose tasks you want to keep</p>
+            <a class="auth-btn auth-btn--block" routerLink="/sign-in">sign in</a>
           }
 
           @case ('invalid') {
@@ -96,7 +97,6 @@ type State = 'loading' | 'success' | 'invalid' | 'expired';
 export class VerifyEmailComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
 
   protected readonly state = signal<State>('loading');
@@ -119,7 +119,6 @@ export class VerifyEmailComponent implements OnInit {
     try {
       await this.auth.verifyEmail(token);
       this.state.set('success');
-      setTimeout(() => this.router.navigate(['/']), 1500);
     } catch (e: any) {
       const status = e?.status;
       const code = e?.error?.error;

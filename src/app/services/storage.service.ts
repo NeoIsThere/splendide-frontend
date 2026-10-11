@@ -666,9 +666,11 @@ function createDefaultPartition(): Partition {
 
 function cloneItemForUser(item: StoredItem, position: number): StoredItem {
   const id = generateId();
+  const deadlines = normalizeDeadlineFields(item.content, item as unknown as Record<string, unknown>);
   return {
     id,
-    content: normalizeTaskContent(item.content, id),
+    content: normalizeTaskContent(item.content, id, deadlines),
+    ...deadlines,
     position,
     lastModifiedAt: item.lastModifiedAt,
     serverRevision: 0,
@@ -721,6 +723,7 @@ function cloneSectionForUser(section: StoredSection): StoredSection {
 @Injectable({ providedIn: 'root' })
 export class StorageService {
   private activeKey = ANONYMOUS_KEY;
+  private partitionRevision = 0;
   private readonly legacyPartitionFallbacks = new Map<string, Partition>();
   private sectionOrderLocalRevision = 0;
   private localMutationRevision = 0;
@@ -783,8 +786,17 @@ export class StorageService {
   }
 
   setActivePartition(userId?: string): void {
-    this.activeKey = this.buildKey(userId);
+    const nextKey = this.buildKey(userId);
+    if (nextKey !== this.activeKey) {
+      this.partitionRevision += 1;
+      this.markLocalMutation();
+    }
+    this.activeKey = nextKey;
     this.migrateLegacyPartition(userId);
+  }
+
+  getPartitionRevision(): number {
+    return this.partitionRevision;
   }
 
   isPartitionEmpty(userId?: string): boolean {

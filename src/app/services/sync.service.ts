@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpResponse } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { syncBatches } from '../utils/sync-batches';
 import {
@@ -38,6 +38,15 @@ export class SyncService {
   private sectionsSyncGeneration = 0;
   private readonly listsSyncGeneration = new Map<string, number>();
   private readonly itemsSyncGeneration = new Map<string, number>();
+
+  private async inCurrentPartition<T>(request: Observable<T>): Promise<T> {
+    const partitionRevision = this.storage.getPartitionRevision();
+    const response = await firstValueFrom(request);
+    if (partitionRevision !== this.storage.getPartitionRevision()) {
+      throw new Error('The storage partition changed during sync');
+    }
+    return response;
+  }
 
   private nextGeneration(map: Map<string, number>, key: string): number {
     const next = (map.get(key) ?? 0) + 1;
@@ -149,7 +158,7 @@ export class SyncService {
   }
 
   async loadSharedSection(shareToken: string): Promise<StoredSection> {
-    const section = await firstValueFrom(
+    const section = await this.inCurrentPartition(
       this.http.get<StoredSection>(`${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}`),
     );
     this.storage.upsertSectionSnapshot(section);
@@ -157,7 +166,7 @@ export class SyncService {
   }
 
   async enableSectionSharing(sectionId: string): Promise<StoredSection> {
-    const section = await firstValueFrom(
+    const section = await this.inCurrentPartition(
       this.http.post<StoredSection>(`${this.apiUrl}/sections/${encodeURIComponent(sectionId)}/share`, {}),
     );
     this.storage.upsertSectionSnapshot(section);
@@ -165,7 +174,7 @@ export class SyncService {
   }
 
   async disableSectionSharing(sectionId: string): Promise<StoredSection> {
-    const section = await firstValueFrom(
+    const section = await this.inCurrentPartition(
       this.http.delete<StoredSection>(`${this.apiUrl}/sections/${encodeURIComponent(sectionId)}/share`),
     );
     this.storage.upsertSectionSnapshot(section);
@@ -207,7 +216,7 @@ export class SyncService {
           };
         })();
 
-    const response = await firstValueFrom(
+    const response = await this.inCurrentPartition(
       this.http.post<SectionsSyncResponse>(
         `${this.apiUrl}/sections/sync`,
         payload,
@@ -251,7 +260,7 @@ export class SyncService {
     }));
 
     const shareToken = this.shareTokenForAnonymousSection(sectionId);
-    const response = await firstValueFrom(
+    const response = await this.inCurrentPartition(
       this.http.post<StoredList[] | SectionsSyncResponse>(
         shareToken
           ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/sync`
@@ -299,7 +308,7 @@ export class SyncService {
     let synced: ItemsSyncResponse | null = null;
     for (const [index, batch] of batches.entries()) {
       if (generation !== this.itemsSyncGeneration.get(key)) break;
-      const response = await firstValueFrom(
+      const response = await this.inCurrentPartition(
         this.http.post<ItemsSyncResponse | SectionsSyncResponse>(
           shareToken
             ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/lists/${listId}/sync`
@@ -392,7 +401,7 @@ export class SyncService {
 
   async reorderSections(sections: { id: string; position: number }[]): Promise<OrderSyncResponse> {
     const localMutationRevision = this.storage.getLocalMutationRevision();
-    const response = await firstValueFrom(
+    const response = await this.inCurrentPartition(
       this.http.patch<OrderSyncResponse | SectionsSyncResponse>(
         `${this.apiUrl}/sections/reorder`,
         {
@@ -411,7 +420,7 @@ export class SyncService {
   async reorderItems(sectionId: string, listId: string, items: { id: string; position: number }[]): Promise<OrderSyncResponse> {
     const shareToken = this.shareTokenForAnonymousSection(sectionId);
     const localMutationRevision = this.storage.getLocalMutationRevision();
-    const response = await firstValueFrom(
+    const response = await this.inCurrentPartition(
       this.http.patch<OrderSyncResponse | SectionsSyncResponse>(
         shareToken
           ? `${this.apiUrl}/sections/share/${encodeURIComponent(shareToken)}/lists/${listId}/reorder`
@@ -449,7 +458,7 @@ export class SyncService {
     this.reserveListItemsSync(sourceSectionId, sourceList.id);
     this.reserveListItemsSync(targetSectionId, targetList.id);
     const localMutationRevision = this.storage.getLocalMutationRevision();
-    const response = await firstValueFrom(
+    const response = await this.inCurrentPartition(
       this.http.post<MoveItemResponse | SectionsSyncResponse>(
         `${this.apiUrl}/sections/${encodeURIComponent(sourceSectionId)}/items/${encodeURIComponent(itemId)}/move`,
         {

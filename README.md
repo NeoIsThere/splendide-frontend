@@ -2,6 +2,20 @@
 
 The iOS/Android Capacitor application and its release handoff are documented in [MOBILE_SETUP.md](MOBILE_SETUP.md).
 
+## Signup and local data
+
+Email signup requires matching password and confirmation fields. Opening the
+verification link only activates the account; the user must explicitly sign in.
+On the account's first successful sign-in, Splendide copies the anonymous data
+from that browser/app into account storage and queues it for normal cloud sync.
+This preserves pages, tasks, subtasks, completion, deadlines, and ordering.
+The original anonymous data remains local and reappears after sign-out.
+Later sign-ins show account data without importing that device's anonymous data.
+
+This flow requires the backend's `isFirstSignIn` response and
+`20261011120000_first_sign_in` migration. Verification on another device does not
+choose the import source: the first device that signs in does.
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.3.
 
 ## Development server

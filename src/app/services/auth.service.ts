@@ -35,6 +35,7 @@ interface AuthResponse {
   refreshToken?: string;
   user: User;
   isNewUser?: boolean;
+  isFirstSignIn?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -82,11 +83,7 @@ export class AuthService {
   }
 
   async verifyEmail(token: string): Promise<void> {
-    const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-email`, { token }, { withCredentials: true }));
-    await this.setSession(res);
-    if (res.isNewUser) {
-      await this.copyAnonymousToNewUser(res.user.id);
-    }
+    await firstValueFrom(this.http.post<{ message: string }>(`${this.apiUrl}/auth/verify-email`, { token }));
   }
 
   async resendVerification(email: string): Promise<void> {
@@ -103,9 +100,6 @@ export class AuthService {
   async googleAuth(idToken: string): Promise<{ isNewUser: boolean }> {
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google`, { idToken }, { withCredentials: true }));
     await this.setSession(res);
-    if (res.isNewUser) {
-      await this.copyAnonymousToNewUser(res.user.id);
-    }
     return { isNewUser: res.isNewUser ?? false };
   }
 
@@ -131,9 +125,6 @@ export class AuthService {
     const oauth = await desktop.startGoogleOAuth(environment.googleClientId);
     const res = await firstValueFrom(this.http.post<AuthResponse>(`${this.apiUrl}/auth/google/oauth`, oauth, { withCredentials: true }));
     await this.setSession(res);
-    if (res.isNewUser) {
-      await this.copyAnonymousToNewUser(res.user.id);
-    }
     return { isNewUser: res.isNewUser ?? false };
   }
 
@@ -156,9 +147,6 @@ export class AuthService {
       { withCredentials: true },
     ));
     await this.setSession(res);
-    if (res.isNewUser) {
-      await this.copyAnonymousToNewUser(res.user.id);
-    }
     return { isNewUser: res.isNewUser ?? false };
   }
 
@@ -327,6 +315,13 @@ export class AuthService {
 
   private async setSession(res: AuthResponse): Promise<void> {
     const user = this.normalizeUserPreferences(res.user);
+    // Import from the device that actually signs in, before publishing the
+    // session to effects or allowing the home screen to start cloud sync.
+    // isNewUser keeps social signup compatible with an older backend.
+    if (res.isFirstSignIn ?? res.isNewUser ?? false) {
+      this.storage.copyAnonymousToUser(user.id);
+    }
+    this.storage.setActivePartition(user.id);
     this._token.set(res.accessToken);
     this._user.set(user);
     localStorage.setItem('splendide_token', res.accessToken);
@@ -348,10 +343,6 @@ export class AuthService {
         this.clearLocalSession();
       }
     }
-  }
-
-  private async copyAnonymousToNewUser(userId: string): Promise<void> {
-    this.storage.copyAnonymousToUser(userId);
   }
 
   private loadToken(): string | null {
@@ -506,6 +497,7 @@ export class AuthService {
   }
 
   private clearLocalSession(): void {
+    this.storage.setActivePartition();
     this._user.set(null);
     this._token.set(null);
     this.posthog.reset();

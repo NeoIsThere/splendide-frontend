@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { AbstractControl, ReactiveFormsModule, FormBuilder, ValidationErrors, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { GoogleButtonComponent } from '../../components/google-button.component';
@@ -26,7 +26,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
             @if (alreadyPending()) {
               <p>your email isn't verified yet. check your inbox or request a new link below</p>
             } @else {
-              <p>we've sent a verification link to your email. click it to activate your account</p>
+              <p>we've sent a verification link to your email. verify it, then sign in on the device whose tasks you want to keep</p>
             }
             @if (resendSuccess()) {
               <p class="auth-resend-success">a new link has been sent</p>
@@ -35,6 +35,7 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
                 {{ resendLoading() ? 'sending' : 'resend verification email' }}
               </button>
             }
+            <a class="auth-resend-btn" routerLink="/sign-in">sign in</a>
           </div>
         } @else {
           @if (error()) {
@@ -106,6 +107,45 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
               </p>
             }
 
+            <label class="auth-label" for="confirmPassword">confirm password</label>
+            <div class="auth-password-field">
+              <input
+                id="confirmPassword"
+                class="auth-input"
+                [class.auth-input--error]="confirmPasswordInvalid()"
+                [attr.aria-invalid]="confirmPasswordInvalid()"
+                [attr.aria-describedby]="confirmPasswordInvalid() ? 'confirm-password-error' : null"
+                [type]="confirmPasswordVisible() ? 'text' : 'password'"
+                formControlName="confirmPassword"
+                autocomplete="new-password"
+              />
+              <button
+                class="auth-password-toggle"
+                type="button"
+                [attr.aria-label]="confirmPasswordVisible() ? 'hide confirmed password' : 'show confirmed password'"
+                (click)="confirmPasswordVisible.update(visible => !visible)"
+              >
+                @if (confirmPasswordVisible()) {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 2l20 20" />
+                    <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                    <path d="M9.9 5.1A10.6 10.6 0 0 1 12 5c5 0 9 4.5 10 7a13.1 13.1 0 0 1-2.2 3.3" />
+                    <path d="M6.6 6.6A13.3 13.3 0 0 0 2 12c1 2.5 5 7 10 7 1.6 0 3.1-.4 4.4-1" />
+                  </svg>
+                } @else {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                }
+              </button>
+            </div>
+            @if (confirmPasswordInvalid()) {
+              <p id="confirm-password-error" class="auth-field-error" role="alert">
+                {{ form.controls.confirmPassword.hasError('required') ? 'confirm your password' : 'passwords do not match' }}
+              </p>
+            }
+
             <button class="auth-btn" type="submit" [disabled]="loading()">
               @if (loading()) { creating account } @else { sign up }
             </button>
@@ -133,11 +173,11 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
   styles: [`
     .auth-field-error {
       font-size: 0.8rem;
-      color: #e53e3e;
+      color: var(--danger);
       margin: -6px 0 4px;
     }
     .auth-input--error {
-      border-color: #e53e3e;
+      border-color: var(--danger);
     }
     .auth-loading {
       text-align: center;
@@ -167,6 +207,8 @@ import { GoogleButtonComponent } from '../../components/google-button.component'
       }
     }
     .auth-resend-btn {
+      display: inline-block;
+      text-decoration: none;
       background: none;
       border: 1px solid var(--border, #e0e0e0);
       border-radius: 6px;
@@ -198,13 +240,24 @@ export class SignUpComponent {
   protected readonly resendLoading = signal(false);
   protected readonly resendSuccess = signal(false);
   protected readonly passwordVisible = signal(false);
+  protected readonly confirmPasswordVisible = signal(false);
   private pendingEmail = '';
 
   protected readonly form = this.fb.nonNullable.group({
     name: [''],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]],
+    confirmPassword: ['', Validators.required],
+  }, {
+    validators: (group: AbstractControl): ValidationErrors | null =>
+      group.get('password')?.value === group.get('confirmPassword')?.value
+        ? null : { passwordMismatch: true },
   });
+
+  protected confirmPasswordInvalid(): boolean {
+    return this.form.controls.confirmPassword.touched &&
+      (this.form.controls.confirmPassword.invalid || this.form.hasError('passwordMismatch'));
+  }
 
   protected async onSubmit(): Promise<void> {
     this.form.markAllAsTouched();

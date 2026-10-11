@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { firstValueFrom, from } from 'rxjs';
+import { defer, firstValueFrom, from } from 'rxjs';
 import { syncBatches } from '../src/app/utils/sync-batches.ts';
 
 // Exercise the actual service with HTTP/storage boundaries replaced. Transpile
@@ -29,7 +29,9 @@ function harness(localItems: Item[], respond: (payload: Payload, index: number) 
   const merges: Array<{ snapshot: Snapshot; revision: number }> = [];
   const HttpClient = Symbol('HTTP');
   const StorageService = Symbol('storage');
+  let partitionRevision = 0;
   const storage = {
+    getPartitionRevision: () => partitionRevision,
     getItemsRevision: () => 7, getLocalMutationRevision: () => 9, getSyncGeneration: () => 0,
     getItemsForList: () => localItems, getActiveUserId: () => anonymous ? null : 'user',
     getSection: () => ({ shareToken: 'shared-token' }), acceptServerSyncGeneration: () => undefined,
@@ -38,7 +40,7 @@ function harness(localItems: Item[], respond: (payload: Payload, index: number) 
   };
   const http = { post: (url: string, payload: Payload) => {
     sent.push({ url, payload });
-    return from(respond(payload, sent.length - 1).then(body => ({ body, headers: { get: () => null } })));
+    return defer(() => from(respond(payload, sent.length - 1).then(body => ({ body, headers: { get: () => null } }))));
   } };
   const exports: { SyncService?: new () => {
     syncListItems(section: string, list: string): Promise<unknown>; reserveListItemsSync(section: string, list: string): void;
@@ -54,7 +56,7 @@ function harness(localItems: Item[], respond: (payload: Payload, index: number) 
     return modules[id];
   } });
   assert.ok(exports.SyncService);
-  return { service: new exports.SyncService(), sent, merges };
+  return { service: new exports.SyncService(), sent, merges, switchPartition: () => { partitionRevision++; } };
 }
 
 for (const anonymous of [false, true]) {
@@ -102,6 +104,16 @@ test('a newer sync or task move cancels unsent batches and discards the old resp
     return { items: payload.items, itemsOrderRevision: 3 };
   });
   await context.service.syncListItems('page', 'list');
+  assert.equal(context.sent.length, 1);
+  assert.equal(context.merges.length, 0);
+});
+
+test('signing out during sync discards account data and stops unsent batches', async () => {
+  const context = harness(items(200), async payload => {
+    context.switchPartition();
+    return { items: payload.items, itemsOrderRevision: 3 };
+  });
+  await assert.rejects(context.service.syncListItems('page', 'list'), /partition changed/);
   assert.equal(context.sent.length, 1);
   assert.equal(context.merges.length, 0);
 });
